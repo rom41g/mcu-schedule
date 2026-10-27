@@ -558,13 +558,20 @@
     });
 
    function triggerSmartInstall() {
-      // 1. Для iPhone сразу открываем аккуратную подсказку без черного экрана Telegram
+      // 1. Если пользователь внутри Telegram на iPhone — перебрасываем его в Safari одной кнопкой
+      const isInsideTelegram = Boolean(tg && tg.initData);
+      if (isIOS && isInsideTelegram) {
+        tg.openLink("https://rom41g.github.io/mcu-schedule/");
+        return;
+      }
+
+      // 2. Если уже открыто в Safari на iPhone — показываем шторку с шагами
       if (isIOS) {
         document.getElementById("iosInstructionModal").style.display = "flex";
         return;
       }
 
-      // 2. Для Android и ПК вызываем нативную установку в 1 клик
+      // 3. Для Android и ПК (Chrome/Яндекс) — нативная установка в 1 клик
       if (deferredPrompt) {
         deferredPrompt.prompt();
         deferredPrompt.userChoice.then((choice) => {
@@ -576,13 +583,13 @@
         return;
       }
 
-      // 3. Для Telegram на Android (если не сработал системный промпт)
+      // 4. Запасной вариант для Telegram на Android
       if (tg && typeof tg.addToHomeScreen === 'function') {
         tg.addToHomeScreen();
         return;
       }
 
-      alert("Откройте сайт в Safari и нажмите «Поделиться» ➔ «На экран Домой».");
+      alert("Откройте ссылку в браузере и выберите «Добавить на главный экран».");
     }
 
     function closeIosModal() {
