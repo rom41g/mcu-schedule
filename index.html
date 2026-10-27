@@ -6,7 +6,7 @@
   <title>МГПУ • Расписание ИИЯ</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-  <!-- PWA и метатеги для мобильных устройств -->
+  <!-- PWA и метатеги мобильных устройств -->
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="logo.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -183,7 +183,7 @@
       color: #FFF !important;
     }
 
-    /* Расписание */
+    /* Карточки расписания */
     .schedule-list { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
     .lesson-card {
       background: var(--card-bg);
@@ -353,7 +353,7 @@
     }
     .modal-btn:active { opacity: 0.85; }
 
-    /* Инструкция Safari для iOS */
+    /* Шаги установки Safari на iOS */
     .ios-step {
       display: flex;
       align-items: center;
@@ -367,7 +367,7 @@
       color: var(--mgpu-dark);
     }
     .ios-step-icon {
-      font-size: 22px;
+      font-size: 20px;
       width: 36px;
       height: 36px;
       background: var(--card-bg);
@@ -386,6 +386,64 @@
     @keyframes bounce {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(6px); }
+    }
+
+    /* Плавающий баннер для Safari на iOS */
+    .ios-install-banner {
+      display: none;
+      position: fixed;
+      bottom: calc(20px + env(safe-area-inset-bottom));
+      left: 16px;
+      right: 16px;
+      max-width: 420px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--mgpu-red);
+      border-radius: 16px;
+      padding: 12px 14px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      z-index: 9999;
+      animation: bannerSlideUp 0.35s ease-out;
+    }
+
+    @keyframes bannerSlideUp {
+      from { transform: translateY(50px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .ios-banner-body {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .ios-banner-icon { font-size: 24px; flex-shrink: 0; }
+    .ios-banner-text {
+      font-size: 13px;
+      line-height: 1.35;
+      color: var(--mgpu-dark);
+      flex: 1;
+    }
+    .ios-banner-text b { color: var(--mgpu-red); }
+    .ios-banner-close {
+      background: transparent;
+      border: none;
+      font-size: 18px;
+      color: var(--text-sub);
+      cursor: pointer;
+      padding: 4px;
+      margin-left: 4px;
+    }
+    .ios-banner-arrow {
+      text-align: center;
+      font-size: 18px;
+      margin-top: 4px;
+      animation: bannerArrowBounce 1.2s infinite ease-in-out;
+      color: var(--mgpu-red);
+    }
+
+    @keyframes bannerArrowBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(4px); }
     }
   </style>
 </head>
@@ -454,7 +512,7 @@
         </div>
       </div>
 
-      <!-- Умная кнопка установки на рабочий стол -->
+      <!-- Кнопка установки -->
       <button type="button" class="install-home-btn" id="installHomeBtn" onclick="triggerSmartInstall()">
         📲 Установить на рабочий стол
       </button>
@@ -463,7 +521,7 @@
     </div>
   </div>
 
-  <!-- Специальная всплывающая шторка для iPhone (Safari) -->
+  <!-- Шторка с инструкцией для Safari на iPhone -->
   <div class="modal-overlay" id="iosInstructionModal">
     <div class="modal-sheet" style="padding-bottom: 20px;">
       <div class="modal-header-row">
@@ -474,7 +532,7 @@
       
       <div class="ios-step">
         <div class="ios-step-icon">⎋</div>
-        <div>1. Нажмите кнопку <b>«Поделиться»</b> на нижней панели Safari</div>
+        <div>1. Нажмите кнопку <b>«Поделиться»</b> (или значок меню <b>≡</b>) на нижней панели Safari</div>
       </div>
       <div class="ios-step">
         <div class="ios-step-icon">➕</div>
@@ -487,6 +545,18 @@
 
       <div class="ios-arrow-bounce">⬇️</div>
     </div>
+  </div>
+
+  <!-- Плавающий баннер для браузера Safari на iOS -->
+  <div id="iosInstallBanner" class="ios-install-banner">
+    <div class="ios-banner-body">
+      <div class="ios-banner-icon">📲</div>
+      <div class="ios-banner-text">
+        Установите расписание: нажмите <b>«Поделиться» ⎋</b> (или меню <b>≡</b>) внизу и выберите <b>«На экран „Домой“»</b>
+      </div>
+      <button type="button" class="ios-banner-close" onclick="dismissIosBanner()">&times;</button>
+    </div>
+    <div class="ios-banner-arrow">▼</div>
   </div>
 
   <script>
@@ -538,18 +608,16 @@
     }
     initTheme();
 
-    /* ========== УМНАЯ УСТАНОВКА НА ЭКРАН (PWA + iOS) ========== */
+    /* ========== УСТАНОВКА НА ЭКРАН (PWA + iOS) ========== */
     let deferredPrompt = null;
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
-    // Скрываем кнопку, если приложение уже открыто с рабочего стола
     if (isStandalone) {
       const btn = document.getElementById("installHomeBtn");
       if (btn) btn.style.display = "none";
     }
 
-    // Перехват системного события PWA для Android/Chrome
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       deferredPrompt = e;
@@ -557,21 +625,22 @@
       if (btn && !isStandalone) btn.style.display = "flex";
     });
 
-   function triggerSmartInstall() {
-      // 1. Если пользователь внутри Telegram на iPhone — перебрасываем его в Safari одной кнопкой
+    function triggerSmartInstall() {
       const isInsideTelegram = Boolean(tg && tg.initData);
+
+      // Если iOS внутри Telegram — открываем напрямую в Safari без черных экранов
       if (isIOS && isInsideTelegram) {
         tg.openLink("https://rom41g.github.io/mcu-schedule/");
         return;
       }
 
-      // 2. Если уже открыто в Safari на iPhone — показываем шторку с шагами
+      // Если iOS уже в Safari — показываем инструкцию
       if (isIOS) {
         document.getElementById("iosInstructionModal").style.display = "flex";
         return;
       }
 
-      // 3. Для Android и ПК (Chrome/Яндекс) — нативная установка в 1 клик
+      // Если Android / Chrome на ПК — нативная установка в 1 клик
       if (deferredPrompt) {
         deferredPrompt.prompt();
         deferredPrompt.userChoice.then((choice) => {
@@ -583,20 +652,37 @@
         return;
       }
 
-      // 4. Запасной вариант для Telegram на Android
+      // Telegram WebApp на Android
       if (tg && typeof tg.addToHomeScreen === 'function') {
         tg.addToHomeScreen();
         return;
       }
 
-      alert("Откройте ссылку в браузере и выберите «Добавить на главный экран».");
+      alert("Откройте сайт в браузере и выберите в меню «Добавить на главный экран».");
     }
 
     function closeIosModal() {
       document.getElementById("iosInstructionModal").style.display = "none";
     }
 
-    /* ========== ОСНОВНАЯ ЛОГИКА ========== */
+    /* Подсказка исключительно для Safari на iOS */
+    function checkIosBanner() {
+      const isInsideTelegram = Boolean(tg && tg.initData);
+      const isDismissed = localStorage.getItem('mgpu_ios_banner_dismissed') === 'true';
+
+      if (isIOS && !isStandalone && !isInsideTelegram && !isDismissed) {
+        const banner = document.getElementById("iosInstallBanner");
+        if (banner) banner.style.display = "block";
+      }
+    }
+
+    function dismissIosBanner() {
+      const banner = document.getElementById("iosInstallBanner");
+      if (banner) banner.style.display = "none";
+      localStorage.setItem('mgpu_ios_banner_dismissed', 'true');
+    }
+
+    /* ========== ОСНОВНОЙ РАСЧЕТ И ОТРИСОВКА ========== */
     const tgUser = tg?.initDataUnsafe?.user;
     const userId = tgUser?.id || "guest_user";
     const userName = tgUser?.username ? `@${tgUser.username}` : (tgUser?.first_name || "Студент");
@@ -692,6 +778,7 @@
         initDateSelection();
         renderDaysBar();
         render();
+        checkIosBanner();
       } catch (err) {
         document.getElementById("scheduleList").innerHTML = 
           `<div class="empty-state">Ошибка загрузки расписания.<br>Проверьте файл schedule.json на GitHub.</div>`;
