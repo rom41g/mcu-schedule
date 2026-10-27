@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Расписание МГПУ</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --mgpu-red: #E30613;
+      --mgpu-red-light: #FEECEB;
+      --bg: #F4F5F7;
+      --card-bg: #FFFFFF;
+      --text-main: #1C1C1E;
+      --text-sub: #8E8E93;
+      --border: #E5E5EA;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: var(--bg); color: var(--text-main); padding-bottom: 30px; }
+    
+    /* Шапка МГПУ */
+    .header {
+      background: var(--mgpu-red);
+      color: #FFF;
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 8px rgba(227,6,19,0.2);
+    }
+    .header h1 { font-size: 19px; font-weight: 700; letter-spacing: -0.3px; }
+    
+    /* Контролы выбора */
+    .controls { padding: 14px 16px 8px; display: flex; gap: 10px; }
+    select {
+      flex: 1;
+      padding: 11px 14px;
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+      outline: none;
+    }
+
+    /* Лента дней недели */
+    .days-bar {
+      display: flex;
+      gap: 6px;
+      padding: 8px 16px 14px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .days-bar::-webkit-scrollbar { display: none; }
+    .day-chip {
+      flex: 1;
+      min-width: 48px;
+      text-align: center;
+      padding: 10px 4px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-sub);
+      transition: all 0.2s ease;
+    }
+    .day-chip.active {
+      background: var(--mgpu-red);
+      border-color: var(--mgpu-red);
+      color: #FFF;
+    }
+
+    /* Карточки пар */
+    .schedule-list { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
+    .lesson-card {
+      background: var(--card-bg);
+      border-radius: 14px;
+      padding: 14px 16px;
+      border-left: 4px solid var(--mgpu-red);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .lesson-time {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--mgpu-red);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+    .badge {
+      background: var(--mgpu-red-light);
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-size: 11px;
+    }
+    .lesson-name { font-size: 15px; font-weight: 600; line-height: 1.35; margin-bottom: 6px; }
+    .lesson-info { font-size: 13px; color: var(--text-sub); line-height: 1.3; }
+    .lesson-room { font-weight: 600; color: var(--text-main); }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-sub);
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>МГПУ • Расписание</h1>
+  </div>
+
+  <div class="controls">
+    <select id="groupSelect" onchange="onGroupChange()"></select>
+    <select id="weekSelect" style="max-width: 110px;" onchange="render()"></select>
+  </div>
+
+  <div class="days-bar" id="daysBar"></div>
+  <div class="schedule-list" id="scheduleList"></div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    const DAYS = ["ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА"];
+    const SHORT_DAYS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
+    let scheduleData = {};
+    let selectedGroup = "";
+    let selectedDay = "ПОНЕДЕЛЬНИК";
+
+    // Автовыбор текущего дня недели
+    const todayIndex = new Date().getDay();
+    if (todayIndex >= 1 && todayIndex <= 6) {
+      selectedDay = DAYS[todayIndex - 1];
+    }
+
+    async function init() {
+      try {
+        const res = await fetch('schedule.json');
+        scheduleData = await res.json();
+        
+        const groups = Object.keys(scheduleData);
+        if (groups.length === 0) return;
+
+        const groupSelect = document.getElementById("groupSelect");
+        groupSelect.innerHTML = groups.map(g => `<option value="${g}">${g}</option>`).join("");
+        
+        selectedGroup = localStorage.getItem("mgpu_group") || groups[0];
+        groupSelect.value = selectedGroup;
+
+        initWeeks();
+        renderDaysBar();
+        render();
+      } catch (e) {
+        document.getElementById("scheduleList").innerHTML = 
+          `<div class="empty-state">Ошибка загрузки schedule.json.<br>Проверьте, что файл лежит рядом с index.html.</div>`;
+      }
+    }
+
+    function initWeeks() {
+      const weekSelect = document.getElementById("weekSelect");
+      const list = scheduleData[selectedGroup] || [];
+      const weeks = [...new Set(list.map(x => x.week))].sort((a,b) => a - b);
+      weekSelect.innerHTML = weeks.map(w => `<option value="${w}">${w} неделя</option>`).join("");
+      if (weeks.length > 0) weekSelect.value = weeks[0];
+    }
+
+    function renderDaysBar() {
+      const bar = document.getElementById("daysBar");
+      bar.innerHTML = DAYS.map((d, i) => `
+        <div class="day-chip ${d === selectedDay ? 'active' : ''}" onclick="selectDay('${d}')">
+          ${SHORT_DAYS[i]}
+        </div>
+      `).join("");
+    }
+
+    function selectDay(day) {
+      selectedDay = day;
+      renderDaysBar();
+      render();
+    }
+
+    function onGroupChange() {
+      selectedGroup = document.getElementById("groupSelect").value;
+      localStorage.setItem("mgpu_group", selectedGroup);
+      initWeeks();
+      render();
+    }
+
+    function render() {
+      const weekNum = parseInt(document.getElementById("weekSelect").value);
+      const container = document.getElementById("scheduleList");
+      
+      const lessons = (scheduleData[selectedGroup] || []).filter(
+        item => item.week === weekNum && item.day === selectedDay
+      );
+
+      if (lessons.length === 0) {
+        container.innerHTML = `<div class="empty-state">🎉 В этот день занятий нет</div>`;
+        return;
+      }
+
+      container.innerHTML = lessons.map(item => `
+        <div class="lesson-card">
+          <div class="lesson-time">
+            <span>${item.pair} пара • ${item.time}</span>
+            <span class="badge">${item.type}</span>
+          </div>
+          <div class="lesson-name">${item.subject}</div>
+          <div class="lesson-info">
+            ${item.teacher ? `<div>${item.teacher}</div>` : ""}
+            ${item.room ? `<div class="lesson-room">${item.room}</div>` : ""}
+          </div>
+        </div>
+      `).join("");
+    }
+
+    init();
+  </script>
+</body>
+</html>
