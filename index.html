@@ -9,14 +9,16 @@
     :root {
       --mgpu-red: #E30613;
       --mgpu-red-light: #FEECEB;
+      --mgpu-dark: #1D1D1B;
       --bg: #F5F6F8;
       --card-bg: #FFFFFF;
-      --text-main: #1D1D1B;
       --text-sub: #7A7A7E;
       --border: #E8E8ED;
+      --accent-orange: #FFF3E0;
+      --accent-orange-text: #E65100;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background-color: var(--bg); color: var(--text-main); padding-bottom: 30px; }
+    body { background-color: var(--bg); color: var(--mgpu-dark); padding-bottom: 30px; }
 
     /* Шапка МГПУ */
     .header {
@@ -26,66 +28,55 @@
       align-items: center;
       justify-content: space-between;
       border-bottom: 2px solid var(--mgpu-red);
-      box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
-    .header-left {
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .header-logo { height: 36px; width: 36px; object-fit: contain; }
+    .header-titles h1 { font-size: 15px; font-weight: 800; line-height: 1.1; }
+    .header-titles .current-group { font-size: 12px; color: var(--mgpu-red); font-weight: 700; }
+
+    /* Профиль пользователя в Telegram */
+    .user-profile-btn {
       display: flex;
       align-items: center;
-      gap: 10px;
-    }
-    .header-logo {
-      height: 38px;
-      width: 38px;
-      object-fit: contain;
-    }
-    .header-titles h1 {
-      font-size: 16px;
-      font-weight: 800;
-      color: var(--text-main);
-      line-height: 1.1;
-    }
-    .header-titles span {
-      font-size: 12px;
-      color: var(--mgpu-red);
-      font-weight: 600;
-      letter-spacing: 0.3px;
-    }
-
-    /* Бейдж аккаунта */
-    .user-badge {
+      gap: 7px;
       background: var(--bg);
       border: 1px solid var(--border);
-      padding: 6px 10px;
+      padding: 4px 8px 4px 4px;
       border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-sub);
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .user-profile-btn:active { opacity: 0.7; }
+    .user-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--mgpu-red);
+      color: #FFF;
       display: flex;
       align-items: center;
-      gap: 5px;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      object-fit: cover;
     }
-    .user-badge span { color: var(--mgpu-red); font-weight: 700; }
+    .user-name { font-size: 12px; font-weight: 600; max-width: 95px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    /* Панель выбора группы и диапазона дат */
-    .controls {
-      padding: 12px 16px 6px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .select-wrapper {
-      display: flex;
-      gap: 8px;
-    }
-    select {
-      flex: 1;
-      padding: 10px 12px;
+    /* Панель выбора диапазона дат */
+    .date-panel { padding: 12px 16px 6px; }
+    .week-select {
+      width: 100%;
+      padding: 10px 14px;
       border: 1px solid var(--border);
       background: var(--card-bg);
-      border-radius: 10px;
+      border-radius: 12px;
       font-size: 14px;
       font-weight: 600;
-      color: var(--text-main);
+      color: var(--mgpu-dark);
       outline: none;
     }
 
@@ -118,7 +109,7 @@
       color: #FFF;
     }
 
-    /* Карточки расписания */
+    /* Карточки пар */
     .schedule-list { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
     .lesson-card {
       background: var(--card-bg);
@@ -127,29 +118,85 @@
       border-left: 4px solid var(--mgpu-red);
       box-shadow: 0 1px 4px rgba(0,0,0,0.03);
     }
-    .lesson-time {
+    .lesson-card.parallel {
+      border-left-color: var(--accent-orange-text);
+      background: #FDFAF5;
+    }
+    .lesson-header {
       display: flex;
       justify-content: space-between;
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--mgpu-red);
+      align-items: center;
       margin-bottom: 6px;
     }
+    .lesson-time { font-size: 12px; font-weight: 700; color: var(--mgpu-red); }
+    .badges { display: flex; gap: 5px; }
     .badge {
       background: var(--mgpu-red-light);
+      color: var(--mgpu-red);
       padding: 2px 7px;
       border-radius: 6px;
       font-size: 11px;
+      font-weight: 600;
+    }
+    .badge.parallel-badge {
+      background: var(--accent-orange);
+      color: var(--accent-orange-text);
     }
     .lesson-name { font-size: 15px; font-weight: 600; line-height: 1.3; margin-bottom: 6px; }
     .lesson-info { font-size: 13px; color: var(--text-sub); }
-    .lesson-room { font-weight: 600; color: var(--text-main); margin-top: 2px; }
+    .lesson-room { font-weight: 600; color: var(--mgpu-dark); margin-top: 2px; }
 
-    .empty-state {
-      text-align: center;
-      padding: 40px 20px;
-      color: var(--text-sub);
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-sub); font-size: 14px; }
+
+    /* Модальное окно профиля / онбординга */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.45);
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-sheet {
+      background: #FFFFFF;
+      width: 100%;
+      max-width: 480px;
+      border-radius: 20px 20px 0 0;
+      padding: 24px 20px 30px;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
+      animation: slideUp 0.25s ease-out;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    .modal-title { font-size: 18px; font-weight: 800; margin-bottom: 6px; color: var(--mgpu-dark); }
+    .modal-desc { font-size: 13px; color: var(--text-sub); margin-bottom: 18px; line-height: 1.4; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px; text-transform: uppercase; }
+    .modal-select {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
       font-size: 14px;
+      font-weight: 600;
+      background: #FAFAFA;
+      color: var(--mgpu-dark);
+      outline: none;
+    }
+    .modal-btn {
+      width: 100%;
+      padding: 14px;
+      background: var(--mgpu-red);
+      color: #FFF;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
     }
   </style>
 </head>
@@ -157,27 +204,44 @@
 
   <div class="header">
     <div class="header-left">
-      <!-- Имя файла логотипа: положите logo.png рядом с index.html -->
       <img src="logo.png" alt="МГПУ" class="header-logo" onerror="this.style.display='none'">
       <div class="header-titles">
         <h1>МГПУ • ИИЯ</h1>
-        <span>РАСПИСАНИЕ</span>
+        <div class="current-group" id="headerGroupLabel">Группа не выбрана</div>
       </div>
     </div>
-    <div class="user-badge" id="userBadge">
-      <span id="badgeUsername">Студент</span>
+    <div class="user-profile-btn" onclick="openProfileModal()">
+      <div id="avatarContainer"></div>
+      <span class="user-name" id="profileName">Студент</span>
     </div>
   </div>
 
-  <div class="controls">
-    <div class="select-wrapper">
-      <select id="groupSelect" onchange="onGroupChange()"></select>
-      <select id="weekSelect" onchange="render()"></select>
-    </div>
+  <div class="date-panel">
+    <select id="weekSelect" class="week-select" onchange="render()"></select>
   </div>
 
   <div class="days-bar" id="daysBar"></div>
   <div class="schedule-list" id="scheduleList"></div>
+
+  <!-- Модальное окно выбора профиля -->
+  <div class="modal-overlay" id="profileModal">
+    <div class="modal-sheet">
+      <div class="modal-title">Мой профиль</div>
+      <div class="modal-desc">Выберите направление подготовки и группу, чтобы расписание открывалось мгновенно.</div>
+      
+      <div class="form-group">
+        <label>Направление подготовки</label>
+        <select id="modalDirectionSelect" class="modal-select" onchange="onModalDirectionChange()"></select>
+      </div>
+
+      <div class="form-group">
+        <label>Академическая группа</label>
+        <select id="modalGroupSelect" class="modal-select"></select>
+      </div>
+
+      <button class="modal-btn" onclick="saveProfileSelection()">Сохранить</button>
+    </div>
+  </div>
 
   <script>
     const tg = window.Telegram?.WebApp;
@@ -186,65 +250,91 @@
       tg.expand();
     }
 
-    // Данные аккаунта из Telegram
     const tgUser = tg?.initDataUnsafe?.user;
-    const userId = tgUser?.id || "local_guest";
+    const userId = tgUser?.id || "guest_user";
     const userName = tgUser?.username ? `@${tgUser.username}` : (tgUser?.first_name || "Студент");
-    document.getElementById("badgeUsername").textContent = userName;
+
+    // Отрисовка аватара или инициала
+    document.getElementById("profileName").textContent = userName;
+    const avatarContainer = document.getElementById("avatarContainer");
+    if (tgUser?.photo_url) {
+      avatarContainer.innerHTML = `<img src="${tgUser.photo_url}" class="user-avatar" alt="Avatar">`;
+    } else {
+      const initial = userName.replace('@', '')[0]?.toUpperCase() || "С";
+      avatarContainer.innerHTML = `<div class="user-avatar">${initial}</div>`;
+    }
 
     const DAYS = ["ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА"];
     const SHORT_DAYS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
-    let fullData = { groups: {}, weeks: {} };
-    let selectedGroup = "";
+    
+    let db = { directions: {}, groups: {}, weeks: {} };
+    let currentGroup = "";
     let selectedDay = "ПОНЕДЕЛЬНИК";
 
-    // Автовыбор текущего дня недели (воскресенье -> понедельник)
-    const dayOfWeek = new Date().getDay();
-    if (dayOfWeek >= 1 && dayOfWeek <= 6) {
-      selectedDay = DAYS[dayOfWeek - 1];
+    // Автоопределение сегодняшнего дня (если воскресенье — открываем понедельник)
+    const todayIndex = new Date().getDay();
+    if (todayIndex >= 1 && todayIndex <= 6) {
+      selectedDay = DAYS[todayIndex - 1];
+    } else {
+      selectedDay = DAYS[0];
     }
 
     async function init() {
       try {
         const res = await fetch('schedule.json');
-        fullData = await res.json();
-        
-        const groups = Object.keys(fullData.groups || {});
-        if (groups.length === 0) {
-          document.getElementById("scheduleList").innerHTML = `<div class="empty-state">Нет данных о группах.</div>`;
-          return;
-        }
+        db = await res.json();
 
-        const groupSelect = document.getElementById("groupSelect");
-        groupSelect.innerHTML = groups.map(g => `<option value="${g}">${g}</option>`).join("");
-        
-        // Загрузка сохраненной группы для этого конкретного пользователя
+        // Проверяем сохраненную группу для этого аккаунта
         const savedGroup = localStorage.getItem(`mgpu_group_${userId}`);
-        selectedGroup = (savedGroup && groups.includes(savedGroup)) ? savedGroup : groups[0];
-        groupSelect.value = selectedGroup;
 
-        initDatesDropdown();
-        renderDaysBar();
-        render();
+        if (savedGroup && db.groups[savedGroup]) {
+          currentGroup = savedGroup;
+          document.getElementById("headerGroupLabel").textContent = currentGroup;
+          initDateSelection();
+          renderDaysBar();
+          render();
+        } else {
+          // Первый запуск: открываем онбординг
+          openProfileModal(true);
+        }
       } catch (err) {
         document.getElementById("scheduleList").innerHTML = 
-          `<div class="empty-state">Ошибка загрузки schedule.json.<br>Запустите parser.py и обновите файлы на GitHub.</div>`;
+          `<div class="empty-state">Ошибка загрузки расписания.<br>Проверьте файл schedule.json на GitHub.</div>`;
       }
     }
 
-    function initDatesDropdown() {
+    function initDateSelection() {
       const weekSelect = document.getElementById("weekSelect");
-      const list = fullData.groups[selectedGroup] || [];
-      
-      // Собираем уникальные недели и их даты
+      const list = db.groups[currentGroup] || [];
       const uniqueWeeks = [...new Set(list.map(x => x.week))].sort((a,b) => a - b);
-      
+
       weekSelect.innerHTML = uniqueWeeks.map(w => {
-        const label = fullData.weeks[w] || `${w} неделя`;
+        const wMeta = db.weeks[w];
+        const label = wMeta ? wMeta.label : `${w} неделя`;
         return `<option value="${w}">${label}</option>`;
       }).join("");
 
-      if (uniqueWeeks.length > 0) weekSelect.value = uniqueWeeks[0];
+      // Автоматическое определение сегодняшней даты
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const todayISO = `${yyyy}-${mm}-${dd}`;
+
+      let matchedWeek = null;
+      for (const w of uniqueWeeks) {
+        const meta = db.weeks[w];
+        if (meta?.start && meta?.end && todayISO >= meta.start && todayISO <= meta.end) {
+          matchedWeek = w;
+          break;
+        }
+      }
+
+      if (matchedWeek) {
+        weekSelect.value = matchedWeek;
+      } else if (uniqueWeeks.length > 0) {
+        weekSelect.value = uniqueWeeks[0];
+      }
     }
 
     function renderDaysBar() {
@@ -262,19 +352,11 @@
       render();
     }
 
-    function onGroupChange() {
-      selectedGroup = document.getElementById("groupSelect").value;
-      // Сохраняем группу за данным Telegram аккаунтом
-      localStorage.setItem(`mgpu_group_${userId}`, selectedGroup);
-      initDatesDropdown();
-      render();
-    }
-
     function render() {
       const weekNum = parseInt(document.getElementById("weekSelect").value);
       const container = document.getElementById("scheduleList");
       
-      const lessons = (fullData.groups[selectedGroup] || []).filter(
+      const lessons = (db.groups[currentGroup] || []).filter(
         item => item.week === weekNum && item.day === selectedDay
       );
 
@@ -284,10 +366,13 @@
       }
 
       container.innerHTML = lessons.map(item => `
-        <div class="lesson-card">
-          <div class="lesson-time">
-            <span>${item.pair} пара • ${item.time}</span>
-            <span class="badge">${item.type}</span>
+        <div class="lesson-card ${item.is_parallel ? 'parallel' : ''}">
+          <div class="lesson-header">
+            <span class="lesson-time">${item.pair} пара • ${item.time}</span>
+            <div class="badges">
+              ${item.subgroup ? `<span class="badge parallel-badge">${item.subgroup}</span>` : ""}
+              <span class="badge">${item.type}</span>
+            </div>
           </div>
           <div class="lesson-name">${item.subject}</div>
           <div class="lesson-info">
@@ -296,6 +381,54 @@
           </div>
         </div>
       `).join("");
+    }
+
+    /* Модальное окно профиля */
+    function openProfileModal(isFirstLaunch = false) {
+      const dirSelect = document.getElementById("modalDirectionSelect");
+      const dirs = Object.keys(db.directions || {});
+      
+      if (dirs.length === 0) return;
+
+      dirSelect.innerHTML = dirs.map(d => `<option value="${d}">${d}</option>`).join("");
+      
+      // Ищем направление текущей группы
+      let activeDir = dirs[0];
+      for (const [d, grps] of Object.entries(db.directions)) {
+        if (grps.includes(currentGroup)) {
+          activeDir = d;
+          break;
+        }
+      }
+      dirSelect.value = activeDir;
+      onModalDirectionChange();
+
+      if (currentGroup) {
+        document.getElementById("modalGroupSelect").value = currentGroup;
+      }
+
+      document.getElementById("profileModal").style.display = "flex";
+    }
+
+    function onModalDirectionChange() {
+      const dir = document.getElementById("modalDirectionSelect").value;
+      const grpSelect = document.getElementById("modalGroupSelect");
+      const groups = db.directions[dir] || [];
+      grpSelect.innerHTML = groups.map(g => `<option value="${g}">${g}</option>`).join("");
+    }
+
+    function saveProfileSelection() {
+      const chosenGroup = document.getElementById("modalGroupSelect").value;
+      if (!chosenGroup) return;
+
+      currentGroup = chosenGroup;
+      localStorage.setItem(`mgpu_group_${userId}`, currentGroup);
+      document.getElementById("headerGroupLabel").textContent = currentGroup;
+      document.getElementById("profileModal").style.display = "none";
+
+      initDateSelection();
+      renderDaysBar();
+      render();
     }
 
     init();
