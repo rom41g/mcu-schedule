@@ -18,7 +18,7 @@
       --accent-orange-text: #E65100;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background-color: var(--bg); color: var(--mgpu-dark); padding-bottom: 30px; }
+    body { background-color: var(--bg); color: var(--mgpu-dark); padding-bottom: 30px; user-select: none; }
 
     /* Шапка МГПУ */
     .header {
@@ -109,7 +109,7 @@
       color: #FFF;
     }
 
-    /* Карточки пар */
+    /* Карточки расписания */
     .schedule-list { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
     .lesson-card {
       background: var(--card-bg);
@@ -148,31 +148,60 @@
 
     .empty-state { text-align: center; padding: 40px 20px; color: var(--text-sub); font-size: 14px; }
 
-    /* Окно профиля / онбординга */
+    /* Модальное окно (Шторка с поддержкой свайпа вниз) */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.5);
+      background: rgba(0,0,0,0.45);
       display: none;
       align-items: flex-end;
       justify-content: center;
       z-index: 1000;
+      backdrop-filter: blur(2px);
     }
     .modal-sheet {
       background: #FFFFFF;
       width: 100%;
-      max-width: 480px;
+      max-width: 500px;
       border-radius: 20px 20px 0 0;
-      padding: 24px 20px 30px;
-      box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
-      animation: slideUp 0.25s ease-out;
+      padding: 10px 20px 30px;
+      box-shadow: 0 -6px 25px rgba(0,0,0,0.18);
+      position: relative;
+      touch-action: pan-y;
+      transition: transform 0.25s ease-out;
     }
-    @keyframes slideUp {
-      from { transform: translateY(100%); }
-      to { transform: translateY(0); }
+
+    /* Ручка свайпа (Drag Handle) */
+    .drag-handle-bar {
+      width: 40px;
+      height: 5px;
+      background: #D1D1D6;
+      border-radius: 3px;
+      margin: 4px auto 14px;
+      cursor: grab;
     }
-    .modal-title { font-size: 18px; font-weight: 800; margin-bottom: 6px; color: var(--mgpu-dark); }
-    .modal-desc { font-size: 13px; color: var(--text-sub); margin-bottom: 18px; line-height: 1.4; }
+    .modal-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .modal-title { font-size: 18px; font-weight: 800; color: var(--mgpu-dark); }
+    .modal-close-btn {
+      background: #EFEFF4;
+      border: none;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      font-size: 16px;
+      color: #8E8E93;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .modal-desc { font-size: 13px; color: var(--text-sub); margin-bottom: 16px; line-height: 1.4; }
+    
     .form-group { margin-bottom: 14px; }
     .form-group label { display: block; font-size: 12px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px; text-transform: uppercase; }
     .modal-select {
@@ -196,7 +225,7 @@
       font-size: 15px;
       font-weight: 700;
       cursor: pointer;
-      margin-top: 8px;
+      margin-top: 10px;
     }
     .modal-btn:active { opacity: 0.85; }
   </style>
@@ -224,10 +253,15 @@
   <div class="days-bar" id="daysBar"></div>
   <div class="schedule-list" id="scheduleList"></div>
 
-  <!-- Модальное окно выбора профиля -->
+  <!-- Модальное окно выбора профиля со свайпом -->
   <div class="modal-overlay" id="profileModal">
-    <div class="modal-sheet">
-      <div class="modal-title">Мой профиль</div>
+    <div class="modal-sheet" id="modalSheet">
+      <div class="drag-handle-bar"></div>
+      
+      <div class="modal-header-row">
+        <div class="modal-title">Мой профиль</div>
+        <button type="button" class="modal-close-btn" onclick="closeProfileModal()">&times;</button>
+      </div>
       <div class="modal-desc">Выберите направление подготовки и академическую группу:</div>
       
       <div class="form-group">
@@ -240,7 +274,7 @@
         <select id="modalGroupSelect" class="modal-select"></select>
       </div>
 
-      <button class="modal-btn" onclick="saveProfileSelection()">Сохранить</button>
+      <button type="button" class="modal-btn" onclick="saveProfileSelection()">Сохранить</button>
     </div>
   </div>
 
@@ -266,28 +300,14 @@
 
     const DAYS = ["ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА"];
     const SHORT_DAYS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
-
-    // Официальные расшифровки направлений МГПУ ИИЯ
-    const PREFIX_NAMES = {
-      'ПОЕ': 'Пед. образование: Европейские языки (ПОЕ)',
-      'ПОК': 'Пед. образование: Китайский язык (ПОК)',
-      'ПОЯ': 'Пед. образование: Японский язык (ПОЯ)',
-      'ПОР': 'Пед. образование: Русский как иностранный (ПОР)',
-      'ПО': 'Педагогическое образование (ПО)',
-      'ЛИН': 'Лингвистика (ЛИН)',
-      'ПЕР': 'Перевод и переводоведение (ПЕР)',
-      'ТИМ': 'Теория и методика преподавания (ТИМ)',
-      'ФИЛ': 'Зарубежная филология (ФИЛ)',
-      'СМТ': 'Магистратура: Современные методики (СМТ)',
-      'СМТВОСТ': 'Магистратура: Восточные языки (СМТ_ВОСТ)'
-    };
     
     let db = { groups: {}, weeks: {} };
-    let directionsMap = {};
+    let directionsList = [];
+    let allGroups = [];
     let currentGroup = "";
     let selectedDay = "ПОНЕДЕЛЬНИК";
 
-    // Автоопределение сегодняшнего дня (вс -> пн)
+    // Автоопределение текущего дня недели (вс -> пн)
     const todayIndex = new Date().getDay();
     if (todayIndex >= 1 && todayIndex <= 6) {
       selectedDay = DAYS[todayIndex - 1];
@@ -295,84 +315,84 @@
       selectedDay = DAYS[0];
     }
 
-    // Расчет курса по двум цифрам года поступления
+    // Расчет курса студента по двум цифрам года поступления
     function formatGroupWithCourse(groupName) {
-      const m = groupName.trim().match(/^([А-Яа-яA-Za-z_]+?)[-_]?(\d{2})/);
+      const m = groupName.trim().match(/^([А-Яа-яA-Za-z0-9_]+?)[-_]?(\d{2})/);
       if (m) {
-        const admissionYear = 2000 + parseInt(m[2]);
+        const admissionYear = 2000 + parseInt(m[2], 10);
         const currentYear = new Date().getFullYear();
         const course = currentYear - admissionYear + 1;
         if (course >= 1 && course <= 6) {
           return `${groupName} (${course} курс)`;
         }
-        return `${groupName} (${admissionYear} г.п.)`;
       }
       return groupName;
     }
 
-    // Построение карты направлений из шифров групп
-    function buildDirectionsFromGroups(groupNames) {
-      const map = {
-        'ALL': { title: `🌟 Все направления (${groupNames.length} групп)`, groups: [...groupNames].sort() }
-      };
-
-      groupNames.forEach(grp => {
-        const clean = grp.trim();
-        const m = clean.match(/^([А-Яа-яA-Za-z_]+?)[-_]?(\d{2})/);
-        let prefix = m ? m[1].replace(/_/g, '').toUpperCase() : 'ДРУГИЕ';
-        
-        let matchedKey = prefix;
-        if (!PREFIX_NAMES[matchedKey]) {
-          if (prefix.startsWith('СМТ')) matchedKey = 'СМТ';
-          else if (prefix.startsWith('ПО')) matchedKey = 'ПО';
-        }
-
-        if (!map[matchedKey]) {
-          const title = PREFIX_NAMES[matchedKey] || `${matchedKey} — Направление ${matchedKey}`;
-          map[matchedKey] = { title, groups: [] };
-        }
-        map[matchedKey].groups.push(clean);
+    // Построение списка направлений по числовым индексам (защита от ошибок с кавычками)
+    function buildDirectionsList(dbData) {
+      const list = [];
+      
+      // 1. Все группы института
+      list.push({
+        id: 0,
+        title: `🌟 Все направления (${allGroups.length} групп)`,
+        groups: [...allGroups].sort()
       });
 
-      for (const k in map) {
-        map[k].groups.sort();
+      // 2. Добавляем направления из schedule.json (если есть)
+      if (dbData.directions && typeof dbData.directions === 'object') {
+        for (const [title, grps] of Object.entries(dbData.directions)) {
+          if (Array.isArray(grps) && grps.length > 0) {
+            list.push({
+              id: list.length,
+              title: title,
+              groups: [...grps].sort()
+            });
+          }
+        }
       }
-      return map;
-    }
 
-    // Безопасное заполнение выпадающего списка
-    function populateDropdown(selectElem, items, activeValue) {
-      selectElem.innerHTML = '';
-      items.forEach(item => {
-        const opt = document.createElement('option');
-        opt.value = item.value;
-        opt.textContent = item.label;
-        if (item.value === activeValue) opt.selected = true;
-        selectElem.appendChild(opt);
+      // 3. Дополнительная группировка по шифрам групп
+      const prefixMap = {};
+      allGroups.forEach(g => {
+        const m = g.trim().match(/^([А-Яа-яA-Za-z0-9]+)/);
+        const pfx = m ? m[1].toUpperCase() : "ДРУГИЕ";
+        if (!prefixMap[pfx]) prefixMap[pfx] = [];
+        prefixMap[pfx].push(g);
       });
+
+      // Если в schedule.json не было directions, используем префиксы
+      if (list.length === 1) {
+        for (const [pfx, grps] of Object.entries(prefixMap)) {
+          list.push({
+            id: list.length,
+            title: `Направление ${pfx} (${grps.length} групп)`,
+            groups: grps.sort()
+          });
+        }
+      }
+
+      return list;
     }
 
     async function init() {
       try {
-        const res = await fetch('schedule.json');
+        // Добавляем ?t=... для сброса кэша Telegram
+        const res = await fetch('schedule.json?t=' + Date.now());
         db = await res.json();
 
-        // Поддержка обеих структур schedule.json
-        if (!db.groups && typeof db === 'object') {
-          db = { groups: db, weeks: {} };
-        }
+        allGroups = db.groups ? Object.keys(db.groups) : Object.keys(db);
+        if (!db.groups) db = { groups: db, weeks: {} };
 
-        const allGroups = Object.keys(db.groups || {});
         if (allGroups.length === 0) {
           document.getElementById("scheduleList").innerHTML = `<div class="empty-state">Нет данных о группах.</div>`;
           return;
         }
 
-        // Строим направления по шифрам групп
-        directionsMap = buildDirectionsFromGroups(allGroups);
+        directionsList = buildDirectionsList(db);
 
         const savedGroup = localStorage.getItem(`mgpu_group_${userId}`);
-
         if (savedGroup && db.groups[savedGroup]) {
           currentGroup = savedGroup;
           document.getElementById("headerGroupLabel").textContent = currentGroup;
@@ -380,11 +400,17 @@
           renderDaysBar();
           render();
         } else {
-          openProfileModal(true);
+          // Если группа еще не сохранена — берем первую и открываем онбординг
+          currentGroup = allGroups[0];
+          document.getElementById("headerGroupLabel").textContent = currentGroup;
+          initDateSelection();
+          renderDaysBar();
+          render();
+          openProfileModal();
         }
       } catch (err) {
         document.getElementById("scheduleList").innerHTML = 
-          `<div class="empty-state">Ошибка загрузки расписания.<br>Проверьте файл schedule.json на GitHub.</div>`;
+          `<div class="empty-state">Ошибка загрузки расписания.<br>Проверьте schedule.json на GitHub.</div>`;
       }
     }
 
@@ -393,10 +419,10 @@
       const list = db.groups[currentGroup] || [];
       const uniqueWeeks = [...new Set(list.map(x => x.week))].sort((a,b) => a - b);
 
-      const weekItems = uniqueWeeks.map(w => {
+      weekSelect.innerHTML = "";
+      uniqueWeeks.forEach(w => {
         let label = `${w} неделя`;
         const wMeta = db.weeks ? (db.weeks[w] || db.weeks[String(w)]) : null;
-        
         if (typeof wMeta === 'string' && wMeta.trim()) {
           label = wMeta;
         } else if (wMeta && typeof wMeta === 'object' && wMeta.label) {
@@ -405,13 +431,15 @@
           const sample = list.find(x => x.week === w && x.date_range);
           if (sample && sample.date_range) label = sample.date_range;
         }
-        return { value: w, label: label };
+        const opt = document.createElement("option");
+        opt.value = w;
+        opt.textContent = label;
+        weekSelect.appendChild(opt);
       });
 
-      // Автоопределение сегодняшней недели
+      // Автовыбор текущей недели
       const now = new Date();
       let matchedWeek = null;
-
       for (const w of uniqueWeeks) {
         const wMeta = db.weeks ? (db.weeks[w] || db.weeks[String(w)]) : null;
         let startDt = null, endDt = null;
@@ -436,8 +464,8 @@
         }
       }
 
-      const activeWeek = matchedWeek || (uniqueWeeks.length > 0 ? uniqueWeeks[0] : null);
-      populateDropdown(weekSelect, weekItems, activeWeek);
+      if (matchedWeek) weekSelect.value = matchedWeek;
+      else if (uniqueWeeks.length > 0) weekSelect.value = uniqueWeeks[0];
     }
 
     function renderDaysBar() {
@@ -456,7 +484,7 @@
     }
 
     function render() {
-      const weekNum = parseInt(document.getElementById("weekSelect").value);
+      const weekNum = parseInt(document.getElementById("weekSelect").value, 10);
       const container = document.getElementById("scheduleList");
       
       const lessons = (db.groups[currentGroup] || []).filter(
@@ -489,65 +517,127 @@
     }
 
     /* Модальное окно профиля */
-    function openProfileModal(isFirstLaunch = false) {
+    function openProfileModal() {
       const dirSelect = document.getElementById("modalDirectionSelect");
-      const dirKeys = Object.keys(directionsMap);
-      if (dirKeys.length === 0) return;
+      dirSelect.innerHTML = "";
 
-      const dirItems = dirKeys.map(k => ({ value: k, label: directionsMap[k].title }));
+      // Ищем индекс направления, в котором находится текущая группа
+      let activeIndex = 0;
+      directionsList.forEach((d, idx) => {
+        const opt = document.createElement("option");
+        opt.value = idx;
+        opt.textContent = d.title;
+        dirSelect.appendChild(opt);
 
-      // Ищем, в каком направлении находится текущая группа
-      let activeDir = dirKeys[0];
-      if (currentGroup) {
-        for (const k of dirKeys) {
-          if (k !== 'ALL' && directionsMap[k].groups.includes(currentGroup)) {
-            activeDir = k;
-            break;
-          }
+        if (idx !== 0 && d.groups.includes(currentGroup)) {
+          activeIndex = idx;
         }
-      }
+      });
 
-      populateDropdown(dirSelect, dirItems, activeDir);
+      dirSelect.value = activeIndex;
       onModalDirectionChange();
 
-      if (currentGroup) {
-        document.getElementById("modalGroupSelect").value = currentGroup;
-      }
+      const modal = document.getElementById("profileModal");
+      const sheet = document.getElementById("modalSheet");
+      modal.style.display = "flex";
+      sheet.style.transform = "translateY(0)";
+    }
 
-      document.getElementById("profileModal").style.display = "flex";
+    function closeProfileModal() {
+      const modal = document.getElementById("profileModal");
+      const sheet = document.getElementById("modalSheet");
+      sheet.style.transform = "translateY(100%)";
+      setTimeout(() => {
+        modal.style.display = "none";
+        sheet.style.transform = "";
+      }, 220);
     }
 
     function onModalDirectionChange() {
-      const dirKey = document.getElementById("modalDirectionSelect").value;
+      const dirSelect = document.getElementById("modalDirectionSelect");
       const grpSelect = document.getElementById("modalGroupSelect");
-      const groups = directionsMap[dirKey] ? directionsMap[dirKey].groups : [];
+      const selectedIndex = parseInt(dirSelect.value, 10);
+      
+      const dirObj = directionsList[selectedIndex] || directionsList[0];
+      const groups = (dirObj && dirObj.groups && dirObj.groups.length > 0) ? dirObj.groups : allGroups;
 
-      const groupItems = groups.map(g => ({
-        value: g,
-        label: formatGroupWithCourse(g)
-      }));
+      grpSelect.innerHTML = "";
+      groups.forEach(g => {
+        const opt = document.createElement("option");
+        opt.value = g;
+        opt.textContent = formatGroupWithCourse(g);
+        if (g === currentGroup) opt.selected = true;
+        grpSelect.appendChild(opt);
+      });
 
-      // Если текущая группа есть в выбранном направлении — сохраняем выбор
-      const selected = groups.includes(currentGroup) ? currentGroup : (groups[0] || "");
-      populateDropdown(grpSelect, groupItems, selected);
+      if (!grpSelect.value && groups.length > 0) {
+        grpSelect.value = groups[0];
+      }
     }
 
     function saveProfileSelection() {
-      const chosenGroup = document.getElementById("modalGroupSelect").value;
+      const grpSelect = document.getElementById("modalGroupSelect");
+      let chosenGroup = grpSelect.value;
+
+      if (!chosenGroup && grpSelect.options.length > 0) {
+        chosenGroup = grpSelect.options[0].value;
+      }
+
       if (!chosenGroup) {
-        alert("Пожалуйста, выберите группу.");
+        closeProfileModal();
         return;
       }
 
       currentGroup = chosenGroup;
       localStorage.setItem(`mgpu_group_${userId}`, currentGroup);
       document.getElementById("headerGroupLabel").textContent = currentGroup;
-      document.getElementById("profileModal").style.display = "none";
+      closeProfileModal();
 
       initDateSelection();
       renderDaysBar();
       render();
     }
+
+    /* Закрытие по клику на темный фон */
+    document.getElementById("profileModal").addEventListener("click", (e) => {
+      if (e.target.id === "profileModal") closeProfileModal();
+    });
+
+    /* Обработка жеста СВАЙПА ВНИЗ на мобильных */
+    let touchStartY = 0;
+    let touchCurrentY = 0;
+    let isSwiping = false;
+    const sheet = document.getElementById("modalSheet");
+
+    sheet.addEventListener("touchstart", (e) => {
+      if (e.target.tagName === "SELECT") return;
+      touchStartY = e.touches[0].clientY;
+      isSwiping = true;
+      sheet.style.transition = "none";
+    }, { passive: true });
+
+    sheet.addEventListener("touchmove", (e) => {
+      if (!isSwiping) return;
+      touchCurrentY = e.touches[0].clientY;
+      const deltaY = touchCurrentY - touchStartY;
+      if (deltaY > 0) {
+        sheet.style.transform = `translateY(${deltaY}px)`;
+      }
+    }, { passive: true });
+
+    sheet.addEventListener("touchend", () => {
+      if (!isSwiping) return;
+      isSwiping = false;
+      sheet.style.transition = "transform 0.22s ease-out";
+      const deltaY = touchCurrentY - touchStartY;
+      if (deltaY > 75) {
+        closeProfileModal();
+      } else {
+        sheet.style.transform = "translateY(0)";
+      }
+      touchStartY = 0;
+      touchCurrentY = 0;
+    });
 
     init();
   </script>
