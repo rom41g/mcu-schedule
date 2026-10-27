@@ -66,7 +66,7 @@
     }
     .user-name { font-size: 12px; font-weight: 600; max-width: 95px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    /* Панель выбора диапазона дат */
+    /* Выбор диапазона дат */
     .date-panel { padding: 12px 16px 6px; }
     .week-select {
       width: 100%;
@@ -109,7 +109,7 @@
       color: #FFF;
     }
 
-    /* Карточки пар */
+    /* Карточки расписания */
     .schedule-list { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
     .lesson-card {
       background: var(--card-bg);
@@ -148,7 +148,7 @@
 
     .empty-state { text-align: center; padding: 40px 20px; color: var(--text-sub); font-size: 14px; }
 
-    /* Модальное окно профиля / онбординга */
+    /* Окно смены профиля */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -223,11 +223,11 @@
   <div class="days-bar" id="daysBar"></div>
   <div class="schedule-list" id="scheduleList"></div>
 
-  <!-- Модальное окно выбора профиля -->
+  <!-- Модальное окно профиля -->
   <div class="modal-overlay" id="profileModal">
     <div class="modal-sheet">
       <div class="modal-title">Мой профиль</div>
-      <div class="modal-desc">Выберите направление подготовки и группу, чтобы расписание открывалось мгновенно.</div>
+      <div class="modal-desc">Выберите направление подготовки и группу:</div>
       
       <div class="form-group">
         <label>Направление подготовки</label>
@@ -254,7 +254,6 @@
     const userId = tgUser?.id || "guest_user";
     const userName = tgUser?.username ? `@${tgUser.username}` : (tgUser?.first_name || "Студент");
 
-    // Отрисовка аватара или инициала
     document.getElementById("profileName").textContent = userName;
     const avatarContainer = document.getElementById("avatarContainer");
     if (tgUser?.photo_url) {
@@ -271,7 +270,7 @@
     let currentGroup = "";
     let selectedDay = "ПОНЕДЕЛЬНИК";
 
-    // Автоопределение сегодняшнего дня (если воскресенье — открываем понедельник)
+    // Автовыбор текущего дня недели (вс -> пн)
     const todayIndex = new Date().getDay();
     if (todayIndex >= 1 && todayIndex <= 6) {
       selectedDay = DAYS[todayIndex - 1];
@@ -284,7 +283,18 @@
         const res = await fetch('schedule.json');
         db = await res.json();
 
-        // Проверяем сохраненную группу для этого аккаунта
+        // Поддержка обеих структур schedule.json
+        const allGroups = db.groups ? Object.keys(db.groups) : Object.keys(db);
+        if (allGroups.length === 0) {
+          document.getElementById("scheduleList").innerHTML = `<div class="empty-state">Нет данных о группах.</div>`;
+          return;
+        }
+
+        // Если в JSON старая структура без db.groups
+        if (!db.groups) {
+          db = { groups: db, directions: { "Все группы": allGroups }, weeks: {} };
+        }
+
         const savedGroup = localStorage.getItem(`mgpu_group_${userId}`);
 
         if (savedGroup && db.groups[savedGroup]) {
@@ -294,7 +304,6 @@
           renderDaysBar();
           render();
         } else {
-          // Первый запуск: открываем онбординг
           openProfileModal(true);
         }
       } catch (err) {
@@ -308,23 +317,45 @@
       const list = db.groups[currentGroup] || [];
       const uniqueWeeks = [...new Set(list.map(x => x.week))].sort((a,b) => a - b);
 
+      // Корректное формирование подписи даты (без undefined)
       weekSelect.innerHTML = uniqueWeeks.map(w => {
-        const wMeta = db.weeks[w];
-        const label = wMeta ? wMeta.label : `${w} неделя`;
+        let label = `${w} неделя`;
+        const wMeta = db.weeks ? (db.weeks[w] || db.weeks[String(w)]) : null;
+        
+        if (typeof wMeta === 'string' && wMeta.trim()) {
+          label = wMeta;
+        } else if (wMeta && typeof wMeta === 'object' && wMeta.label) {
+          label = wMeta.label;
+        } else {
+          const sample = list.find(x => x.week === w && x.date_range);
+          if (sample && sample.date_range) label = sample.date_range;
+        }
         return `<option value="${w}">${label}</option>`;
       }).join("");
 
-      // Автоматическое определение сегодняшней даты
+      // Автоматический выбор актуальной недели по сегодняшней дате
       const now = new Date();
-      const yyyy = now.getFullYear();
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      const dd = String(now.getDate()).padStart(2, '0');
-      const todayISO = `${yyyy}-${mm}-${dd}`;
-
       let matchedWeek = null;
+
       for (const w of uniqueWeeks) {
-        const meta = db.weeks[w];
-        if (meta?.start && meta?.end && todayISO >= meta.start && todayISO <= meta.end) {
+        const wMeta = db.weeks ? (db.weeks[w] || db.weeks[String(w)]) : null;
+        let startDt = null, endDt = null;
+
+        if (wMeta && typeof wMeta === 'object' && wMeta.start && wMeta.end) {
+          startDt = new Date(wMeta.start);
+          endDt = new Date(wMeta.end);
+        } else {
+          const str = (typeof wMeta === 'string') ? wMeta : (list.find(x => x.week === w)?.date_range || "");
+          const match = str.match(/(\d{2})\.(\d{2})\.(\d{2,4})\s*–\s*(\d{2})\.(\d{2})\.(\d{2,4})/);
+          if (match) {
+            const y1 = match[3].length === 2 ? 2000 + parseInt(match[3]) : parseInt(match[3]);
+            const y2 = match[6].length === 2 ? 2000 + parseInt(match[6]) : parseInt(match[6]);
+            startDt = new Date(y1, parseInt(match[2]) - 1, parseInt(match[1]), 0, 0, 0);
+            endDt = new Date(y2, parseInt(match[5]) - 1, parseInt(match[4]), 23, 59, 59);
+          }
+        }
+
+        if (startDt && endDt && now >= startDt && now <= endDt) {
           matchedWeek = w;
           break;
         }
@@ -365,6 +396,9 @@
         return;
       }
 
+      // Сортировка по порядку пар
+      lessons.sort((a, b) => a.pair - b.pair);
+
       container.innerHTML = lessons.map(item => `
         <div class="lesson-card ${item.is_parallel ? 'parallel' : ''}">
           <div class="lesson-header">
@@ -388,11 +422,13 @@
       const dirSelect = document.getElementById("modalDirectionSelect");
       const dirs = Object.keys(db.directions || {});
       
-      if (dirs.length === 0) return;
+      if (dirs.length === 0) {
+        dirs.push("Все группы");
+        db.directions = { "Все группы": Object.keys(db.groups) };
+      }
 
       dirSelect.innerHTML = dirs.map(d => `<option value="${d}">${d}</option>`).join("");
       
-      // Ищем направление текущей группы
       let activeDir = dirs[0];
       for (const [d, grps] of Object.entries(db.directions)) {
         if (grps.includes(currentGroup)) {
