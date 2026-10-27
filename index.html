@@ -6,6 +6,7 @@
   <title>МГПУ • Расписание ИИЯ</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
+    /* Переменные для светлой темы */
     :root {
       --mgpu-red: #E30613;
       --mgpu-red-light: #FEECEB;
@@ -16,29 +17,94 @@
       --border: #E8E8ED;
       --accent-orange: #FFF3E0;
       --accent-orange-text: #E65100;
+      --toggle-track: #E4E4E8;
+      --toggle-thumb: #FFFFFF;
+      --modal-overlay: rgba(0, 0, 0, 0.45);
+      --input-bg: #FAFAFA;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+    /* Переменные для темной темы */
+    [data-theme="dark"] {
+      --mgpu-red: #FF3B30;
+      --mgpu-red-light: rgba(255, 59, 48, 0.16);
+      --mgpu-dark: #F5F5F7;
+      --bg: #121214;
+      --card-bg: #1C1C1E;
+      --text-sub: #98989E;
+      --border: #2C2C30;
+      --accent-orange: #2C2014;
+      --accent-orange-text: #FF9F0A;
+      --toggle-track: #2C2C32;
+      --toggle-thumb: #3A3A40;
+      --modal-overlay: rgba(0, 0, 0, 0.75);
+      --input-bg: #242428;
+    }
+
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      transition: background-color 0.25s ease, border-color 0.25s ease, color 0.2s ease;
+    }
     body { background-color: var(--bg); color: var(--mgpu-dark); padding-bottom: 30px; user-select: none; }
 
     /* Шапка МГПУ */
     .header {
-      background: #FFFFFF;
-      padding: 12px 16px;
+      background: var(--card-bg);
+      padding: 10px 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       border-bottom: 2px solid var(--mgpu-red);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.04);
       position: sticky;
       top: 0;
       z-index: 100;
     }
     .header-left { display: flex; align-items: center; gap: 10px; }
     .header-logo { height: 36px; width: 36px; object-fit: contain; }
-    .header-titles h1 { font-size: 15px; font-weight: 800; line-height: 1.1; }
+    .header-titles h1 { font-size: 15px; font-weight: 800; line-height: 1.1; color: var(--mgpu-dark); }
     .header-titles .current-group { font-size: 12px; color: var(--mgpu-red); font-weight: 700; }
 
-    /* Профиль пользователя Telegram */
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Анимированный ползунок смены темы */
+    .theme-switch {
+      position: relative;
+      width: 52px;
+      height: 28px;
+      background: var(--toggle-track);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 2px;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .theme-switch-thumb {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--toggle-thumb);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      transform: translateX(0px);
+      transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.25s ease;
+    }
+    [data-theme="dark"] .theme-switch-thumb {
+      transform: translateX(24px);
+    }
+
+    /* Кнопка профиля */
     .user-profile-btn {
       display: flex;
       align-items: center;
@@ -48,23 +114,22 @@
       padding: 4px 8px 4px 4px;
       border-radius: 20px;
       cursor: pointer;
-      transition: opacity 0.2s;
     }
     .user-profile-btn:active { opacity: 0.7; }
     .user-avatar {
-      width: 28px;
-      height: 28px;
+      width: 26px;
+      height: 26px;
       border-radius: 50%;
       background: var(--mgpu-red);
       color: #FFF;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
       object-fit: cover;
     }
-    .user-name { font-size: 12px; font-weight: 600; max-width: 95px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-name { font-size: 12px; font-weight: 600; max-width: 85px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mgpu-dark); }
 
     /* Выбор диапазона дат */
     .date-panel { padding: 12px 16px 6px; }
@@ -101,12 +166,11 @@
       font-size: 13px;
       font-weight: 700;
       color: var(--text-sub);
-      transition: 0.15s ease;
     }
     .day-chip.active {
-      background: var(--mgpu-red);
-      border-color: var(--mgpu-red);
-      color: #FFF;
+      background: var(--mgpu-red) !important;
+      border-color: var(--mgpu-red) !important;
+      color: #FFF !important;
     }
 
     /* Карточки расписания */
@@ -116,11 +180,11 @@
       border-radius: 12px;
       padding: 14px 16px;
       border-left: 4px solid var(--mgpu-red);
-      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
     }
     .lesson-card.parallel {
       border-left-color: var(--accent-orange-text);
-      background: #FDFAF5;
+      background: var(--accent-orange);
     }
     .lesson-header {
       display: flex;
@@ -141,44 +205,42 @@
     .badge.parallel-badge {
       background: var(--accent-orange);
       color: var(--accent-orange-text);
+      border: 1px solid var(--border);
     }
-    .lesson-name { font-size: 15px; font-weight: 600; line-height: 1.3; margin-bottom: 6px; }
+    .lesson-name { font-size: 15px; font-weight: 600; line-height: 1.3; margin-bottom: 6px; color: var(--mgpu-dark); }
     .lesson-info { font-size: 13px; color: var(--text-sub); }
     .lesson-room { font-weight: 600; color: var(--mgpu-dark); margin-top: 2px; }
 
     .empty-state { text-align: center; padding: 40px 20px; color: var(--text-sub); font-size: 14px; }
 
-    /* Модальное окно (Шторка с поддержкой свайпа вниз) */
+    /* Модальное окно (Шторка со свайпом) */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.45);
+      background: var(--modal-overlay);
       display: none;
       align-items: flex-end;
       justify-content: center;
       z-index: 1000;
-      backdrop-filter: blur(2px);
+      backdrop-filter: blur(4px);
     }
     .modal-sheet {
-      background: #FFFFFF;
+      background: var(--card-bg);
       width: 100%;
       max-width: 500px;
       border-radius: 20px 20px 0 0;
       padding: 10px 20px 30px;
-      box-shadow: 0 -6px 25px rgba(0,0,0,0.18);
+      box-shadow: 0 -6px 30px rgba(0,0,0,0.25);
       position: relative;
       touch-action: pan-y;
       transition: transform 0.25s ease-out;
     }
-
-    /* Ручка свайпа (Drag Handle) */
     .drag-handle-bar {
       width: 40px;
       height: 5px;
-      background: #D1D1D6;
+      background: var(--border);
       border-radius: 3px;
       margin: 4px auto 14px;
-      cursor: grab;
     }
     .modal-header-row {
       display: flex;
@@ -188,13 +250,13 @@
     }
     .modal-title { font-size: 18px; font-weight: 800; color: var(--mgpu-dark); }
     .modal-close-btn {
-      background: #EFEFF4;
-      border: none;
+      background: var(--bg);
+      border: 1px solid var(--border);
       width: 28px;
       height: 28px;
       border-radius: 50%;
       font-size: 16px;
-      color: #8E8E93;
+      color: var(--text-sub);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -211,7 +273,7 @@
       border-radius: 12px;
       font-size: 14px;
       font-weight: 600;
-      background: #FAFAFA;
+      background: var(--input-bg);
       color: var(--mgpu-dark);
       outline: none;
     }
@@ -240,9 +302,17 @@
         <div class="current-group" id="headerGroupLabel">Группа не выбрана</div>
       </div>
     </div>
-    <div class="user-profile-btn" onclick="openProfileModal()">
-      <div id="avatarContainer"></div>
-      <span class="user-name" id="profileName">Студент</span>
+    <div class="header-right">
+      <!-- Ползунок темы -->
+      <div class="theme-switch" id="themeToggleBtn" onclick="toggleThemeManual()" title="Переключить тему">
+        <div class="theme-switch-thumb" id="themeSwitchThumb">☀️</div>
+      </div>
+
+      <!-- Профиль Telegram -->
+      <div class="user-profile-btn" onclick="openProfileModal()">
+        <div id="avatarContainer"></div>
+        <span class="user-name" id="profileName">Студент</span>
+      </div>
     </div>
   </div>
 
@@ -253,7 +323,7 @@
   <div class="days-bar" id="daysBar"></div>
   <div class="schedule-list" id="scheduleList"></div>
 
-  <!-- Модальное окно выбора профиля со свайпом -->
+  <!-- Модальное окно выбора профиля -->
   <div class="modal-overlay" id="profileModal">
     <div class="modal-sheet" id="modalSheet">
       <div class="drag-handle-bar"></div>
@@ -285,6 +355,70 @@
       tg.expand();
     }
 
+    /* ========== УПРАВЛЕНИЕ ТЕМОЙ ОФОРМЛЕНИЯ ========== */
+    let currentTheme = "light";
+
+    function applyTheme(theme, saveManual = false) {
+      currentTheme = theme;
+      document.documentElement.setAttribute('data-theme', theme);
+      
+      const thumb = document.getElementById("themeSwitchThumb");
+      if (thumb) {
+        thumb.textContent = theme === 'dark' ? '🌙' : '☀️';
+      }
+
+      if (saveManual) {
+        localStorage.setItem('mgpu_user_theme', theme);
+      }
+
+      // Синхронизация системных цветов Telegram WebApp
+      if (tg) {
+        try {
+          tg.setHeaderColor(theme === 'dark' ? '#1C1C1E' : '#FFFFFF');
+          tg.setBackgroundColor(theme === 'dark' ? '#121214' : '#F5F6F8');
+        } catch (e) {}
+      }
+    }
+
+    function toggleThemeManual() {
+      const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      applyTheme(nextTheme, true);
+    }
+
+    function initTheme() {
+      const saved = localStorage.getItem('mgpu_user_theme');
+      if (saved === 'dark' || saved === 'light') {
+        applyTheme(saved);
+        return;
+      }
+
+      // Автоопределение из Telegram или ОС устройства
+      const isTgDark = tg?.colorScheme === 'dark';
+      const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      applyTheme(isTgDark || isSystemDark ? 'dark' : 'light');
+
+      // Слушатель смены темы внутри Telegram
+      if (tg && tg.onEvent) {
+        tg.onEvent('themeChanged', () => {
+          if (!localStorage.getItem('mgpu_user_theme')) {
+            applyTheme(tg.colorScheme === 'dark' ? 'dark' : 'light');
+          }
+        });
+      }
+
+      // Слушатель смены темы на уровне устройства/браузера
+      if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+          if (!localStorage.getItem('mgpu_user_theme')) {
+            applyTheme(e.matches ? 'dark' : 'light');
+          }
+        });
+      }
+    }
+
+    initTheme();
+
+    /* ========== ОСНОВНОЙ ФУНКЦИОНАЛ ПРИЛОЖЕНИЯ ========== */
     const tgUser = tg?.initDataUnsafe?.user;
     const userId = tgUser?.id || "guest_user";
     const userName = tgUser?.username ? `@${tgUser.username}` : (tgUser?.first_name || "Студент");
@@ -307,7 +441,6 @@
     let currentGroup = "";
     let selectedDay = "ПОНЕДЕЛЬНИК";
 
-    // Автоопределение текущего дня недели (вс -> пн)
     const todayIndex = new Date().getDay();
     if (todayIndex >= 1 && todayIndex <= 6) {
       selectedDay = DAYS[todayIndex - 1];
@@ -315,7 +448,6 @@
       selectedDay = DAYS[0];
     }
 
-    // Расчет курса студента по двум цифрам года поступления
     function formatGroupWithCourse(groupName) {
       const m = groupName.trim().match(/^([А-Яа-яA-Za-z0-9_]+?)[-_]?(\d{2})/);
       if (m) {
@@ -329,18 +461,14 @@
       return groupName;
     }
 
-    // Построение списка направлений по числовым индексам (защита от ошибок с кавычками)
     function buildDirectionsList(dbData) {
       const list = [];
-      
-      // 1. Все группы института
       list.push({
         id: 0,
         title: `🌟 Все направления (${allGroups.length} групп)`,
         groups: [...allGroups].sort()
       });
 
-      // 2. Добавляем направления из schedule.json (если есть)
       if (dbData.directions && typeof dbData.directions === 'object') {
         for (const [title, grps] of Object.entries(dbData.directions)) {
           if (Array.isArray(grps) && grps.length > 0) {
@@ -353,17 +481,14 @@
         }
       }
 
-      // 3. Дополнительная группировка по шифрам групп
-      const prefixMap = {};
-      allGroups.forEach(g => {
-        const m = g.trim().match(/^([А-Яа-яA-Za-z0-9]+)/);
-        const pfx = m ? m[1].toUpperCase() : "ДРУГИЕ";
-        if (!prefixMap[pfx]) prefixMap[pfx] = [];
-        prefixMap[pfx].push(g);
-      });
-
-      // Если в schedule.json не было directions, используем префиксы
       if (list.length === 1) {
+        const prefixMap = {};
+        allGroups.forEach(g => {
+          const m = g.trim().match(/^([А-Яа-яA-Za-z0-9]+)/);
+          const pfx = m ? m[1].toUpperCase() : "ДРУГИЕ";
+          if (!prefixMap[pfx]) prefixMap[pfx] = [];
+          prefixMap[pfx].push(g);
+        });
         for (const [pfx, grps] of Object.entries(prefixMap)) {
           list.push({
             id: list.length,
@@ -378,7 +503,6 @@
 
     async function init() {
       try {
-        // Добавляем ?t=... для сброса кэша Telegram
         const res = await fetch('schedule.json?t=' + Date.now());
         db = await res.json();
 
@@ -400,7 +524,6 @@
           renderDaysBar();
           render();
         } else {
-          // Если группа еще не сохранена — берем первую и открываем онбординг
           currentGroup = allGroups[0];
           document.getElementById("headerGroupLabel").textContent = currentGroup;
           initDateSelection();
@@ -437,7 +560,6 @@
         weekSelect.appendChild(opt);
       });
 
-      // Автовыбор текущей недели
       const now = new Date();
       let matchedWeek = null;
       for (const w of uniqueWeeks) {
@@ -516,12 +638,10 @@
       `).join("");
     }
 
-    /* Модальное окно профиля */
     function openProfileModal() {
       const dirSelect = document.getElementById("modalDirectionSelect");
       dirSelect.innerHTML = "";
 
-      // Ищем индекс направления, в котором находится текущая группа
       let activeIndex = 0;
       directionsList.forEach((d, idx) => {
         const opt = document.createElement("option");
@@ -598,12 +718,10 @@
       render();
     }
 
-    /* Закрытие по клику на темный фон */
     document.getElementById("profileModal").addEventListener("click", (e) => {
       if (e.target.id === "profileModal") closeProfileModal();
     });
 
-    /* Обработка жеста СВАЙПА ВНИЗ на мобильных */
     let touchStartY = 0;
     let touchCurrentY = 0;
     let isSwiping = false;
