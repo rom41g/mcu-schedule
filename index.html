@@ -557,8 +557,14 @@
       if (btn && !isStandalone) btn.style.display = "flex";
     });
 
-    function triggerSmartInstall() {
-      // 1. Если запущен Android/Chrome с поддержкой PWA
+   function triggerSmartInstall() {
+      // 1. Для iPhone сразу открываем аккуратную подсказку без черного экрана Telegram
+      if (isIOS) {
+        document.getElementById("iosInstructionModal").style.display = "flex";
+        return;
+      }
+
+      // 2. Для Android и ПК вызываем нативную установку в 1 клик
       if (deferredPrompt) {
         deferredPrompt.prompt();
         deferredPrompt.userChoice.then((choice) => {
@@ -570,20 +576,13 @@
         return;
       }
 
-      // 2. Если запущен внутри Telegram (где есть нативный API)
+      // 3. Для Telegram на Android (если не сработал системный промпт)
       if (tg && typeof tg.addToHomeScreen === 'function') {
         tg.addToHomeScreen();
         return;
       }
 
-      // 3. Если запущен Safari на iPhone/iPad
-      if (isIOS) {
-        document.getElementById("iosInstructionModal").style.display = "flex";
-        return;
-      }
-
-      // 4. Запасной вариант для десктопа/прочих браузеров
-      alert("Нажмите на значок установки в адресной строке браузера (справа) или выберите в меню «Установить приложение».");
+      alert("Откройте сайт в Safari и нажмите «Поделиться» ➔ «На экран Домой».");
     }
 
     function closeIosModal() {
