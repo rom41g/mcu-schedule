@@ -38,7 +38,7 @@
     .header-titles h1 { font-size: 15px; font-weight: 800; line-height: 1.1; }
     .header-titles .current-group { font-size: 12px; color: var(--mgpu-red); font-weight: 700; }
 
-    /* Профиль пользователя в Telegram */
+    /* Профиль пользователя Telegram */
     .user-profile-btn {
       display: flex;
       align-items: center;
@@ -109,7 +109,7 @@
       color: #FFF;
     }
 
-    /* Карточки расписания */
+    /* Карточки пар */
     .schedule-list { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
     .lesson-card {
       background: var(--card-bg);
@@ -148,11 +148,11 @@
 
     .empty-state { text-align: center; padding: 40px 20px; color: var(--text-sub); font-size: 14px; }
 
-    /* Окно смены профиля */
+    /* Окно профиля / онбординга */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.45);
+      background: rgba(0,0,0,0.5);
       display: none;
       align-items: flex-end;
       justify-content: center;
@@ -198,6 +198,7 @@
       cursor: pointer;
       margin-top: 8px;
     }
+    .modal-btn:active { opacity: 0.85; }
   </style>
 </head>
 <body>
@@ -223,11 +224,11 @@
   <div class="days-bar" id="daysBar"></div>
   <div class="schedule-list" id="scheduleList"></div>
 
-  <!-- Модальное окно профиля -->
+  <!-- Модальное окно выбора профиля -->
   <div class="modal-overlay" id="profileModal">
     <div class="modal-sheet">
       <div class="modal-title">Мой профиль</div>
-      <div class="modal-desc">Выберите направление подготовки и группу:</div>
+      <div class="modal-desc">Выберите направление подготовки и академическую группу:</div>
       
       <div class="form-group">
         <label>Направление подготовки</label>
@@ -265,17 +266,90 @@
 
     const DAYS = ["ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА"];
     const SHORT_DAYS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
+
+    // Официальные расшифровки направлений МГПУ ИИЯ
+    const PREFIX_NAMES = {
+      'ПОЕ': 'Пед. образование: Европейские языки (ПОЕ)',
+      'ПОК': 'Пед. образование: Китайский язык (ПОК)',
+      'ПОЯ': 'Пед. образование: Японский язык (ПОЯ)',
+      'ПОР': 'Пед. образование: Русский как иностранный (ПОР)',
+      'ПО': 'Педагогическое образование (ПО)',
+      'ЛИН': 'Лингвистика (ЛИН)',
+      'ПЕР': 'Перевод и переводоведение (ПЕР)',
+      'ТИМ': 'Теория и методика преподавания (ТИМ)',
+      'ФИЛ': 'Зарубежная филология (ФИЛ)',
+      'СМТ': 'Магистратура: Современные методики (СМТ)',
+      'СМТВОСТ': 'Магистратура: Восточные языки (СМТ_ВОСТ)'
+    };
     
-    let db = { directions: {}, groups: {}, weeks: {} };
+    let db = { groups: {}, weeks: {} };
+    let directionsMap = {};
     let currentGroup = "";
     let selectedDay = "ПОНЕДЕЛЬНИК";
 
-    // Автовыбор текущего дня недели (вс -> пн)
+    // Автоопределение сегодняшнего дня (вс -> пн)
     const todayIndex = new Date().getDay();
     if (todayIndex >= 1 && todayIndex <= 6) {
       selectedDay = DAYS[todayIndex - 1];
     } else {
       selectedDay = DAYS[0];
+    }
+
+    // Расчет курса по двум цифрам года поступления
+    function formatGroupWithCourse(groupName) {
+      const m = groupName.trim().match(/^([А-Яа-яA-Za-z_]+?)[-_]?(\d{2})/);
+      if (m) {
+        const admissionYear = 2000 + parseInt(m[2]);
+        const currentYear = new Date().getFullYear();
+        const course = currentYear - admissionYear + 1;
+        if (course >= 1 && course <= 6) {
+          return `${groupName} (${course} курс)`;
+        }
+        return `${groupName} (${admissionYear} г.п.)`;
+      }
+      return groupName;
+    }
+
+    // Построение карты направлений из шифров групп
+    function buildDirectionsFromGroups(groupNames) {
+      const map = {
+        'ALL': { title: `🌟 Все направления (${groupNames.length} групп)`, groups: [...groupNames].sort() }
+      };
+
+      groupNames.forEach(grp => {
+        const clean = grp.trim();
+        const m = clean.match(/^([А-Яа-яA-Za-z_]+?)[-_]?(\d{2})/);
+        let prefix = m ? m[1].replace(/_/g, '').toUpperCase() : 'ДРУГИЕ';
+        
+        let matchedKey = prefix;
+        if (!PREFIX_NAMES[matchedKey]) {
+          if (prefix.startsWith('СМТ')) matchedKey = 'СМТ';
+          else if (prefix.startsWith('ПО')) matchedKey = 'ПО';
+        }
+
+        if (!map[matchedKey]) {
+          const title = PREFIX_NAMES[matchedKey] || `${matchedKey} — Направление ${matchedKey}`;
+          map[matchedKey] = { title, groups: [] };
+        }
+        map[matchedKey].groups.push(clean);
+      });
+
+      for (const k in map) {
+        map[k].groups.sort();
+      }
+      return map;
+    }
+
+    // Безопасное заполнение выпадающего списка
+    function populateDropdown(selectElem, items, activeValue) {
+      selectElem.innerHTML = '';
+      items.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item.value;
+        opt.textContent = item.label;
+        if (item.value === activeValue) opt.selected = true;
+        selectElem.appendChild(opt);
+      });
     }
 
     async function init() {
@@ -284,16 +358,18 @@
         db = await res.json();
 
         // Поддержка обеих структур schedule.json
-        const allGroups = db.groups ? Object.keys(db.groups) : Object.keys(db);
+        if (!db.groups && typeof db === 'object') {
+          db = { groups: db, weeks: {} };
+        }
+
+        const allGroups = Object.keys(db.groups || {});
         if (allGroups.length === 0) {
           document.getElementById("scheduleList").innerHTML = `<div class="empty-state">Нет данных о группах.</div>`;
           return;
         }
 
-        // Если в JSON старая структура без db.groups
-        if (!db.groups) {
-          db = { groups: db, directions: { "Все группы": allGroups }, weeks: {} };
-        }
+        // Строим направления по шифрам групп
+        directionsMap = buildDirectionsFromGroups(allGroups);
 
         const savedGroup = localStorage.getItem(`mgpu_group_${userId}`);
 
@@ -317,8 +393,7 @@
       const list = db.groups[currentGroup] || [];
       const uniqueWeeks = [...new Set(list.map(x => x.week))].sort((a,b) => a - b);
 
-      // Корректное формирование подписи даты (без undefined)
-      weekSelect.innerHTML = uniqueWeeks.map(w => {
+      const weekItems = uniqueWeeks.map(w => {
         let label = `${w} неделя`;
         const wMeta = db.weeks ? (db.weeks[w] || db.weeks[String(w)]) : null;
         
@@ -330,10 +405,10 @@
           const sample = list.find(x => x.week === w && x.date_range);
           if (sample && sample.date_range) label = sample.date_range;
         }
-        return `<option value="${w}">${label}</option>`;
-      }).join("");
+        return { value: w, label: label };
+      });
 
-      // Автоматический выбор актуальной недели по сегодняшней дате
+      // Автоопределение сегодняшней недели
       const now = new Date();
       let matchedWeek = null;
 
@@ -361,11 +436,8 @@
         }
       }
 
-      if (matchedWeek) {
-        weekSelect.value = matchedWeek;
-      } else if (uniqueWeeks.length > 0) {
-        weekSelect.value = uniqueWeeks[0];
-      }
+      const activeWeek = matchedWeek || (uniqueWeeks.length > 0 ? uniqueWeeks[0] : null);
+      populateDropdown(weekSelect, weekItems, activeWeek);
     }
 
     function renderDaysBar() {
@@ -396,7 +468,6 @@
         return;
       }
 
-      // Сортировка по порядку пар
       lessons.sort((a, b) => a.pair - b.pair);
 
       container.innerHTML = lessons.map(item => `
@@ -420,23 +491,23 @@
     /* Модальное окно профиля */
     function openProfileModal(isFirstLaunch = false) {
       const dirSelect = document.getElementById("modalDirectionSelect");
-      const dirs = Object.keys(db.directions || {});
-      
-      if (dirs.length === 0) {
-        dirs.push("Все группы");
-        db.directions = { "Все группы": Object.keys(db.groups) };
-      }
+      const dirKeys = Object.keys(directionsMap);
+      if (dirKeys.length === 0) return;
 
-      dirSelect.innerHTML = dirs.map(d => `<option value="${d}">${d}</option>`).join("");
-      
-      let activeDir = dirs[0];
-      for (const [d, grps] of Object.entries(db.directions)) {
-        if (grps.includes(currentGroup)) {
-          activeDir = d;
-          break;
+      const dirItems = dirKeys.map(k => ({ value: k, label: directionsMap[k].title }));
+
+      // Ищем, в каком направлении находится текущая группа
+      let activeDir = dirKeys[0];
+      if (currentGroup) {
+        for (const k of dirKeys) {
+          if (k !== 'ALL' && directionsMap[k].groups.includes(currentGroup)) {
+            activeDir = k;
+            break;
+          }
         }
       }
-      dirSelect.value = activeDir;
+
+      populateDropdown(dirSelect, dirItems, activeDir);
       onModalDirectionChange();
 
       if (currentGroup) {
@@ -447,15 +518,26 @@
     }
 
     function onModalDirectionChange() {
-      const dir = document.getElementById("modalDirectionSelect").value;
+      const dirKey = document.getElementById("modalDirectionSelect").value;
       const grpSelect = document.getElementById("modalGroupSelect");
-      const groups = db.directions[dir] || [];
-      grpSelect.innerHTML = groups.map(g => `<option value="${g}">${g}</option>`).join("");
+      const groups = directionsMap[dirKey] ? directionsMap[dirKey].groups : [];
+
+      const groupItems = groups.map(g => ({
+        value: g,
+        label: formatGroupWithCourse(g)
+      }));
+
+      // Если текущая группа есть в выбранном направлении — сохраняем выбор
+      const selected = groups.includes(currentGroup) ? currentGroup : (groups[0] || "");
+      populateDropdown(grpSelect, groupItems, selected);
     }
 
     function saveProfileSelection() {
       const chosenGroup = document.getElementById("modalGroupSelect").value;
-      if (!chosenGroup) return;
+      if (!chosenGroup) {
+        alert("Пожалуйста, выберите группу.");
+        return;
+      }
 
       currentGroup = chosenGroup;
       localStorage.setItem(`mgpu_group_${userId}`, currentGroup);
