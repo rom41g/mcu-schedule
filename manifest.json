@@ -1,0 +1,16 @@
+{
+  "name": "МГПУ • Расписание ИИЯ",
+  "short_name": "Расписание",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#F5F6F8",
+  "theme_color": "#E30613",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
