@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>МГПУ • Расписание ИИЯ</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
@@ -11,6 +11,7 @@
   <link rel="apple-touch-icon" href="logo.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Расписание МГПУ">
   <meta name="theme-color" content="#E30613">
 
   <style>
@@ -223,7 +224,7 @@
 
     .empty-state { text-align: center; padding: 40px 20px; color: var(--text-sub); font-size: 14px; }
 
-    /* Шторка профиля */
+    /* Модальные окна */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -319,7 +320,7 @@
       line-height: 1.3;
     }
 
-    /* Кнопка на домашний экран */
+    /* Кнопка установки на рабочий стол */
     .install-home-btn {
       width: 100%;
       padding: 12px;
@@ -336,9 +337,7 @@
       justify-content: center;
       gap: 8px;
     }
-    .install-home-btn:active {
-      background: var(--mgpu-red-light);
-    }
+    .install-home-btn:active { background: var(--mgpu-red-light); }
 
     .modal-btn {
       width: 100%;
@@ -353,6 +352,41 @@
       margin-top: 10px;
     }
     .modal-btn:active { opacity: 0.85; }
+
+    /* Инструкция Safari для iOS */
+    .ios-step {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: var(--input-bg);
+      border-radius: 12px;
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--mgpu-dark);
+    }
+    .ios-step-icon {
+      font-size: 22px;
+      width: 36px;
+      height: 36px;
+      background: var(--card-bg);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .ios-arrow-bounce {
+      text-align: center;
+      font-size: 26px;
+      animation: bounce 1.2s infinite;
+      margin-top: 10px;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(6px); }
+    }
   </style>
 </head>
 <body>
@@ -420,12 +454,38 @@
         </div>
       </div>
 
-      <!-- Кнопка на главный экран -->
-      <button type="button" class="install-home-btn" id="installHomeBtn" onclick="installToHomeScreen()">
-        📲 Добавить на рабочий стол
+      <!-- Умная кнопка установки на рабочий стол -->
+      <button type="button" class="install-home-btn" id="installHomeBtn" onclick="triggerSmartInstall()">
+        📲 Установить на рабочий стол
       </button>
 
       <button type="button" class="modal-btn" onclick="saveProfileSelection()">Сохранить выбор</button>
+    </div>
+  </div>
+
+  <!-- Специальная всплывающая шторка для iPhone (Safari) -->
+  <div class="modal-overlay" id="iosInstructionModal">
+    <div class="modal-sheet" style="padding-bottom: 20px;">
+      <div class="modal-header-row">
+        <div class="modal-title">Добавление на экран iPhone</div>
+        <button type="button" class="modal-close-btn" onclick="closeIosModal()">&times;</button>
+      </div>
+      <p style="font-size: 13px; color: var(--text-sub); margin-bottom: 14px;">Приложение установится без рамок браузера прямо на рабочий стол:</p>
+      
+      <div class="ios-step">
+        <div class="ios-step-icon">⎋</div>
+        <div>1. Нажмите кнопку <b>«Поделиться»</b> на нижней панели Safari</div>
+      </div>
+      <div class="ios-step">
+        <div class="ios-step-icon">➕</div>
+        <div>2. В появившемся меню выберите <b>«На экран „Домой“»</b></div>
+      </div>
+      <div class="ios-step">
+        <div class="ios-step-icon">✨</div>
+        <div>3. Нажмите <b>«Добавить»</b> в правом верхнем углу</div>
+      </div>
+
+      <div class="ios-arrow-bounce">⬇️</div>
     </div>
   </div>
 
@@ -478,22 +538,56 @@
     }
     initTheme();
 
-    /* ========== УСТАНОВКА НА ЭКРАН ДОМОЙ ========== */
-    function installToHomeScreen() {
-      if (tg && typeof tg.addToHomeScreen === 'function') {
-        tg.addToHomeScreen();
-      } else {
-        alert("Чтобы добавить расписание на главный экран:\n\n• На iPhone: откройте ссылку в браузере Safari ➔ нажмите кнопку «Поделиться» ➔ «На экран Домой»\n• На Android: нажмите три точки в углу браузера ➔ «Установить на главный экран»");
-      }
+    /* ========== УМНАЯ УСТАНОВКА НА ЭКРАН (PWA + iOS) ========== */
+    let deferredPrompt = null;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+    // Скрываем кнопку, если приложение уже открыто с рабочего стола
+    if (isStandalone) {
+      const btn = document.getElementById("installHomeBtn");
+      if (btn) btn.style.display = "none";
     }
 
-    if (tg && typeof tg.checkHomeScreenStatus === 'function') {
-      tg.checkHomeScreenStatus((status) => {
-        const btn = document.getElementById("installHomeBtn");
-        if (btn && status === 'added') {
-          btn.style.display = 'none';
-        }
-      });
+    // Перехват системного события PWA для Android/Chrome
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const btn = document.getElementById("installHomeBtn");
+      if (btn && !isStandalone) btn.style.display = "flex";
+    });
+
+    function triggerSmartInstall() {
+      // 1. Если запущен Android/Chrome с поддержкой PWA
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choice) => {
+          if (choice.outcome === 'accepted') {
+            document.getElementById("installHomeBtn").style.display = 'none';
+          }
+          deferredPrompt = null;
+        });
+        return;
+      }
+
+      // 2. Если запущен внутри Telegram (где есть нативный API)
+      if (tg && typeof tg.addToHomeScreen === 'function') {
+        tg.addToHomeScreen();
+        return;
+      }
+
+      // 3. Если запущен Safari на iPhone/iPad
+      if (isIOS) {
+        document.getElementById("iosInstructionModal").style.display = "flex";
+        return;
+      }
+
+      // 4. Запасной вариант для десктопа/прочих браузеров
+      alert("Нажмите на значок установки в адресной строке браузера (справа) или выберите в меню «Установить приложение».");
+    }
+
+    function closeIosModal() {
+      document.getElementById("iosInstructionModal").style.display = "none";
     }
 
     /* ========== ОСНОВНАЯ ЛОГИКА ========== */
@@ -811,6 +905,10 @@
 
     document.getElementById("profileModal").addEventListener("click", (e) => {
       if (e.target.id === "profileModal") closeProfileModal();
+    });
+
+    document.getElementById("iosInstructionModal").addEventListener("click", (e) => {
+      if (e.target.id === "iosInstructionModal") closeIosModal();
     });
 
     let touchStartY = 0, touchCurrentY = 0, isSwiping = false;
