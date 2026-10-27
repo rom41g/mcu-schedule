@@ -6,7 +6,6 @@
   <title>МГПУ • Расписание ИИЯ</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    /* Переменные для светлой темы */
     :root {
       --mgpu-red: #E30613;
       --mgpu-red-light: #FEECEB;
@@ -21,9 +20,9 @@
       --toggle-thumb: #FFFFFF;
       --modal-overlay: rgba(0, 0, 0, 0.45);
       --input-bg: #FAFAFA;
+      --segment-bg: #EEEEF2;
     }
 
-    /* Переменные для темной темы */
     [data-theme="dark"] {
       --mgpu-red: #FF3B30;
       --mgpu-red-light: rgba(255, 59, 48, 0.16);
@@ -38,6 +37,7 @@
       --toggle-thumb: #3A3A40;
       --modal-overlay: rgba(0, 0, 0, 0.75);
       --input-bg: #242428;
+      --segment-bg: #2C2C32;
     }
 
     * { 
@@ -62,21 +62,25 @@
       top: 0;
       z-index: 100;
     }
-    .header-left { display: flex; align-items: center; gap: 10px; }
-    .header-logo { height: 36px; width: 36px; object-fit: contain; }
+    .header-left { display: flex; align-items: center; gap: 10px; max-width: 60%; }
+    .header-logo { height: 36px; width: 36px; object-fit: contain; flex-shrink: 0; }
     .header-titles h1 { font-size: 15px; font-weight: 800; line-height: 1.1; color: var(--mgpu-dark); }
-    .header-titles .current-group { font-size: 12px; color: var(--mgpu-red); font-weight: 700; }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 10px;
+    .header-titles .current-target { 
+      font-size: 12px; 
+      color: var(--mgpu-red); 
+      font-weight: 700; 
+      white-space: nowrap; 
+      overflow: hidden; 
+      text-overflow: ellipsis; 
+      max-width: 170px;
     }
 
-    /* Анимированный ползунок смены темы */
+    .header-right { display: flex; align-items: center; gap: 10px; }
+
+    /* Ползунок темы */
     .theme-switch {
       position: relative;
-      width: 52px;
+      width: 50px;
       height: 28px;
       background: var(--toggle-track);
       border-radius: 14px;
@@ -85,7 +89,6 @@
       display: flex;
       align-items: center;
       padding: 2px;
-      box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
     }
     .theme-switch-thumb {
       width: 22px;
@@ -100,15 +103,13 @@
       transform: translateX(0px);
       transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.25s ease;
     }
-    [data-theme="dark"] .theme-switch-thumb {
-      transform: translateX(24px);
-    }
+    [data-theme="dark"] .theme-switch-thumb { transform: translateX(22px); }
 
     /* Кнопка профиля */
     .user-profile-btn {
       display: flex;
       align-items: center;
-      gap: 7px;
+      gap: 6px;
       background: var(--bg);
       border: 1px solid var(--border);
       padding: 4px 8px 4px 4px;
@@ -129,7 +130,7 @@
       font-weight: 700;
       object-fit: cover;
     }
-    .user-name { font-size: 12px; font-weight: 600; max-width: 85px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mgpu-dark); }
+    .user-name { font-size: 12px; font-weight: 600; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mgpu-dark); }
 
     /* Выбор диапазона дат */
     .date-panel { padding: 12px 16px 6px; }
@@ -173,7 +174,7 @@
       color: #FFF !important;
     }
 
-    /* Карточки расписания */
+    /* Карточки пар */
     .schedule-list { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
     .lesson-card {
       background: var(--card-bg);
@@ -210,10 +211,11 @@
     .lesson-name { font-size: 15px; font-weight: 600; line-height: 1.3; margin-bottom: 6px; color: var(--mgpu-dark); }
     .lesson-info { font-size: 13px; color: var(--text-sub); }
     .lesson-room { font-weight: 600; color: var(--mgpu-dark); margin-top: 2px; }
+    .lesson-target-group { font-weight: 700; color: var(--mgpu-red); margin-bottom: 2px; }
 
     .empty-state { text-align: center; padding: 40px 20px; color: var(--text-sub); font-size: 14px; }
 
-    /* Модальное окно (Шторка со свайпом) */
+    /* Шторка профиля со свайпом */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -262,8 +264,34 @@
       justify-content: center;
       cursor: pointer;
     }
-    .modal-desc { font-size: 13px; color: var(--text-sub); margin-bottom: 16px; line-height: 1.4; }
-    
+
+    /* Сегментный переключатель роли (Студент / Преподаватель) */
+    .role-segmented-control {
+      display: flex;
+      background: var(--segment-bg);
+      padding: 4px;
+      border-radius: 12px;
+      margin: 12px 0 16px;
+      gap: 4px;
+    }
+    .role-btn {
+      flex: 1;
+      padding: 9px;
+      border: none;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--text-sub);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .role-btn.active {
+      background: var(--card-bg);
+      color: var(--mgpu-red);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+
     .form-group { margin-bottom: 14px; }
     .form-group label { display: block; font-size: 12px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px; text-transform: uppercase; }
     .modal-select {
@@ -276,6 +304,12 @@
       background: var(--input-bg);
       color: var(--mgpu-dark);
       outline: none;
+    }
+    .modal-note {
+      font-size: 11px;
+      color: var(--text-sub);
+      margin-top: 4px;
+      line-height: 1.3;
     }
     .modal-btn {
       width: 100%;
@@ -298,17 +332,14 @@
     <div class="header-left">
       <img src="logo.png" alt="МГПУ" class="header-logo" onerror="this.style.display='none'">
       <div class="header-titles">
-        <h1>МГПУ • ИИЯ</h1>
-        <div class="current-group" id="headerGroupLabel">Группа не выбрана</div>
+        <h1 id="headerMainTitle">МГПУ • ИИЯ</h1>
+        <div class="current-target" id="headerTargetLabel">Загрузка...</div>
       </div>
     </div>
     <div class="header-right">
-      <!-- Ползунок темы -->
       <div class="theme-switch" id="themeToggleBtn" onclick="toggleThemeManual()" title="Переключить тему">
         <div class="theme-switch-thumb" id="themeSwitchThumb">☀️</div>
       </div>
-
-      <!-- Профиль Telegram -->
       <div class="user-profile-btn" onclick="openProfileModal()">
         <div id="avatarContainer"></div>
         <span class="user-name" id="profileName">Студент</span>
@@ -323,7 +354,7 @@
   <div class="days-bar" id="daysBar"></div>
   <div class="schedule-list" id="scheduleList"></div>
 
-  <!-- Модальное окно выбора профиля -->
+  <!-- Модальное окно профиля с выбором роли -->
   <div class="modal-overlay" id="profileModal">
     <div class="modal-sheet" id="modalSheet">
       <div class="drag-handle-bar"></div>
@@ -332,16 +363,33 @@
         <div class="modal-title">Мой профиль</div>
         <button type="button" class="modal-close-btn" onclick="closeProfileModal()">&times;</button>
       </div>
-      <div class="modal-desc">Выберите направление подготовки и академическую группу:</div>
+
+      <!-- Переключатель роли -->
+      <div class="role-segmented-control">
+        <button type="button" class="role-btn active" id="btnRoleStudent" onclick="switchModalRole('student')">🎓 Студент</button>
+        <button type="button" class="role-btn" id="btnRoleTeacher" onclick="switchModalRole('teacher')">👨‍🏫 Преподаватель</button>
+      </div>
       
-      <div class="form-group">
-        <label>Направление подготовки</label>
-        <select id="modalDirectionSelect" class="modal-select" onchange="onModalDirectionChange()"></select>
+      <!-- Поля студента -->
+      <div id="studentFields">
+        <div class="form-group">
+          <label>Направление подготовки</label>
+          <select id="modalDirectionSelect" class="modal-select" onchange="onModalDirectionChange()"></select>
+        </div>
+
+        <div class="form-group">
+          <label>Академическая группа</label>
+          <select id="modalGroupSelect" class="modal-select"></select>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label>Академическая группа</label>
-        <select id="modalGroupSelect" class="modal-select"></select>
+      <!-- Поля преподавателя -->
+      <div id="teacherFields" style="display: none;">
+        <div class="form-group">
+          <label>ФИО преподавателя</label>
+          <select id="modalTeacherSelect" class="modal-select"></select>
+          <div class="modal-note">ℹ️ Отображаются занятия кафедр корпуса ИИЯ.</div>
+        </div>
       </div>
 
       <button type="button" class="modal-btn" onclick="saveProfileSelection()">Сохранить</button>
@@ -355,23 +403,16 @@
       tg.expand();
     }
 
-    /* ========== УПРАВЛЕНИЕ ТЕМОЙ ОФОРМЛЕНИЯ ========== */
+    /* ========== ТЕМА ОФОРМЛЕНИЯ ========== */
     let currentTheme = "light";
 
     function applyTheme(theme, saveManual = false) {
       currentTheme = theme;
       document.documentElement.setAttribute('data-theme', theme);
-      
       const thumb = document.getElementById("themeSwitchThumb");
-      if (thumb) {
-        thumb.textContent = theme === 'dark' ? '🌙' : '☀️';
-      }
+      if (thumb) thumb.textContent = theme === 'dark' ? '🌙' : '☀️';
 
-      if (saveManual) {
-        localStorage.setItem('mgpu_user_theme', theme);
-      }
-
-      // Синхронизация системных цветов Telegram WebApp
+      if (saveManual) localStorage.setItem('mgpu_user_theme', theme);
       if (tg) {
         try {
           tg.setHeaderColor(theme === 'dark' ? '#1C1C1E' : '#FFFFFF');
@@ -381,8 +422,7 @@
     }
 
     function toggleThemeManual() {
-      const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
-      applyTheme(nextTheme, true);
+      applyTheme(currentTheme === 'dark' ? 'light' : 'dark', true);
     }
 
     function initTheme() {
@@ -391,34 +431,21 @@
         applyTheme(saved);
         return;
       }
-
-      // Автоопределение из Telegram или ОС устройства
       const isTgDark = tg?.colorScheme === 'dark';
       const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
       applyTheme(isTgDark || isSystemDark ? 'dark' : 'light');
 
-      // Слушатель смены темы внутри Telegram
-      if (tg && tg.onEvent) {
+      if (tg?.onEvent) {
         tg.onEvent('themeChanged', () => {
           if (!localStorage.getItem('mgpu_user_theme')) {
             applyTheme(tg.colorScheme === 'dark' ? 'dark' : 'light');
           }
         });
       }
-
-      // Слушатель смены темы на уровне устройства/браузера
-      if (window.matchMedia) {
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-          if (!localStorage.getItem('mgpu_user_theme')) {
-            applyTheme(e.matches ? 'dark' : 'light');
-          }
-        });
-      }
     }
-
     initTheme();
 
-    /* ========== ОСНОВНОЙ ФУНКЦИОНАЛ ПРИЛОЖЕНИЯ ========== */
+    /* ========== ОСНОВНАЯ ЛОГИКА ========== */
     const tgUser = tg?.initDataUnsafe?.user;
     const userId = tgUser?.id || "guest_user";
     const userName = tgUser?.username ? `@${tgUser.username}` : (tgUser?.first_name || "Студент");
@@ -435,11 +462,16 @@
     const DAYS = ["ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА"];
     const SHORT_DAYS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
     
-    let db = { groups: {}, weeks: {} };
+    let db = { groups: {}, weeks: {}, teachers: {} };
     let directionsList = [];
     let allGroups = [];
+    let allTeachers = [];
+
+    let currentRole = "student";   // "student" | "teacher"
     let currentGroup = "";
+    let currentTeacher = "";
     let selectedDay = "ПОНЕДЕЛЬНИК";
+    let modalActiveRole = "student";
 
     const todayIndex = new Date().getDay();
     if (todayIndex >= 1 && todayIndex <= 6) {
@@ -454,50 +486,23 @@
         const admissionYear = 2000 + parseInt(m[2], 10);
         const currentYear = new Date().getFullYear();
         const course = currentYear - admissionYear + 1;
-        if (course >= 1 && course <= 6) {
-          return `${groupName} (${course} курс)`;
-        }
+        if (course >= 1 && course <= 6) return `${groupName} (${course} курс)`;
       }
       return groupName;
     }
 
     function buildDirectionsList(dbData) {
-      const list = [];
-      list.push({
-        id: 0,
-        title: `🌟 Все направления (${allGroups.length} групп)`,
-        groups: [...allGroups].sort()
+      const list = [{ id: 0, title: `🌟 Все направления (${allGroups.length} групп)`, groups: [...allGroups].sort() }];
+      const prefixMap = {};
+      allGroups.forEach(g => {
+        const m = g.trim().match(/^([А-Яа-яA-Za-z0-9]+)/);
+        const pfx = m ? m[1].toUpperCase() : "ДРУГИЕ";
+        if (!prefixMap[pfx]) prefixMap[pfx] = [];
+        prefixMap[pfx].push(g);
       });
-
-      if (dbData.directions && typeof dbData.directions === 'object') {
-        for (const [title, grps] of Object.entries(dbData.directions)) {
-          if (Array.isArray(grps) && grps.length > 0) {
-            list.push({
-              id: list.length,
-              title: title,
-              groups: [...grps].sort()
-            });
-          }
-        }
+      for (const [pfx, grps] of Object.entries(prefixMap)) {
+        list.push({ id: list.length, title: `Направление ${pfx} (${grps.length} групп)`, groups: grps.sort() });
       }
-
-      if (list.length === 1) {
-        const prefixMap = {};
-        allGroups.forEach(g => {
-          const m = g.trim().match(/^([А-Яа-яA-Za-z0-9]+)/);
-          const pfx = m ? m[1].toUpperCase() : "ДРУГИЕ";
-          if (!prefixMap[pfx]) prefixMap[pfx] = [];
-          prefixMap[pfx].push(g);
-        });
-        for (const [pfx, grps] of Object.entries(prefixMap)) {
-          list.push({
-            id: list.length,
-            title: `Направление ${pfx} (${grps.length} групп)`,
-            groups: grps.sort()
-          });
-        }
-      }
-
       return list;
     }
 
@@ -506,53 +511,73 @@
         const res = await fetch('schedule.json?t=' + Date.now());
         db = await res.json();
 
-        allGroups = db.groups ? Object.keys(db.groups) : Object.keys(db);
-        if (!db.groups) db = { groups: db, weeks: {} };
+        allGroups = Object.keys(db.groups || {});
+        allTeachers = Object.keys(db.teachers || {}).sort();
 
-        if (allGroups.length === 0) {
-          document.getElementById("scheduleList").innerHTML = `<div class="empty-state">Нет данных о группах.</div>`;
+        if (allGroups.length === 0 && allTeachers.length === 0) {
+          document.getElementById("scheduleList").innerHTML = `<div class="empty-state">Нет данных расписания.</div>`;
           return;
         }
 
         directionsList = buildDirectionsList(db);
 
+        // Загрузка сохраненной роли
+        const savedRole = localStorage.getItem(`mgpu_role_${userId}`) || "student";
         const savedGroup = localStorage.getItem(`mgpu_group_${userId}`);
-        if (savedGroup && db.groups[savedGroup]) {
+        const savedTeacher = localStorage.getItem(`mgpu_teacher_${userId}`);
+
+        currentRole = savedRole;
+        if (currentRole === "teacher" && savedTeacher && db.teachers[savedTeacher]) {
+          currentTeacher = savedTeacher;
+        } else if (savedGroup && db.groups[savedGroup]) {
+          currentRole = "student";
           currentGroup = savedGroup;
-          document.getElementById("headerGroupLabel").textContent = currentGroup;
-          initDateSelection();
-          renderDaysBar();
-          render();
         } else {
-          currentGroup = allGroups[0];
-          document.getElementById("headerGroupLabel").textContent = currentGroup;
-          initDateSelection();
-          renderDaysBar();
-          render();
+          currentGroup = allGroups[0] || "";
+          currentTeacher = allTeachers[0] || "";
           openProfileModal();
         }
+
+        updateHeaderTitle();
+        initDateSelection();
+        renderDaysBar();
+        render();
       } catch (err) {
         document.getElementById("scheduleList").innerHTML = 
-          `<div class="empty-state">Ошибка загрузки расписания.<br>Проверьте schedule.json на GitHub.</div>`;
+          `<div class="empty-state">Ошибка загрузки расписания.<br>Проверьте файл schedule.json на GitHub.</div>`;
       }
+    }
+
+    function updateHeaderTitle() {
+      const lbl = document.getElementById("headerTargetLabel");
+      if (currentRole === "teacher") {
+        lbl.textContent = currentTeacher || "Преподаватель";
+      } else {
+        lbl.textContent = currentGroup || "Группа";
+      }
+    }
+
+    function getActiveLessonsList() {
+      if (currentRole === "teacher") {
+        return db.teachers[currentTeacher] || [];
+      }
+      return db.groups[currentGroup] || [];
     }
 
     function initDateSelection() {
       const weekSelect = document.getElementById("weekSelect");
-      const list = db.groups[currentGroup] || [];
+      const list = getActiveLessonsList();
       const uniqueWeeks = [...new Set(list.map(x => x.week))].sort((a,b) => a - b);
 
       weekSelect.innerHTML = "";
       uniqueWeeks.forEach(w => {
         let label = `${w} неделя`;
         const wMeta = db.weeks ? (db.weeks[w] || db.weeks[String(w)]) : null;
-        if (typeof wMeta === 'string' && wMeta.trim()) {
-          label = wMeta;
-        } else if (wMeta && typeof wMeta === 'object' && wMeta.label) {
-          label = wMeta.label;
-        } else {
+        if (typeof wMeta === 'string' && wMeta.trim()) label = wMeta;
+        else if (wMeta && typeof wMeta === 'object' && wMeta.label) label = wMeta.label;
+        else {
           const sample = list.find(x => x.week === w && x.date_range);
-          if (sample && sample.date_range) label = sample.date_range;
+          if (sample?.date_range) label = sample.date_range;
         }
         const opt = document.createElement("option");
         opt.value = w;
@@ -565,7 +590,6 @@
       for (const w of uniqueWeeks) {
         const wMeta = db.weeks ? (db.weeks[w] || db.weeks[String(w)]) : null;
         let startDt = null, endDt = null;
-
         if (wMeta && typeof wMeta === 'object' && wMeta.start && wMeta.end) {
           startDt = new Date(wMeta.start);
           endDt = new Date(wMeta.end);
@@ -579,7 +603,6 @@
             endDt = new Date(y2, parseInt(match[5]) - 1, parseInt(match[4]), 23, 59, 59);
           }
         }
-
         if (startDt && endDt && now >= startDt && now <= endDt) {
           matchedWeek = w;
           break;
@@ -609,12 +632,11 @@
       const weekNum = parseInt(document.getElementById("weekSelect").value, 10);
       const container = document.getElementById("scheduleList");
       
-      const lessons = (db.groups[currentGroup] || []).filter(
-        item => item.week === weekNum && item.day === selectedDay
-      );
+      const list = getActiveLessonsList();
+      const lessons = list.filter(item => item.week === weekNum && item.day === selectedDay);
 
       if (lessons.length === 0) {
-        container.innerHTML = `<div class="empty-state">🎉 В этот день занятий нет</div>`;
+        container.innerHTML = `<div class="empty-state">🎉 В этот день пар нет</div>`;
         return;
       }
 
@@ -631,31 +653,55 @@
           </div>
           <div class="lesson-name">${item.subject}</div>
           <div class="lesson-info">
-            ${item.teacher ? `<div>${item.teacher}</div>` : ""}
+            ${currentRole === 'teacher' 
+              ? `<div class="lesson-target-group">👥 Группа: ${item.group}</div>` 
+              : (item.teacher ? `<div>${item.teacher}</div>` : "")}
             ${item.room ? `<div class="lesson-room">${item.room}</div>` : ""}
           </div>
         </div>
       `).join("");
     }
 
+    /* ========== МОДАЛЬНОЕ ОКНО ПРОФИЛЯ ========== */
+    function switchModalRole(role) {
+      modalActiveRole = role;
+      document.getElementById("btnRoleStudent").classList.toggle("active", role === 'student');
+      document.getElementById("btnRoleTeacher").classList.toggle("active", role === 'teacher');
+      document.getElementById("studentFields").style.display = role === 'student' ? 'block' : 'none';
+      document.getElementById("teacherFields").style.display = role === 'teacher' ? 'block' : 'none';
+    }
+
     function openProfileModal() {
+      modalActiveRole = currentRole;
+      switchModalRole(modalActiveRole);
+
+      // Заполнение направлений и групп студента
       const dirSelect = document.getElementById("modalDirectionSelect");
       dirSelect.innerHTML = "";
-
       let activeIndex = 0;
       directionsList.forEach((d, idx) => {
         const opt = document.createElement("option");
         opt.value = idx;
         opt.textContent = d.title;
         dirSelect.appendChild(opt);
-
-        if (idx !== 0 && d.groups.includes(currentGroup)) {
-          activeIndex = idx;
-        }
+        if (idx !== 0 && d.groups.includes(currentGroup)) activeIndex = idx;
       });
-
       dirSelect.value = activeIndex;
       onModalDirectionChange();
+
+      // Заполнение списка преподавателей
+      const teacherSelect = document.getElementById("modalTeacherSelect");
+      teacherSelect.innerHTML = "";
+      allTeachers.forEach(t => {
+        const opt = document.createElement("option");
+        opt.value = t;
+        opt.textContent = t;
+        if (t === currentTeacher) opt.selected = true;
+        teacherSelect.appendChild(opt);
+      });
+      if (!teacherSelect.value && allTeachers.length > 0) {
+        teacherSelect.value = allTeachers[0];
+      }
 
       const modal = document.getElementById("profileModal");
       const sheet = document.getElementById("modalSheet");
@@ -677,7 +723,6 @@
       const dirSelect = document.getElementById("modalDirectionSelect");
       const grpSelect = document.getElementById("modalGroupSelect");
       const selectedIndex = parseInt(dirSelect.value, 10);
-      
       const dirObj = directionsList[selectedIndex] || directionsList[0];
       const groups = (dirObj && dirObj.groups && dirObj.groups.length > 0) ? dirObj.groups : allGroups;
 
@@ -689,30 +734,29 @@
         if (g === currentGroup) opt.selected = true;
         grpSelect.appendChild(opt);
       });
-
-      if (!grpSelect.value && groups.length > 0) {
-        grpSelect.value = groups[0];
-      }
+      if (!grpSelect.value && groups.length > 0) grpSelect.value = groups[0];
     }
 
     function saveProfileSelection() {
-      const grpSelect = document.getElementById("modalGroupSelect");
-      let chosenGroup = grpSelect.value;
+      currentRole = modalActiveRole;
+      localStorage.setItem(`mgpu_role_${userId}`, currentRole);
 
-      if (!chosenGroup && grpSelect.options.length > 0) {
-        chosenGroup = grpSelect.options[0].value;
+      if (currentRole === "teacher") {
+        const teacher = document.getElementById("modalTeacherSelect").value;
+        if (teacher) {
+          currentTeacher = teacher;
+          localStorage.setItem(`mgpu_teacher_${userId}`, currentTeacher);
+        }
+      } else {
+        const group = document.getElementById("modalGroupSelect").value;
+        if (group) {
+          currentGroup = group;
+          localStorage.setItem(`mgpu_group_${userId}`, currentGroup);
+        }
       }
 
-      if (!chosenGroup) {
-        closeProfileModal();
-        return;
-      }
-
-      currentGroup = chosenGroup;
-      localStorage.setItem(`mgpu_group_${userId}`, currentGroup);
-      document.getElementById("headerGroupLabel").textContent = currentGroup;
+      updateHeaderTitle();
       closeProfileModal();
-
       initDateSelection();
       renderDaysBar();
       render();
@@ -722,11 +766,9 @@
       if (e.target.id === "profileModal") closeProfileModal();
     });
 
-    let touchStartY = 0;
-    let touchCurrentY = 0;
-    let isSwiping = false;
+    // Свайп вниз для закрытия
+    let touchStartY = 0, touchCurrentY = 0, isSwiping = false;
     const sheet = document.getElementById("modalSheet");
-
     sheet.addEventListener("touchstart", (e) => {
       if (e.target.tagName === "SELECT") return;
       touchStartY = e.touches[0].clientY;
@@ -738,21 +780,15 @@
       if (!isSwiping) return;
       touchCurrentY = e.touches[0].clientY;
       const deltaY = touchCurrentY - touchStartY;
-      if (deltaY > 0) {
-        sheet.style.transform = `translateY(${deltaY}px)`;
-      }
+      if (deltaY > 0) sheet.style.transform = `translateY(${deltaY}px)`;
     }, { passive: true });
 
     sheet.addEventListener("touchend", () => {
       if (!isSwiping) return;
       isSwiping = false;
       sheet.style.transition = "transform 0.22s ease-out";
-      const deltaY = touchCurrentY - touchStartY;
-      if (deltaY > 75) {
-        closeProfileModal();
-      } else {
-        sheet.style.transform = "translateY(0)";
-      }
+      if (touchCurrentY - touchStartY > 75) closeProfileModal();
+      else sheet.style.transform = "translateY(0)";
       touchStartY = 0;
       touchCurrentY = 0;
     });
