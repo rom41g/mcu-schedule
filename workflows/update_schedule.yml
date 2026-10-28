@@ -1,0 +1,42 @@
+name: Auto Update Schedule from VK
+
+on:
+  schedule:
+    # Запуск каждый день в 04:00 и 14:00 по UTC (07:00 и 17:00 по МСК)
+    - cron: '0 4,14 * * *'
+  workflow_dispatch: # Возможность запустить вручную кнопкой в GitHub
+
+jobs:
+  check-and-update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Проверка репозитория
+        uses: actions/checkout@v4
+
+      - name: Настройка Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Установка зависимостей
+        run: |
+          pip install requests openpyxl
+
+      - name: Запуск проверки расписания
+        env:
+          VK_SERVICE_TOKEN: ${{ secrets.VK_SERVICE_TOKEN }}
+        run: |
+          python auto_checker.py
+
+      - name: Коммит и пуш обновлений
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add schedule.json .last_scraped_title
+          if git diff --staged --quiet; then
+            echo "Изменений нет, коммит не требуется."
+          else
+            git commit -m "Auto-update: актуализация расписания из ВК [skip ci]"
+            git push
+          fi
