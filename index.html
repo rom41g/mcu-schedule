@@ -59,7 +59,7 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
       transition: background-color 0.25s ease, border-color 0.25s ease, color 0.2s ease;
     }
-    body { background-color: var(--bg); color: var(--mgpu-dark); padding-bottom: 30px; user-select: none; }
+    body { background-color: var(--bg); color: var(--mgpu-dark); padding-bottom: 40px; user-select: none; }
 
     /* Шапка МГПУ */
     .header {
@@ -465,7 +465,7 @@
     }
     .modal-btn:active { opacity: 0.85; }
 
-    /* Шторка Safari */
+    /* Шторка с инструкцией Safari */
     .ios-step {
       display: flex;
       align-items: center;
@@ -498,6 +498,61 @@
     @keyframes bounce {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(6px); }
+    }
+
+    /* Плавающий баннер для Safari на iOS */
+    .ios-install-banner {
+      display: none;
+      position: fixed;
+      bottom: calc(16px + env(safe-area-inset-bottom));
+      left: 16px;
+      right: 16px;
+      max-width: 440px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1.5px solid var(--mgpu-red);
+      border-radius: 16px;
+      padding: 12px 14px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+      z-index: 999;
+      animation: bannerSlideUp 0.35s ease-out;
+    }
+
+    @keyframes bannerSlideUp {
+      from { transform: translateY(50px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .ios-banner-body { display: flex; align-items: center; gap: 10px; }
+    .ios-banner-icon { font-size: 24px; flex-shrink: 0; }
+    .ios-banner-text {
+      font-size: 13px;
+      line-height: 1.35;
+      color: var(--mgpu-dark);
+      flex: 1;
+    }
+    .ios-banner-text b { color: var(--mgpu-red); }
+    .ios-banner-close {
+      background: transparent;
+      border: none;
+      font-size: 20px;
+      line-height: 1;
+      color: var(--text-sub);
+      cursor: pointer;
+      padding: 4px;
+      margin-left: 4px;
+    }
+    .ios-banner-arrow {
+      text-align: center;
+      font-size: 18px;
+      margin-top: 4px;
+      animation: bannerArrowBounce 1.2s infinite ease-in-out;
+      color: var(--mgpu-red);
+    }
+
+    @keyframes bannerArrowBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(4px); }
     }
   </style>
 </head>
@@ -540,6 +595,18 @@
 
   <div class="days-bar" id="daysBar"></div>
   <div class="schedule-list" id="scheduleList"></div>
+
+  <!-- Плавающий баннер только для Safari на iOS -->
+  <div id="iosInstallBanner" class="ios-install-banner">
+    <div class="ios-banner-body">
+      <div class="ios-banner-icon">📲</div>
+      <div class="ios-banner-text">
+        Установите расписание: нажмите <b>«Поделиться» ⎋</b> (или меню <b>≡</b>) внизу и выберите <b>«На экран „Домой“»</b>
+      </div>
+      <button type="button" class="ios-banner-close" onclick="dismissIosBanner()">&times;</button>
+    </div>
+    <div class="ios-banner-arrow">▼</div>
+  </div>
 
   <!-- Модальное окно выбора профиля -->
   <div class="modal-overlay" id="profileModal">
@@ -634,6 +701,7 @@
     const isInsideTelegram = Boolean(tg && tg.initData);
     const isInsideVK = window.location.search.includes('vk_user_id') || Boolean(window.vkBridge);
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
     if (isInsideVK) {
       document.body.classList.add('is-vk');
@@ -719,6 +787,22 @@
 
     function closeIosModal() {
       document.getElementById("iosInstructionModal").style.display = "none";
+    }
+
+    /* Управление плавающим баннером в Safari на iOS */
+    function checkIosBanner() {
+      const isDismissed = localStorage.getItem('mgpu_ios_banner_dismissed') === 'true';
+      // Показываем плашку ТОЛЬКО в браузере Safari на iOS (не в TG, не в VK, не в PWA)
+      if (isIOS && !isStandalone && !isInsideTelegram && !isInsideVK && !isDismissed) {
+        const banner = document.getElementById("iosInstallBanner");
+        if (banner) banner.style.display = "block";
+      }
+    }
+
+    function dismissIosBanner() {
+      const banner = document.getElementById("iosInstallBanner");
+      if (banner) banner.style.display = "none";
+      localStorage.setItem('mgpu_ios_banner_dismissed', 'true');
     }
 
     /* ========== ДАННЫЕ И СОСТОЯНИЕ ========== */
@@ -842,6 +926,7 @@
         initDateSelection();
         renderDaysBar();
         render();
+        checkIosBanner();
       } catch (err) {
         document.getElementById("scheduleList").innerHTML = 
           `<div class="empty-state">Ошибка загрузки расписания.<br>Проверьте файл schedule.json на GitHub.</div>`;
