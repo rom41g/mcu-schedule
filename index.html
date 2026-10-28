@@ -4,7 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>МГПУ • Расписание ИИЯ</title>
+
+  <!-- SDK платформ: Telegram и ВКонтакте -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
 
   <!-- PWA и метатеги мобильных устройств -->
   <link rel="manifest" href="manifest.json">
@@ -86,7 +89,7 @@
 
     .header-right { display: flex; align-items: center; gap: 10px; }
 
-    /* Анимированный ползунок темы */
+    /* Переключатель темы */
     .theme-switch {
       position: relative;
       width: 50px;
@@ -114,7 +117,7 @@
     }
     [data-theme="dark"] .theme-switch-thumb { transform: translateX(22px); }
 
-    /* Кнопка профиля */
+    /* Профиль пользователя */
     .user-profile-btn {
       display: flex;
       align-items: center;
@@ -224,7 +227,7 @@
 
     .empty-state { text-align: center; padding: 40px 20px; color: var(--text-sub); font-size: 14px; }
 
-    /* Модальные окна */
+    /* Модальное окно */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -320,7 +323,7 @@
       line-height: 1.3;
     }
 
-    /* Кнопка установки на рабочий стол */
+    /* Кнопка установки */
     .install-home-btn {
       width: 100%;
       padding: 12px;
@@ -388,7 +391,7 @@
       50% { transform: translateY(6px); }
     }
 
-    /* Плавающий баннер для Safari на iOS */
+    /* Плавающий баннер для браузера Safari на iOS */
     .ios-install-banner {
       display: none;
       position: fixed;
@@ -411,11 +414,7 @@
       to { transform: translateY(0); opacity: 1; }
     }
 
-    .ios-banner-body {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+    .ios-banner-body { display: flex; align-items: center; gap: 10px; }
     .ios-banner-icon { font-size: 24px; flex-shrink: 0; }
     .ios-banner-text {
       font-size: 13px;
@@ -547,7 +546,7 @@
     </div>
   </div>
 
-  <!-- Плавающий баннер для браузера Safari на iOS -->
+  <!-- Плавающий баннер только для Safari на iOS -->
   <div id="iosInstallBanner" class="ios-install-banner">
     <div class="ios-banner-body">
       <div class="ios-banner-icon">📲</div>
@@ -560,10 +559,38 @@
   </div>
 
   <script>
+    /* ========== ОПРЕДЕЛЕНИЕ ПЛАТФОРМЫ: TELEGRAM / VK / BROWSER ========== */
     const tg = window.Telegram?.WebApp;
-    if (tg) {
+    const isInsideTelegram = Boolean(tg && tg.initData);
+    const isInsideVK = window.location.search.includes('vk_user_id') || Boolean(window.vkBridge);
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+    // Инициализация Telegram
+    if (tg && isInsideTelegram) {
       tg.ready();
       tg.expand();
+    }
+
+    // Инициализация ВКонтакте
+    if (window.vkBridge) {
+      vkBridge.send('VKWebAppInit');
+      vkBridge.subscribe((e) => {
+        if (e.detail?.type === 'VKWebAppUpdateConfig') {
+          const scheme = e.detail.data.scheme;
+          const isDark = scheme ? scheme.includes('dark') : false;
+          applyTheme(isDark ? 'dark' : 'light');
+        }
+      });
+      // Попытка получить имя пользователя ВК
+      vkBridge.send('VKWebAppGetUserInfo').then(u => {
+        if (u && u.first_name) {
+          document.getElementById("profileName").textContent = u.first_name;
+          if (u.photo_100) {
+            document.getElementById("avatarContainer").innerHTML = `<img src="${u.photo_100}" class="user-avatar" alt="Avatar">`;
+          }
+        }
+      }).catch(() => {});
     }
 
     /* ========== ТЕМА ОФОРМЛЕНИЯ ========== */
@@ -576,7 +603,7 @@
       if (thumb) thumb.textContent = theme === 'dark' ? '🌙' : '☀️';
 
       if (saveManual) localStorage.setItem('mgpu_user_theme', theme);
-      if (tg) {
+      if (tg && isInsideTelegram) {
         try {
           tg.setHeaderColor(theme === 'dark' ? '#1C1C1E' : '#FFFFFF');
           tg.setBackgroundColor(theme === 'dark' ? '#121214' : '#F5F6F8');
@@ -608,10 +635,8 @@
     }
     initTheme();
 
-    /* ========== УСТАНОВКА НА ЭКРАН (PWA + iOS) ========== */
+    /* ========== УСТАНОВКА НА ЭКРАН (PWA + iOS + VK) ========== */
     let deferredPrompt = null;
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
     if (isStandalone) {
       const btn = document.getElementById("installHomeBtn");
@@ -626,21 +651,27 @@
     });
 
     function triggerSmartInstall() {
-      const isInsideTelegram = Boolean(tg && tg.initData);
+      // 1. Внутри ВКонтакте — добавить сервис в избранное
+      if (isInsideVK && window.vkBridge) {
+        vkBridge.send('VKWebAppAddToFavorites').catch(() => {
+          alert("Нажмите на значок меню (три точки) вверху экрана ВКонтакте и выберите «Добавить в избранное».");
+        });
+        return;
+      }
 
-      // Если iOS внутри Telegram — открываем напрямую в Safari без черных экранов
+      // 2. Внутри Telegram на iPhone — переброс сразу в Safari без тупиковых экранов
       if (isIOS && isInsideTelegram) {
         tg.openLink("https://rom41g.github.io/mcu-schedule/");
         return;
       }
 
-      // Если iOS уже в Safari — показываем инструкцию
+      // 3. В браузере Safari на iPhone — показываем всплывающую инструкцию
       if (isIOS) {
         document.getElementById("iosInstructionModal").style.display = "flex";
         return;
       }
 
-      // Если Android / Chrome на ПК — нативная установка в 1 клик
+      // 4. Android / Chrome на ПК — нативная системная установка в 1 клик
       if (deferredPrompt) {
         deferredPrompt.prompt();
         deferredPrompt.userChoice.then((choice) => {
@@ -652,7 +683,7 @@
         return;
       }
 
-      // Telegram WebApp на Android
+      // 5. Telegram WebApp на Android
       if (tg && typeof tg.addToHomeScreen === 'function') {
         tg.addToHomeScreen();
         return;
@@ -665,12 +696,10 @@
       document.getElementById("iosInstructionModal").style.display = "none";
     }
 
-    /* Подсказка исключительно для Safari на iOS */
     function checkIosBanner() {
-      const isInsideTelegram = Boolean(tg && tg.initData);
       const isDismissed = localStorage.getItem('mgpu_ios_banner_dismissed') === 'true';
-
-      if (isIOS && !isStandalone && !isInsideTelegram && !isDismissed) {
+      // Показываем плашку ТОЛЬКО в браузере Safari на iOS (не в TG, не в VK, не в PWA)
+      if (isIOS && !isStandalone && !isInsideTelegram && !isInsideVK && !isDismissed) {
         const banner = document.getElementById("iosInstallBanner");
         if (banner) banner.style.display = "block";
       }
@@ -682,18 +711,21 @@
       localStorage.setItem('mgpu_ios_banner_dismissed', 'true');
     }
 
-    /* ========== ОСНОВНОЙ РАСЧЕТ И ОТРИСОВКА ========== */
+    /* ========== ДАННЫЕ И РАСПИСАНИЕ ========== */
     const tgUser = tg?.initDataUnsafe?.user;
-    const userId = tgUser?.id || "guest_user";
+    const vkUid = new URLSearchParams(window.location.search).get('vk_user_id');
+    const userId = tgUser?.id ? `tg_${tgUser.id}` : (vkUid ? `vk_${vkUid}` : "guest_user");
     const userName = tgUser?.username ? `@${tgUser.username}` : (tgUser?.first_name || "Студент");
 
-    document.getElementById("profileName").textContent = userName;
-    const avatarContainer = document.getElementById("avatarContainer");
-    if (tgUser?.photo_url) {
-      avatarContainer.innerHTML = `<img src="${tgUser.photo_url}" class="user-avatar" alt="Avatar">`;
-    } else {
-      const initial = userName.replace('@', '')[0]?.toUpperCase() || "С";
-      avatarContainer.innerHTML = `<div class="user-avatar">${initial}</div>`;
+    if (isInsideTelegram) {
+      document.getElementById("profileName").textContent = userName;
+      const avatarContainer = document.getElementById("avatarContainer");
+      if (tgUser?.photo_url) {
+        avatarContainer.innerHTML = `<img src="${tgUser.photo_url}" class="user-avatar" alt="Avatar">`;
+      } else {
+        const initial = userName.replace('@', '')[0]?.toUpperCase() || "С";
+        avatarContainer.innerHTML = `<div class="user-avatar">${initial}</div>`;
+      }
     }
 
     const DAYS = ["ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА"];
@@ -1004,6 +1036,7 @@
       if (e.target.id === "iosInstructionModal") closeIosModal();
     });
 
+    // Свайп-жест закрытия модального окна вниз
     let touchStartY = 0, touchCurrentY = 0, isSwiping = false;
     const sheet = document.getElementById("modalSheet");
     sheet.addEventListener("touchstart", (e) => {
