@@ -28,6 +28,7 @@
       --border: #E8E8ED;
       --accent-orange: #FFF3E0;
       --accent-orange-text: #E65100;
+      --accent-orange-border: #FFE0B2;
       --toggle-track: #E4E4E8;
       --toggle-thumb: #FFFFFF;
       --modal-overlay: rgba(0, 0, 0, 0.45);
@@ -45,6 +46,7 @@
       --border: #2C2C30;
       --accent-orange: #2C2014;
       --accent-orange-text: #FF9F0A;
+      --accent-orange-border: #4A331E;
       --toggle-track: #2C2C32;
       --toggle-thumb: #3A3A40;
       --modal-overlay: rgba(0, 0, 0, 0.75);
@@ -91,7 +93,7 @@
     .header-titles { display: flex; flex-direction: column; min-width: 0; }
     .header-titles h1 { font-size: 14px; font-weight: 800; line-height: 1.1; color: var(--mgpu-dark); }
 
-    /* Бейдж текущей группы/преподавателя */
+    /* Кнопка текущей группы/преподавателя */
     .target-badge-btn {
       display: inline-flex;
       align-items: center;
@@ -165,7 +167,7 @@
       outline: none;
     }
 
-    /* Поле поиска */
+    /* Поле поиска по расписанию */
     .search-wrapper {
       position: relative;
       display: flex;
@@ -205,7 +207,7 @@
       padding: 4px;
     }
 
-    /* Дни недели с числами */
+    /* Дни недели с календарными числами */
     .days-bar {
       display: flex;
       gap: 6px;
@@ -248,7 +250,7 @@
       color: #FFFFFF !important;
     }
 
-    /* Карточки расписания */
+    /* Карточки занятий */
     .schedule-list { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
     .lesson-card {
       background: var(--card-bg);
@@ -268,7 +270,7 @@
       margin-bottom: 6px;
     }
     .lesson-time { font-size: 12px; font-weight: 700; color: var(--mgpu-red); }
-    .badges { display: flex; gap: 5px; }
+    .badges { display: flex; gap: 5px; flex-wrap: wrap; }
     .badge {
       background: var(--mgpu-red-light);
       color: var(--mgpu-red);
@@ -282,12 +284,17 @@
       color: var(--accent-orange-text);
       border: 1px solid var(--border);
     }
+    .badge.substitute-badge {
+      background: var(--accent-orange);
+      color: var(--accent-orange-text);
+      border: 1px solid var(--accent-orange-border);
+    }
     .lesson-name { font-size: 15px; font-weight: 600; line-height: 1.3; margin-bottom: 6px; color: var(--mgpu-dark); }
     .lesson-info { font-size: 13px; color: var(--text-sub); }
     .lesson-room { font-weight: 600; color: var(--mgpu-dark); margin-top: 2px; }
     .lesson-target-group { font-weight: 700; color: var(--mgpu-red); margin-bottom: 2px; }
 
-    /* Трекинг пар для преподавателей */
+    /* Трекинг пар преподавателя */
     .teacher-stats-box {
       margin-top: 10px;
       padding: 8px 10px;
@@ -319,7 +326,7 @@
 
     .empty-state { text-align: center; padding: 40px 20px; color: var(--text-sub); font-size: 14px; }
 
-    /* Модальное окно профиля */
+    /* Модальное окно */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -432,7 +439,7 @@
       line-height: 1.3;
     }
 
-    /* Кнопка установки */
+    /* Кнопка установки на рабочий стол */
     .install-home-btn {
       width: 100%;
       padding: 12px;
@@ -579,7 +586,7 @@
   <div class="controls-panel">
     <select id="weekSelect" class="week-select" onchange="onWeekChange()"></select>
 
-    <!-- Поле поиска по текущему расписанию -->
+    <!-- Поиск по расписанию -->
     <div class="search-wrapper">
       <span class="search-icon-left">🔍</span>
       <input 
@@ -596,7 +603,7 @@
   <div class="days-bar" id="daysBar"></div>
   <div class="schedule-list" id="scheduleList"></div>
 
-  <!-- Плавающий баннер только для Safari на iOS -->
+  <!-- Плавающий баннер для Safari на iOS -->
   <div id="iosInstallBanner" class="ios-install-banner">
     <div class="ios-banner-body">
       <div class="ios-banner-icon">📲</div>
@@ -657,7 +664,7 @@
         <div class="form-group">
           <label>ФИО преподавателя</label>
           <select id="modalTeacherSelect" class="modal-select"></select>
-          <div class="modal-note">ℹ️ Отображаются пары кафедр корпуса ИИЯ.</div>
+          <div class="modal-note">ℹ️ Отображаются пары кафедр корпуса ИИЯ. Замены объединены в единый профиль.</div>
         </div>
       </div>
 
@@ -669,7 +676,7 @@
     </div>
   </div>
 
-  <!-- Шторка с инструкцией Safari -->
+  <!-- Инструкция Safari -->
   <div class="modal-overlay" id="iosInstructionModal">
     <div class="modal-sheet" style="padding-bottom: 20px;">
       <div class="modal-header-row">
@@ -789,10 +796,9 @@
       document.getElementById("iosInstructionModal").style.display = "none";
     }
 
-    /* Управление плавающим баннером в Safari на iOS */
+    /* Управление плавающим баннером Safari */
     function checkIosBanner() {
       const isDismissed = localStorage.getItem('mgpu_ios_banner_dismissed') === 'true';
-      // Показываем плашку ТОЛЬКО в браузере Safari на iOS (не в TG, не в VK, не в PWA)
       if (isIOS && !isStandalone && !isInsideTelegram && !isInsideVK && !isDismissed) {
         const banner = document.getElementById("iosInstallBanner");
         if (banner) banner.style.display = "block";
@@ -858,6 +864,11 @@
       return list;
     }
 
+    /* Удаление суффикса (замена) для объединения преподавателей */
+    function normalizeTeacherName(name) {
+      return (name || '').replace(/\s*\((?:замена|зам\.?)\)/gi, '').trim();
+    }
+
     function getWeekDates(weekNum) {
       const list = getActiveLessonsList();
       const wMeta = db.weeks ? (db.weeks[weekNum] || db.weeks[String(weekNum)]) : null;
@@ -897,7 +908,24 @@
         db = await res.json();
 
         allGroups = Object.keys(db.groups || {});
-        allTeachers = Object.keys(db.teachers || {}).sort();
+
+        // Объединение преподавателей и их замен в единый профиль
+        const unifiedTeachers = {};
+        for (const [rawName, lessons] of Object.entries(db.teachers || {})) {
+          const cleanName = normalizeTeacherName(rawName);
+          if (!unifiedTeachers[cleanName]) {
+            unifiedTeachers[cleanName] = [];
+          }
+          const isSub = /\((?:замена|зам\.?)\)/i.test(rawName);
+          lessons.forEach(lesson => {
+            unifiedTeachers[cleanName].push({
+              ...lesson,
+              is_substitute: isSub || Boolean(lesson.is_substitute)
+            });
+          });
+        }
+        db.teachers = unifiedTeachers;
+        allTeachers = Object.keys(db.teachers).sort((a, b) => a.localeCompare(b, 'ru'));
 
         if (allGroups.length === 0 && allTeachers.length === 0) {
           document.getElementById("scheduleList").innerHTML = `<div class="empty-state">Нет данных расписания.</div>`;
@@ -1025,7 +1053,7 @@
       render();
     }
 
-    /* Подсчет пар преподавателя */
+    /* Подсчет пар преподавателя с учетом замен */
     function getTeacherStatsMap() {
       const list = db.teachers[currentTeacher] || [];
       const sorted = [...list].sort((a, b) => {
@@ -1038,7 +1066,8 @@
 
       const map = new Map();
       sorted.forEach(item => {
-        const key = `${(item.subject || '').trim().toLowerCase()}::${(item.group || '').trim().toLowerCase()}`;
+        const subFlag = item.is_substitute ? "sub" : "base";
+        const key = `${(item.subject || '').trim().toLowerCase()}::${(item.group || '').trim().toLowerCase()}::${subFlag}`;
         if (!map.has(key)) map.set(key, []);
         map.get(key).push(item);
       });
@@ -1067,7 +1096,6 @@
       const list = getActiveLessonsList();
       let lessons = list.filter(item => item.week === weekNum && item.day === selectedDay);
 
-      // Фильтрация поиска
       if (activeSearchQuery) {
         lessons = lessons.filter(item => {
           const s = (item.subject || "").toLowerCase();
@@ -1099,7 +1127,8 @@
         let teacherStatsHtml = "";
 
         if (currentRole === 'teacher' && teacherStats) {
-          const key = `${(item.subject || '').trim().toLowerCase()}::${(item.group || '').trim().toLowerCase()}`;
+          const subFlag = item.is_substitute ? "sub" : "base";
+          const key = `${(item.subject || '').trim().toLowerCase()}::${(item.group || '').trim().toLowerCase()}::${subFlag}`;
           const allSamePairs = teacherStats.get(key) || [];
           const totalPairs = allSamePairs.length;
           const currIndex = allSamePairs.indexOf(item) + 1;
@@ -1110,7 +1139,7 @@
             teacherStatsHtml = `
               <div class="teacher-stats-box">
                 <div class="teacher-stats-row">
-                  <span>📊 <b>${currIndex}-я пара</b> из <b>${totalPairs}</b></span>
+                  <span>📊 <b>${currIndex}-я пара</b> из <b>${totalPairs}</b> ${item.is_substitute ? '(замена)' : ''}</span>
                   <span>Осталось: <b>${remaining}</b></span>
                 </div>
                 <div class="progress-bar-bg">
@@ -1126,6 +1155,7 @@
             <div class="lesson-header">
               <span class="lesson-time">${item.pair} пара • ${item.time}</span>
               <div class="badges">
+                ${item.is_substitute ? `<span class="badge substitute-badge">Замена</span>` : ""}
                 ${item.subgroup ? `<span class="badge parallel-badge">${item.subgroup}</span>` : ""}
                 <span class="badge">${item.type}</span>
               </div>
@@ -1155,7 +1185,6 @@
       modalActiveRole = currentRole;
       switchModalRole(modalActiveRole);
 
-      // Сброс фильтров в модальном окне
       document.getElementById("modalGroupSearchInput").value = "";
       document.getElementById("modalTeacherSearchInput").value = "";
       document.getElementById("directionFormGroup").style.display = "block";
@@ -1206,7 +1235,6 @@
       }
     }
 
-    /* Поиск внутри модального окна для студентов */
     function onModalGroupSearch(query) {
       const q = (query || "").trim().toLowerCase();
       const dirGroup = document.getElementById("directionFormGroup");
@@ -1229,7 +1257,6 @@
       }
     }
 
-    /* Поиск внутри модального окна для преподавателей */
     function onModalTeacherSearch(query) {
       const q = (query || "").trim().toLowerCase();
       const filtered = q ? allTeachers.filter(t => t.toLowerCase().includes(q)) : allTeachers;
@@ -1287,7 +1314,6 @@
       if (e.target.id === "iosInstructionModal") closeIosModal();
     });
 
-    // Свайп закрытия модального окна вниз
     let touchStartY = 0, touchCurrentY = 0, isSwiping = false;
     const sheet = document.getElementById("modalSheet");
     sheet.addEventListener("touchstart", (e) => {
