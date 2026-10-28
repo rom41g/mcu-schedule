@@ -158,7 +158,7 @@
       outline: none;
     }
 
-    /* Дни недели */
+    /* Дни недели с числами */
     .days-bar {
       display: flex;
       gap: 6px;
@@ -171,19 +171,34 @@
       flex: 1;
       min-width: 48px;
       text-align: center;
-      padding: 9px 2px;
+      padding: 7px 2px 6px;
       background: var(--card-bg);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: 11px;
       cursor: pointer;
-      font-size: 13px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+    }
+    .day-chip .day-name {
+      font-size: 12px;
       font-weight: 700;
       color: var(--text-sub);
+    }
+    .day-chip .day-num {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--mgpu-dark);
     }
     .day-chip.active {
       background: var(--mgpu-red) !important;
       border-color: var(--mgpu-red) !important;
-      color: #FFF !important;
+    }
+    .day-chip.active .day-name,
+    .day-chip.active .day-num {
+      color: #FFFFFF !important;
     }
 
     /* Карточки расписания */
@@ -224,6 +239,36 @@
     .lesson-info { font-size: 13px; color: var(--text-sub); }
     .lesson-room { font-weight: 600; color: var(--mgpu-dark); margin-top: 2px; }
     .lesson-target-group { font-weight: 700; color: var(--mgpu-red); margin-bottom: 2px; }
+
+    /* Трекинг пар для преподавателей */
+    .teacher-stats-box {
+      margin-top: 10px;
+      padding: 8px 10px;
+      background: var(--input-bg);
+      border-radius: 9px;
+      border: 1px solid var(--border);
+    }
+    .teacher-stats-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--mgpu-dark);
+      margin-bottom: 5px;
+    }
+    .teacher-stats-row b { color: var(--mgpu-red); }
+    .progress-bar-bg {
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--mgpu-red);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
 
     .empty-state { text-align: center; padding: 40px 20px; color: var(--text-sub); font-size: 14px; }
 
@@ -356,7 +401,7 @@
     }
     .modal-btn:active { opacity: 0.85; }
 
-    /* Шаги установки Safari на iOS */
+    /* Шторка Safari */
     .ios-step {
       display: flex;
       align-items: center;
@@ -390,60 +435,6 @@
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(6px); }
     }
-
-    /* Плавающий баннер для браузера Safari на iOS */
-    .ios-install-banner {
-      display: none;
-      position: fixed;
-      bottom: calc(20px + env(safe-area-inset-bottom));
-      left: 16px;
-      right: 16px;
-      max-width: 420px;
-      margin: 0 auto;
-      background: var(--card-bg);
-      border: 1px solid var(--mgpu-red);
-      border-radius: 16px;
-      padding: 12px 14px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-      z-index: 9999;
-      animation: bannerSlideUp 0.35s ease-out;
-    }
-
-    @keyframes bannerSlideUp {
-      from { transform: translateY(50px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-
-    .ios-banner-body { display: flex; align-items: center; gap: 10px; }
-    .ios-banner-icon { font-size: 24px; flex-shrink: 0; }
-    .ios-banner-text {
-      font-size: 13px;
-      line-height: 1.35;
-      color: var(--mgpu-dark);
-      flex: 1;
-    }
-    .ios-banner-text b { color: var(--mgpu-red); }
-    .ios-banner-close {
-      background: transparent;
-      border: none;
-      font-size: 18px;
-      color: var(--text-sub);
-      cursor: pointer;
-      padding: 4px;
-      margin-left: 4px;
-    }
-    .ios-banner-arrow {
-      text-align: center;
-      font-size: 18px;
-      margin-top: 4px;
-      animation: bannerArrowBounce 1.2s infinite ease-in-out;
-      color: var(--mgpu-red);
-    }
-
-    @keyframes bannerArrowBounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(4px); }
-    }
   </style>
 </head>
 <body>
@@ -468,7 +459,7 @@
   </div>
 
   <div class="date-panel">
-    <select id="weekSelect" class="week-select" onchange="render()"></select>
+    <select id="weekSelect" class="week-select" onchange="onWeekChange()"></select>
   </div>
 
   <div class="days-bar" id="daysBar"></div>
@@ -511,27 +502,27 @@
         </div>
       </div>
 
-      <!-- Кнопка установки -->
+      <!-- Переадресация на чистую PWA-версию на всех устройствах -->
       <button type="button" class="install-home-btn" id="installHomeBtn" onclick="triggerSmartInstall()">
-        📲 Установить на рабочий стол
+        📲 Добавить на рабочий стол
       </button>
 
       <button type="button" class="modal-btn" onclick="saveProfileSelection()">Сохранить выбор</button>
     </div>
   </div>
 
-  <!-- Шторка с инструкцией для Safari на iPhone -->
+  <!-- Шторка с инструкцией для Safari -->
   <div class="modal-overlay" id="iosInstructionModal">
     <div class="modal-sheet" style="padding-bottom: 20px;">
       <div class="modal-header-row">
-        <div class="modal-title">Добавление на экран iPhone</div>
+        <div class="modal-title">Добавление на экран</div>
         <button type="button" class="modal-close-btn" onclick="closeIosModal()">&times;</button>
       </div>
-      <p style="font-size: 13px; color: var(--text-sub); margin-bottom: 14px;">Приложение установится без рамок браузера прямо на рабочий стол:</p>
+      <p style="font-size: 13px; color: var(--text-sub); margin-bottom: 14px;">Установите расписание прямо на рабочий стол:</p>
       
       <div class="ios-step">
         <div class="ios-step-icon">⎋</div>
-        <div>1. Нажмите кнопку <b>«Поделиться»</b> (или значок меню <b>≡</b>) на нижней панели Safari</div>
+        <div>1. Нажмите кнопку <b>«Поделиться»</b> (или значок меню <b>≡</b>) в Safari</div>
       </div>
       <div class="ios-step">
         <div class="ios-step-icon">➕</div>
@@ -546,33 +537,18 @@
     </div>
   </div>
 
-  <!-- Плавающий баннер только для Safari на iOS -->
-  <div id="iosInstallBanner" class="ios-install-banner">
-    <div class="ios-banner-body">
-      <div class="ios-banner-icon">📲</div>
-      <div class="ios-banner-text">
-        Установите расписание: нажмите <b>«Поделиться» ⎋</b> (или меню <b>≡</b>) внизу и выберите <b>«На экран „Домой“»</b>
-      </div>
-      <button type="button" class="ios-banner-close" onclick="dismissIosBanner()">&times;</button>
-    </div>
-    <div class="ios-banner-arrow">▼</div>
-  </div>
-
   <script>
-    /* ========== ОПРЕДЕЛЕНИЕ ПЛАТФОРМЫ: TELEGRAM / VK / BROWSER ========== */
+    /* ========== ОПРЕДЕЛЕНИЕ ПЛАТФОРМЫ ========== */
     const tg = window.Telegram?.WebApp;
     const isInsideTelegram = Boolean(tg && tg.initData);
     const isInsideVK = window.location.search.includes('vk_user_id') || Boolean(window.vkBridge);
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
-    // Инициализация Telegram
     if (tg && isInsideTelegram) {
       tg.ready();
       tg.expand();
     }
 
-    // Инициализация ВКонтакте
     if (window.vkBridge) {
       vkBridge.send('VKWebAppInit');
       vkBridge.subscribe((e) => {
@@ -582,7 +558,6 @@
           applyTheme(isDark ? 'dark' : 'light');
         }
       });
-      // Попытка получить имя пользователя ВК
       vkBridge.send('VKWebAppGetUserInfo').then(u => {
         if (u && u.first_name) {
           document.getElementById("profileName").textContent = u.first_name;
@@ -635,80 +610,36 @@
     }
     initTheme();
 
-    /* ========== УСТАНОВКА НА ЭКРАН (PWA + iOS + VK) ========== */
-    let deferredPrompt = null;
-
-    if (isStandalone) {
-      const btn = document.getElementById("installHomeBtn");
-      if (btn) btn.style.display = "none";
-    }
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      const btn = document.getElementById("installHomeBtn");
-      if (btn && !isStandalone) btn.style.display = "flex";
-    });
-
+    /* ========== ПЕРЕАДРЕСАЦИЯ ДЛЯ УСТАНОВКИ НА РАБОЧИЙ СТОЛ ========== */
     function triggerSmartInstall() {
-      // 1. Внутри ВКонтакте — добавить сервис в избранное
-      if (isInsideVK && window.vkBridge) {
-        vkBridge.send('VKWebAppAddToFavorites').catch(() => {
-          alert("Нажмите на значок меню (три точки) вверху экрана ВКонтакте и выберите «Добавить в избранное».");
+      const targetUrl = "https://rom41g.github.io/mcu-schedule/";
+      
+      // В Telegram открываем чистый браузер устройства
+      if (tg && typeof tg.openLink === 'function') {
+        tg.openLink(targetUrl);
+        return;
+      }
+
+      // Внутри VK открываем внешнюю ссылку через VK Bridge
+      if (window.vkBridge) {
+        vkBridge.send('VKWebAppOpenUrl', { url: targetUrl }).catch(() => {
+          window.open(targetUrl, '_blank');
         });
         return;
       }
 
-      // 2. Внутри Telegram на iPhone — переброс сразу в Safari без тупиковых экранов
-      if (isIOS && isInsideTelegram) {
-        tg.openLink("https://rom41g.github.io/mcu-schedule/");
-        return;
-      }
-
-      // 3. В браузере Safari на iPhone — показываем всплывающую инструкцию
+      // Если пользователь уже в браузере Safari на сайте
       if (isIOS) {
         document.getElementById("iosInstructionModal").style.display = "flex";
         return;
       }
 
-      // 4. Android / Chrome на ПК — нативная системная установка в 1 клик
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        deferredPrompt.userChoice.then((choice) => {
-          if (choice.outcome === 'accepted') {
-            document.getElementById("installHomeBtn").style.display = 'none';
-          }
-          deferredPrompt = null;
-        });
-        return;
-      }
-
-      // 5. Telegram WebApp на Android
-      if (tg && typeof tg.addToHomeScreen === 'function') {
-        tg.addToHomeScreen();
-        return;
-      }
-
-      alert("Откройте сайт в браузере и выберите в меню «Добавить на главный экран».");
+      // На Android / десктопе переходим по ссылке
+      window.location.href = targetUrl;
     }
 
     function closeIosModal() {
       document.getElementById("iosInstructionModal").style.display = "none";
-    }
-
-    function checkIosBanner() {
-      const isDismissed = localStorage.getItem('mgpu_ios_banner_dismissed') === 'true';
-      // Показываем плашку ТОЛЬКО в браузере Safari на iOS (не в TG, не в VK, не в PWA)
-      if (isIOS && !isStandalone && !isInsideTelegram && !isInsideVK && !isDismissed) {
-        const banner = document.getElementById("iosInstallBanner");
-        if (banner) banner.style.display = "block";
-      }
-    }
-
-    function dismissIosBanner() {
-      const banner = document.getElementById("iosInstallBanner");
-      if (banner) banner.style.display = "none";
-      localStorage.setItem('mgpu_ios_banner_dismissed', 'true');
     }
 
     /* ========== ДАННЫЕ И РАСПИСАНИЕ ========== */
@@ -760,7 +691,7 @@
       return groupName;
     }
 
-    function buildDirectionsList(dbData) {
+    function buildDirectionsList() {
       const list = [{ id: 0, title: `🌟 Все направления (${allGroups.length} групп)`, groups: [...allGroups].sort() }];
       const prefixMap = {};
       allGroups.forEach(g => {
@@ -773,6 +704,41 @@
         list.push({ id: list.length, title: `Направление ${pfx} (${grps.length} групп)`, groups: grps.sort() });
       }
       return list;
+    }
+
+    /* Вычисление точных календарных дат для дней недели */
+    function getWeekDates(weekNum) {
+      const list = getActiveLessonsList();
+      const wMeta = db.weeks ? (db.weeks[weekNum] || db.weeks[String(weekNum)]) : null;
+      let mondayDate = null;
+
+      if (wMeta && typeof wMeta === 'object' && wMeta.start) {
+        mondayDate = new Date(wMeta.start);
+      } else {
+        const str = (typeof wMeta === 'string') ? wMeta : (list.find(x => x.week === weekNum)?.date_range || "");
+        const match = str.match(/(\d{2})\.(\d{2})\.(\d{2,4})/);
+        if (match) {
+          const y = match[3].length === 2 ? 2000 + parseInt(match[3], 10) : parseInt(match[3], 10);
+          const m = parseInt(match[2], 10) - 1;
+          const d = parseInt(match[1], 10);
+          mondayDate = new Date(y, m, d);
+        }
+      }
+
+      const dates = {};
+      if (mondayDate && !isNaN(mondayDate.getTime())) {
+        // Гарантируем смещение к понедельнику
+        const dayOfWeek = (mondayDate.getDay() + 6) % 7;
+        const actualMon = new Date(mondayDate.getTime() - dayOfWeek * 86400000);
+
+        DAYS.forEach((dayName, idx) => {
+          const d = new Date(actualMon.getTime() + idx * 86400000);
+          const dayStr = String(d.getDate()).padStart(2, '0');
+          const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+          dates[dayName] = `${dayStr}.${monthStr}`;
+        });
+      }
+      return dates;
     }
 
     async function init() {
@@ -788,7 +754,7 @@
           return;
         }
 
-        directionsList = buildDirectionsList(db);
+        directionsList = buildDirectionsList();
 
         const savedRole = localStorage.getItem(`mgpu_role_${userId}`) || "student";
         const savedGroup = localStorage.getItem(`mgpu_group_${userId}`);
@@ -810,7 +776,6 @@
         initDateSelection();
         renderDaysBar();
         render();
-        checkIosBanner();
       } catch (err) {
         document.getElementById("scheduleList").innerHTML = 
           `<div class="empty-state">Ошибка загрузки расписания.<br>Проверьте файл schedule.json на GitHub.</div>`;
@@ -882,19 +847,51 @@
       else if (uniqueWeeks.length > 0) weekSelect.value = uniqueWeeks[0];
     }
 
+    function onWeekChange() {
+      renderDaysBar();
+      render();
+    }
+
     function renderDaysBar() {
       const bar = document.getElementById("daysBar");
-      bar.innerHTML = DAYS.map((d, i) => `
-        <div class="day-chip ${d === selectedDay ? 'active' : ''}" onclick="selectDay('${d}')">
-          ${SHORT_DAYS[i]}
-        </div>
-      `).join("");
+      const weekNum = parseInt(document.getElementById("weekSelect").value, 10);
+      const weekDates = getWeekDates(weekNum);
+
+      bar.innerHTML = DAYS.map((d, i) => {
+        const dateStr = weekDates[d] || "";
+        return `
+          <div class="day-chip ${d === selectedDay ? 'active' : ''}" onclick="selectDay('${d}')">
+            <span class="day-name">${SHORT_DAYS[i]}</span>
+            <span class="day-num">${dateStr || "—"}</span>
+          </div>
+        `;
+      }).join("");
     }
 
     function selectDay(day) {
       selectedDay = day;
       renderDaysBar();
       render();
+    }
+
+    /* Карта подсчета прогресса пар преподавателя */
+    function getTeacherStatsMap() {
+      const list = db.teachers[currentTeacher] || [];
+      const sorted = [...list].sort((a, b) => {
+        if (a.week !== b.week) return a.week - b.week;
+        const dA = DAYS.indexOf(a.day);
+        const dB = DAYS.indexOf(b.day);
+        if (dA !== dB) return dA - dB;
+        return a.pair - b.pair;
+      });
+
+      const map = new Map();
+      sorted.forEach(item => {
+        const key = `${(item.subject || '').trim().toLowerCase()}::${(item.group || '').trim().toLowerCase()}`;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(item);
+      });
+      return map;
     }
 
     function render() {
@@ -910,25 +907,54 @@
       }
 
       lessons.sort((a, b) => a.pair - b.pair);
+      const teacherStats = currentRole === 'teacher' ? getTeacherStatsMap() : null;
 
-      container.innerHTML = lessons.map(item => `
-        <div class="lesson-card ${item.is_parallel ? 'parallel' : ''}">
-          <div class="lesson-header">
-            <span class="lesson-time">${item.pair} пара • ${item.time}</span>
-            <div class="badges">
-              ${item.subgroup ? `<span class="badge parallel-badge">${item.subgroup}</span>` : ""}
-              <span class="badge">${item.type}</span>
+      container.innerHTML = lessons.map(item => {
+        let teacherStatsHtml = "";
+
+        if (currentRole === 'teacher' && teacherStats) {
+          const key = `${(item.subject || '').trim().toLowerCase()}::${(item.group || '').trim().toLowerCase()}`;
+          const allSamePairs = teacherStats.get(key) || [];
+          const totalPairs = allSamePairs.length;
+          const currIndex = allSamePairs.indexOf(item) + 1;
+          const remaining = totalPairs - currIndex;
+          const pct = totalPairs > 0 ? Math.round((currIndex / totalPairs) * 100) : 100;
+
+          if (totalPairs > 0) {
+            teacherStatsHtml = `
+              <div class="teacher-stats-box">
+                <div class="teacher-stats-row">
+                  <span>📊 <b>${currIndex}-я пара</b> из <b>${totalPairs}</b></span>
+                  <span>Осталось: <b>${remaining}</b></span>
+                </div>
+                <div class="progress-bar-bg">
+                  <div class="progress-bar-fill" style="width: ${pct}%;"></div>
+                </div>
+              </div>
+            `;
+          }
+        }
+
+        return `
+          <div class="lesson-card ${item.is_parallel ? 'parallel' : ''}">
+            <div class="lesson-header">
+              <span class="lesson-time">${item.pair} пара • ${item.time}</span>
+              <div class="badges">
+                ${item.subgroup ? `<span class="badge parallel-badge">${item.subgroup}</span>` : ""}
+                <span class="badge">${item.type}</span>
+              </div>
             </div>
+            <div class="lesson-name">${item.subject}</div>
+            <div class="lesson-info">
+              ${currentRole === 'teacher' 
+                ? `<div class="lesson-target-group">👥 Группа: ${item.group}</div>` 
+                : (item.teacher ? `<div>${item.teacher}</div>` : "")}
+              ${item.room ? `<div class="lesson-room">${item.room}</div>` : ""}
+            </div>
+            ${teacherStatsHtml}
           </div>
-          <div class="lesson-name">${item.subject}</div>
-          <div class="lesson-info">
-            ${currentRole === 'teacher' 
-              ? `<div class="lesson-target-group">👥 Группа: ${item.group}</div>` 
-              : (item.teacher ? `<div>${item.teacher}</div>` : "")}
-            ${item.room ? `<div class="lesson-room">${item.room}</div>` : ""}
-          </div>
-        </div>
-      `).join("");
+        `;
+      }).join("");
     }
 
     function switchModalRole(role) {
@@ -1036,7 +1062,7 @@
       if (e.target.id === "iosInstructionModal") closeIosModal();
     });
 
-    // Свайп-жест закрытия модального окна вниз
+    // Свайп закрытия модального окна вниз
     let touchStartY = 0, touchCurrentY = 0, isSwiping = false;
     const sheet = document.getElementById("modalSheet");
     sheet.addEventListener("touchstart", (e) => {
