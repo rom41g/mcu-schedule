@@ -74,25 +74,59 @@
       top: 0;
       z-index: 100;
     }
-    .header-left { display: flex; align-items: center; gap: 10px; max-width: 60%; }
-    .header-logo { height: 36px; width: 36px; object-fit: contain; flex-shrink: 0; }
-    .header-titles h1 { font-size: 15px; font-weight: 800; line-height: 1.1; color: var(--mgpu-dark); }
-    .header-titles .current-target { 
-      font-size: 12px; 
-      color: var(--mgpu-red); 
-      font-weight: 700; 
-      white-space: nowrap; 
-      overflow: hidden; 
-      text-overflow: ellipsis; 
-      max-width: 170px;
+
+    /* Отступ под системные кнопки ВК (··· | ✕) */
+    body.is-vk .header {
+      padding-right: 95px;
     }
 
-    .header-right { display: flex; align-items: center; gap: 10px; }
+    .header-left { 
+      display: flex; 
+      align-items: center; 
+      gap: 10px; 
+      flex: 1;
+      min-width: 0;
+    }
+    .header-logo { height: 38px; width: 38px; object-fit: contain; flex-shrink: 0; }
+    .header-titles { display: flex; flex-direction: column; min-width: 0; }
+    .header-titles h1 { font-size: 14px; font-weight: 800; line-height: 1.1; color: var(--mgpu-dark); }
+
+    /* Бейдж текущей группы/преподавателя */
+    .target-badge-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--mgpu-red-light);
+      color: var(--mgpu-red);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 3px;
+      border: 1px solid rgba(227, 6, 19, 0.2);
+      max-width: 100%;
+      width: fit-content;
+    }
+    .target-badge-btn:active { opacity: 0.7; }
+    .target-badge-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 160px;
+    }
+
+    .header-right { 
+      display: flex; 
+      align-items: center; 
+      gap: 8px; 
+      flex-shrink: 0;
+    }
 
     /* Переключатель темы */
     .theme-switch {
       position: relative;
-      width: 50px;
+      width: 48px;
       height: 28px;
       background: var(--toggle-track);
       border-radius: 14px;
@@ -115,37 +149,10 @@
       transform: translateX(0px);
       transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.25s ease;
     }
-    [data-theme="dark"] .theme-switch-thumb { transform: translateX(22px); }
+    [data-theme="dark"] .theme-switch-thumb { transform: translateX(20px); }
 
-    /* Профиль пользователя */
-    .user-profile-btn {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      padding: 4px 8px 4px 4px;
-      border-radius: 20px;
-      cursor: pointer;
-    }
-    .user-profile-btn:active { opacity: 0.7; }
-    .user-avatar {
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      background: var(--mgpu-red);
-      color: #FFF;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      font-weight: 700;
-      object-fit: cover;
-    }
-    .user-name { font-size: 12px; font-weight: 600; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mgpu-dark); }
-
-    /* Панель дат */
-    .date-panel { padding: 12px 16px 6px; }
+    /* Панель дат и поиска */
+    .controls-panel { padding: 12px 16px 6px; display: flex; flex-direction: column; gap: 8px; }
     .week-select {
       width: 100%;
       padding: 10px 14px;
@@ -158,11 +165,51 @@
       outline: none;
     }
 
+    /* Поле поиска */
+    .search-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+    .search-input {
+      width: 100%;
+      padding: 10px 36px 10px 36px;
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--mgpu-dark);
+      outline: none;
+    }
+    .search-input:focus {
+      border-color: var(--mgpu-red);
+    }
+    .search-icon-left {
+      position: absolute;
+      left: 12px;
+      font-size: 14px;
+      color: var(--text-sub);
+      pointer-events: none;
+    }
+    .search-clear-btn {
+      position: absolute;
+      right: 10px;
+      background: none;
+      border: none;
+      font-size: 16px;
+      color: var(--text-sub);
+      cursor: pointer;
+      display: none;
+      padding: 4px;
+    }
+
     /* Дни недели с числами */
     .days-bar {
       display: flex;
       gap: 6px;
-      padding: 8px 16px 12px;
+      padding: 6px 16px 12px;
       overflow-x: auto;
       scrollbar-width: none;
     }
@@ -272,7 +319,7 @@
 
     .empty-state { text-align: center; padding: 40px 20px; color: var(--text-sub); font-size: 14px; }
 
-    /* Модальное окно */
+    /* Модальное окно профиля */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -293,6 +340,8 @@
       position: relative;
       touch-action: pan-y;
       transition: transform 0.25s ease-out;
+      max-height: 85vh;
+      overflow-y: auto;
     }
     .drag-handle-bar {
       width: 40px;
@@ -346,6 +395,21 @@
       background: var(--card-bg);
       color: var(--mgpu-red);
       box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+
+    .modal-filter-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 13px;
+      background: var(--input-bg);
+      color: var(--mgpu-dark);
+      outline: none;
+      margin-bottom: 12px;
+    }
+    .modal-filter-input:focus {
+      border-color: var(--mgpu-red);
     }
 
     .form-group { margin-bottom: 14px; }
@@ -444,34 +508,46 @@
       <img src="logo.png" alt="МГПУ" class="header-logo" onerror="this.style.display='none'">
       <div class="header-titles">
         <h1 id="headerMainTitle">МГПУ • ИИЯ</h1>
-        <div class="current-target" id="headerTargetLabel">Загрузка...</div>
+        <div class="target-badge-btn" onclick="openProfileModal()" title="Нажмите для смены группы или преподавателя">
+          <span class="target-badge-text" id="headerTargetLabel">Выбрать</span>
+          <span style="font-size: 10px;">▾</span>
+        </div>
       </div>
     </div>
     <div class="header-right">
       <div class="theme-switch" id="themeToggleBtn" onclick="toggleThemeManual()" title="Переключить тему">
         <div class="theme-switch-thumb" id="themeSwitchThumb">☀️</div>
       </div>
-      <div class="user-profile-btn" onclick="openProfileModal()">
-        <div id="avatarContainer"></div>
-        <span class="user-name" id="profileName">Студент</span>
-      </div>
     </div>
   </div>
 
-  <div class="date-panel">
+  <div class="controls-panel">
     <select id="weekSelect" class="week-select" onchange="onWeekChange()"></select>
+
+    <!-- Поле поиска по текущему расписанию -->
+    <div class="search-wrapper">
+      <span class="search-icon-left">🔍</span>
+      <input 
+        type="text" 
+        id="scheduleSearchInput" 
+        class="search-input" 
+        placeholder="Поиск по предмету, преподавателю, аудитории..." 
+        oninput="handleScheduleSearch(this.value)"
+      >
+      <button type="button" id="scheduleSearchClear" class="search-clear-btn" onclick="clearScheduleSearch()">&times;</button>
+    </div>
   </div>
 
   <div class="days-bar" id="daysBar"></div>
   <div class="schedule-list" id="scheduleList"></div>
 
-  <!-- Модальное окно профиля -->
+  <!-- Модальное окно выбора профиля -->
   <div class="modal-overlay" id="profileModal">
     <div class="modal-sheet" id="modalSheet">
       <div class="drag-handle-bar"></div>
       
       <div class="modal-header-row">
-        <div class="modal-title">Мой профиль</div>
+        <div class="modal-title">Выбор расписания</div>
         <button type="button" class="modal-close-btn" onclick="closeProfileModal()">&times;</button>
       </div>
 
@@ -482,7 +558,15 @@
       
       <!-- Студент -->
       <div id="studentFields">
-        <div class="form-group">
+        <input 
+          type="text" 
+          id="modalGroupSearchInput" 
+          class="modal-filter-input" 
+          placeholder="🔍 Быстрый поиск группы (например: ВЦК, ПОЕ)..." 
+          oninput="onModalGroupSearch(this.value)"
+        >
+
+        <div class="form-group" id="directionFormGroup">
           <label>Направление подготовки</label>
           <select id="modalDirectionSelect" class="modal-select" onchange="onModalDirectionChange()"></select>
         </div>
@@ -495,6 +579,14 @@
 
       <!-- Преподаватель -->
       <div id="teacherFields" style="display: none;">
+        <input 
+          type="text" 
+          id="modalTeacherSearchInput" 
+          class="modal-filter-input" 
+          placeholder="🔍 Быстрый поиск ФИО преподавателя..." 
+          oninput="onModalTeacherSearch(this.value)"
+        >
+
         <div class="form-group">
           <label>ФИО преподавателя</label>
           <select id="modalTeacherSelect" class="modal-select"></select>
@@ -502,7 +594,6 @@
         </div>
       </div>
 
-      <!-- Переадресация на чистую PWA-версию на всех устройствах -->
       <button type="button" class="install-home-btn" id="installHomeBtn" onclick="triggerSmartInstall()">
         📲 Добавить на рабочий стол
       </button>
@@ -511,7 +602,7 @@
     </div>
   </div>
 
-  <!-- Шторка с инструкцией для Safari -->
+  <!-- Шторка с инструкцией Safari -->
   <div class="modal-overlay" id="iosInstructionModal">
     <div class="modal-sheet" style="padding-bottom: 20px;">
       <div class="modal-header-row">
@@ -522,7 +613,7 @@
       
       <div class="ios-step">
         <div class="ios-step-icon">⎋</div>
-        <div>1. Нажмите кнопку <b>«Поделиться»</b> (или значок меню <b>≡</b>) в Safari</div>
+        <div>1. Нажмите кнопку <b>«Поделиться»</b> (или меню <b>≡</b>) в Safari</div>
       </div>
       <div class="ios-step">
         <div class="ios-step-icon">➕</div>
@@ -544,6 +635,10 @@
     const isInsideVK = window.location.search.includes('vk_user_id') || Boolean(window.vkBridge);
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
+    if (isInsideVK) {
+      document.body.classList.add('is-vk');
+    }
+
     if (tg && isInsideTelegram) {
       tg.ready();
       tg.expand();
@@ -558,14 +653,6 @@
           applyTheme(isDark ? 'dark' : 'light');
         }
       });
-      vkBridge.send('VKWebAppGetUserInfo').then(u => {
-        if (u && u.first_name) {
-          document.getElementById("profileName").textContent = u.first_name;
-          if (u.photo_100) {
-            document.getElementById("avatarContainer").innerHTML = `<img src="${u.photo_100}" class="user-avatar" alt="Avatar">`;
-          }
-        }
-      }).catch(() => {});
     }
 
     /* ========== ТЕМА ОФОРМЛЕНИЯ ========== */
@@ -610,31 +697,23 @@
     }
     initTheme();
 
-    /* ========== ПЕРЕАДРЕСАЦИЯ ДЛЯ УСТАНОВКИ НА РАБОЧИЙ СТОЛ ========== */
+    /* ========== ПЕРЕАДРЕСАЦИЯ ДЛЯ УСТАНОВКИ ========== */
     function triggerSmartInstall() {
       const targetUrl = "https://rom41g.github.io/mcu-schedule/";
-      
-      // В Telegram открываем чистый браузер устройства
       if (tg && typeof tg.openLink === 'function') {
         tg.openLink(targetUrl);
         return;
       }
-
-      // Внутри VK открываем внешнюю ссылку через VK Bridge
       if (window.vkBridge) {
         vkBridge.send('VKWebAppOpenUrl', { url: targetUrl }).catch(() => {
           window.open(targetUrl, '_blank');
         });
         return;
       }
-
-      // Если пользователь уже в браузере Safari на сайте
       if (isIOS) {
         document.getElementById("iosInstructionModal").style.display = "flex";
         return;
       }
-
-      // На Android / десктопе переходим по ссылке
       window.location.href = targetUrl;
     }
 
@@ -642,22 +721,10 @@
       document.getElementById("iosInstructionModal").style.display = "none";
     }
 
-    /* ========== ДАННЫЕ И РАСПИСАНИЕ ========== */
+    /* ========== ДАННЫЕ И СОСТОЯНИЕ ========== */
     const tgUser = tg?.initDataUnsafe?.user;
     const vkUid = new URLSearchParams(window.location.search).get('vk_user_id');
     const userId = tgUser?.id ? `tg_${tgUser.id}` : (vkUid ? `vk_${vkUid}` : "guest_user");
-    const userName = tgUser?.username ? `@${tgUser.username}` : (tgUser?.first_name || "Студент");
-
-    if (isInsideTelegram) {
-      document.getElementById("profileName").textContent = userName;
-      const avatarContainer = document.getElementById("avatarContainer");
-      if (tgUser?.photo_url) {
-        avatarContainer.innerHTML = `<img src="${tgUser.photo_url}" class="user-avatar" alt="Avatar">`;
-      } else {
-        const initial = userName.replace('@', '')[0]?.toUpperCase() || "С";
-        avatarContainer.innerHTML = `<div class="user-avatar">${initial}</div>`;
-      }
-    }
 
     const DAYS = ["ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА"];
     const SHORT_DAYS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
@@ -672,6 +739,7 @@
     let currentTeacher = "";
     let selectedDay = "ПОНЕДЕЛЬНИК";
     let modalActiveRole = "student";
+    let activeSearchQuery = "";
 
     const todayIndex = new Date().getDay();
     if (todayIndex >= 1 && todayIndex <= 6) {
@@ -706,7 +774,6 @@
       return list;
     }
 
-    /* Вычисление точных календарных дат для дней недели */
     function getWeekDates(weekNum) {
       const list = getActiveLessonsList();
       const wMeta = db.weeks ? (db.weeks[weekNum] || db.weeks[String(weekNum)]) : null;
@@ -727,7 +794,6 @@
 
       const dates = {};
       if (mondayDate && !isNaN(mondayDate.getTime())) {
-        // Гарантируем смещение к понедельнику
         const dayOfWeek = (mondayDate.getDay() + 6) % 7;
         const actualMon = new Date(mondayDate.getTime() - dayOfWeek * 86400000);
 
@@ -785,9 +851,9 @@
     function updateHeaderTitle() {
       const lbl = document.getElementById("headerTargetLabel");
       if (currentRole === "teacher") {
-        lbl.textContent = currentTeacher || "Преподаватель";
+        lbl.textContent = `👨‍🏫 ${currentTeacher || "Преподаватель"}`;
       } else {
-        lbl.textContent = currentGroup || "Группа";
+        lbl.textContent = `🎓 ${currentGroup || "Группа"}`;
       }
     }
 
@@ -874,7 +940,7 @@
       render();
     }
 
-    /* Карта подсчета прогресса пар преподавателя */
+    /* Подсчет пар преподавателя */
     function getTeacherStatsMap() {
       const list = db.teachers[currentTeacher] || [];
       const sorted = [...list].sort((a, b) => {
@@ -894,15 +960,50 @@
       return map;
     }
 
+    /* Поиск по расписанию */
+    function handleScheduleSearch(query) {
+      activeSearchQuery = (query || "").trim().toLowerCase();
+      const clearBtn = document.getElementById("scheduleSearchClear");
+      clearBtn.style.display = activeSearchQuery ? "block" : "none";
+      render();
+    }
+
+    function clearScheduleSearch() {
+      const input = document.getElementById("scheduleSearchInput");
+      input.value = "";
+      handleScheduleSearch("");
+      input.focus();
+    }
+
     function render() {
       const weekNum = parseInt(document.getElementById("weekSelect").value, 10);
       const container = document.getElementById("scheduleList");
       
       const list = getActiveLessonsList();
-      const lessons = list.filter(item => item.week === weekNum && item.day === selectedDay);
+      let lessons = list.filter(item => item.week === weekNum && item.day === selectedDay);
+
+      // Фильтрация поиска
+      if (activeSearchQuery) {
+        lessons = lessons.filter(item => {
+          const s = (item.subject || "").toLowerCase();
+          const t = (item.teacher || "").toLowerCase();
+          const r = (item.room || "").toLowerCase();
+          const g = (item.group || "").toLowerCase();
+          const tp = (item.type || "").toLowerCase();
+          return s.includes(activeSearchQuery) || 
+                 t.includes(activeSearchQuery) || 
+                 r.includes(activeSearchQuery) || 
+                 g.includes(activeSearchQuery) || 
+                 tp.includes(activeSearchQuery);
+        });
+      }
 
       if (lessons.length === 0) {
-        container.innerHTML = `<div class="empty-state">🎉 В этот день пар нет</div>`;
+        if (activeSearchQuery) {
+          container.innerHTML = `<div class="empty-state">Ничего не найдено по запросу «${activeSearchQuery}»</div>`;
+        } else {
+          container.innerHTML = `<div class="empty-state">🎉 В этот день пар нет</div>`;
+        }
         return;
       }
 
@@ -969,6 +1070,11 @@
       modalActiveRole = currentRole;
       switchModalRole(modalActiveRole);
 
+      // Сброс фильтров в модальном окне
+      document.getElementById("modalGroupSearchInput").value = "";
+      document.getElementById("modalTeacherSearchInput").value = "";
+      document.getElementById("directionFormGroup").style.display = "block";
+
       const dirSelect = document.getElementById("modalDirectionSelect");
       dirSelect.innerHTML = "";
       let activeIndex = 0;
@@ -982,18 +1088,7 @@
       dirSelect.value = activeIndex;
       onModalDirectionChange();
 
-      const teacherSelect = document.getElementById("modalTeacherSelect");
-      teacherSelect.innerHTML = "";
-      allTeachers.forEach(t => {
-        const opt = document.createElement("option");
-        opt.value = t;
-        opt.textContent = t;
-        if (t === currentTeacher) opt.selected = true;
-        teacherSelect.appendChild(opt);
-      });
-      if (!teacherSelect.value && allTeachers.length > 0) {
-        teacherSelect.value = allTeachers[0];
-      }
+      renderModalTeachers(allTeachers);
 
       const modal = document.getElementById("profileModal");
       const sheet = document.getElementById("modalSheet");
@@ -1009,6 +1104,51 @@
         modal.style.display = "none";
         sheet.style.transform = "";
       }, 220);
+    }
+
+    function renderModalTeachers(list) {
+      const teacherSelect = document.getElementById("modalTeacherSelect");
+      teacherSelect.innerHTML = "";
+      list.forEach(t => {
+        const opt = document.createElement("option");
+        opt.value = t;
+        opt.textContent = t;
+        if (t === currentTeacher) opt.selected = true;
+        teacherSelect.appendChild(opt);
+      });
+      if (!teacherSelect.value && list.length > 0) {
+        teacherSelect.value = list[0];
+      }
+    }
+
+    /* Поиск внутри модального окна для студентов */
+    function onModalGroupSearch(query) {
+      const q = (query || "").trim().toLowerCase();
+      const dirGroup = document.getElementById("directionFormGroup");
+      const grpSelect = document.getElementById("modalGroupSelect");
+
+      if (q) {
+        dirGroup.style.display = "none";
+        const filtered = allGroups.filter(g => g.toLowerCase().includes(q));
+        grpSelect.innerHTML = "";
+        filtered.forEach(g => {
+          const opt = document.createElement("option");
+          opt.value = g;
+          opt.textContent = formatGroupWithCourse(g);
+          grpSelect.appendChild(opt);
+        });
+        if (filtered.length > 0) grpSelect.value = filtered[0];
+      } else {
+        dirGroup.style.display = "block";
+        onModalDirectionChange();
+      }
+    }
+
+    /* Поиск внутри модального окна для преподавателей */
+    function onModalTeacherSearch(query) {
+      const q = (query || "").trim().toLowerCase();
+      const filtered = q ? allTeachers.filter(t => t.toLowerCase().includes(q)) : allTeachers;
+      renderModalTeachers(filtered);
     }
 
     function onModalDirectionChange() {
@@ -1066,7 +1206,7 @@
     let touchStartY = 0, touchCurrentY = 0, isSwiping = false;
     const sheet = document.getElementById("modalSheet");
     sheet.addEventListener("touchstart", (e) => {
-      if (e.target.tagName === "SELECT") return;
+      if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
       touchStartY = e.touches[0].clientY;
       isSwiping = true;
       sheet.style.transition = "none";
