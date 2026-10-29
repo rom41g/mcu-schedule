@@ -1,3 +1,8 @@
+<!--
+  МГПУ ИИЯ • Интерактивное расписание (MCU Schedule)
+  Copyright (c) 2026 Роман. Все права защищены.
+  Любое несанкционированное копирование, распространение или модификация запрещены.
+-->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -5,11 +10,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>МГПУ • Расписание ИИЯ</title>
 
-  <!-- SDK платформ: Telegram и ВКонтакте -->
+  <!-- SDK Telegram и VK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
 
-  <!-- PWA и метатеги мобильных устройств -->
+  <!-- PWA -->
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="logo.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -29,6 +34,8 @@
       --accent-orange: #FFF3E0;
       --accent-orange-text: #E65100;
       --accent-orange-border: #FFE0B2;
+      --hw-bg: #F0F7FF;
+      --hw-border: #2AABEE;
       --toggle-track: #E4E4E8;
       --toggle-thumb: #FFFFFF;
       --modal-overlay: rgba(0, 0, 0, 0.45);
@@ -47,6 +54,8 @@
       --accent-orange: #2C2014;
       --accent-orange-text: #FF9F0A;
       --accent-orange-border: #4A331E;
+      --hw-bg: #1A2634;
+      --hw-border: #2AABEE;
       --toggle-track: #2C2C32;
       --toggle-thumb: #3A3A40;
       --modal-overlay: rgba(0, 0, 0, 0.75);
@@ -77,7 +86,6 @@
       z-index: 100;
     }
 
-    /* Отступ под системные кнопки ВК (··· | ✕) */
     body.is-vk .header {
       padding-right: 95px;
     }
@@ -91,9 +99,25 @@
     }
     .header-logo { height: 38px; width: 38px; object-fit: contain; flex-shrink: 0; }
     .header-titles { display: flex; flex-direction: column; min-width: 0; }
+    
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
     .header-titles h1 { font-size: 14px; font-weight: 800; line-height: 1.1; color: var(--mgpu-dark); }
 
-    /* Кнопка текущей группы/преподавателя */
+    .offline-badge {
+      display: none;
+      font-size: 10px;
+      font-weight: 800;
+      background: #7A7A7E;
+      color: #FFF;
+      padding: 1px 6px;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+
     .target-badge-btn {
       display: inline-flex;
       align-items: center;
@@ -153,7 +177,7 @@
     }
     [data-theme="dark"] .theme-switch-thumb { transform: translateX(20px); }
 
-    /* Панель дат и поиска */
+    /* Панель управления */
     .controls-panel { padding: 12px 16px 6px; display: flex; flex-direction: column; gap: 8px; }
     .week-select {
       width: 100%;
@@ -167,7 +191,6 @@
       outline: none;
     }
 
-    /* Поле поиска по расписанию */
     .search-wrapper {
       position: relative;
       display: flex;
@@ -185,9 +208,7 @@
       color: var(--mgpu-dark);
       outline: none;
     }
-    .search-input:focus {
-      border-color: var(--mgpu-red);
-    }
+    .search-input:focus { border-color: var(--mgpu-red); }
     .search-icon-left {
       position: absolute;
       left: 12px;
@@ -207,7 +228,7 @@
       padding: 4px;
     }
 
-    /* Дни недели с календарными числами */
+    /* Дни недели */
     .days-bar {
       display: flex;
       gap: 6px;
@@ -231,16 +252,8 @@
       justify-content: center;
       gap: 2px;
     }
-    .day-chip .day-name {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text-sub);
-    }
-    .day-chip .day-num {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--mgpu-dark);
-    }
+    .day-chip .day-name { font-size: 12px; font-weight: 700; color: var(--text-sub); }
+    .day-chip .day-num { font-size: 11px; font-weight: 700; color: var(--mgpu-dark); }
     .day-chip.active {
       background: var(--mgpu-red) !important;
       border-color: var(--mgpu-red) !important;
@@ -250,7 +263,7 @@
       color: #FFFFFF !important;
     }
 
-    /* Карточки занятий */
+    /* Карточки пар */
     .schedule-list { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
     .lesson-card {
       background: var(--card-bg);
@@ -294,7 +307,57 @@
     .lesson-room { font-weight: 600; color: var(--mgpu-dark); margin-top: 2px; }
     .lesson-target-group { font-weight: 700; color: var(--mgpu-red); margin-bottom: 2px; }
 
-    /* Трекинг пар преподавателя */
+    /* Домашнее задание */
+    .hw-preview-box {
+      margin-top: 10px;
+      padding: 9px 12px;
+      background: var(--hw-bg);
+      border-left: 3px solid var(--hw-border);
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .hw-preview-box:active { opacity: 0.8; }
+    .hw-preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      font-weight: 700;
+      color: var(--mgpu-dark);
+      font-size: 11px;
+    }
+    .hw-author-badge {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-sub);
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .hw-preview-text {
+      font-size: 13px;
+      color: var(--mgpu-dark);
+      line-height: 1.35;
+      white-space: pre-wrap;
+    }
+    .hw-empty-add-btn {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text-sub);
+      background: none;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .hw-empty-add-btn:active { background: var(--input-bg); }
+
+    /* Трекинг пар */
     .teacher-stats-box {
       margin-top: 10px;
       padding: 8px 10px;
@@ -326,7 +389,7 @@
 
     .empty-state { text-align: center; padding: 40px 20px; color: var(--text-sub); font-size: 14px; }
 
-    /* Модальное окно */
+    /* Модальные окна */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -415,9 +478,7 @@
       outline: none;
       margin-bottom: 12px;
     }
-    .modal-filter-input:focus {
-      border-color: var(--mgpu-red);
-    }
+    .modal-filter-input:focus { border-color: var(--mgpu-red); }
 
     .form-group { margin-bottom: 14px; }
     .form-group label { display: block; font-size: 12px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px; text-transform: uppercase; }
@@ -439,7 +500,57 @@
       line-height: 1.3;
     }
 
-    /* Кнопка установки на рабочий стол */
+    /* Шторка ДЗ */
+    .hw-textarea {
+      width: 100%;
+      height: 110px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--input-bg);
+      color: var(--mgpu-dark);
+      font-size: 14px;
+      resize: none;
+      outline: none;
+      margin-top: 8px;
+    }
+    .hw-textarea:focus { border-color: var(--hw-border); }
+    .hw-actions-col { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .hw-btn-primary {
+      width: 100%;
+      background: var(--mgpu-red);
+      color: #FFF;
+      border: none;
+      padding: 12px;
+      border-radius: 11px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .hw-btn-secondary {
+      width: 100%;
+      background: var(--hw-bg);
+      color: var(--hw-border);
+      border: 1px solid var(--hw-border);
+      padding: 12px;
+      border-radius: 11px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .hw-btn-delete {
+      width: 100%;
+      background: transparent;
+      color: var(--mgpu-red);
+      border: 1px dashed var(--mgpu-red);
+      padding: 10px;
+      border-radius: 11px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      margin-top: 4px;
+    }
+
     .install-home-btn {
       width: 100%;
       padding: 12px;
@@ -456,7 +567,6 @@
       justify-content: center;
       gap: 8px;
     }
-    .install-home-btn:active { background: var(--mgpu-red-light); }
 
     .modal-btn {
       width: 100%;
@@ -470,44 +580,8 @@
       cursor: pointer;
       margin-top: 10px;
     }
-    .modal-btn:active { opacity: 0.85; }
 
-    /* Шторка с инструкцией Safari */
-    .ios-step {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px;
-      background: var(--input-bg);
-      border-radius: 12px;
-      margin-bottom: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--mgpu-dark);
-    }
-    .ios-step-icon {
-      font-size: 20px;
-      width: 36px;
-      height: 36px;
-      background: var(--card-bg);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-    }
-    .ios-arrow-bounce {
-      text-align: center;
-      font-size: 26px;
-      animation: bounce 1.2s infinite;
-      margin-top: 10px;
-    }
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(6px); }
-    }
-
-    /* Плавающий баннер для Safari на iOS */
+    /* iOS Баннер */
     .ios-install-banner {
       display: none;
       position: fixed;
@@ -524,20 +598,13 @@
       z-index: 999;
       animation: bannerSlideUp 0.35s ease-out;
     }
-
     @keyframes bannerSlideUp {
       from { transform: translateY(50px); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
     }
-
     .ios-banner-body { display: flex; align-items: center; gap: 10px; }
     .ios-banner-icon { font-size: 24px; flex-shrink: 0; }
-    .ios-banner-text {
-      font-size: 13px;
-      line-height: 1.35;
-      color: var(--mgpu-dark);
-      flex: 1;
-    }
+    .ios-banner-text { font-size: 13px; line-height: 1.35; color: var(--mgpu-dark); flex: 1; }
     .ios-banner-text b { color: var(--mgpu-red); }
     .ios-banner-close {
       background: transparent;
@@ -556,7 +623,6 @@
       animation: bannerArrowBounce 1.2s infinite ease-in-out;
       color: var(--mgpu-red);
     }
-
     @keyframes bannerArrowBounce {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(4px); }
@@ -569,7 +635,10 @@
     <div class="header-left">
       <img src="logo.png" alt="МГПУ" class="header-logo" onerror="this.style.display='none'">
       <div class="header-titles">
-        <h1 id="headerMainTitle">МГПУ • ИИЯ</h1>
+        <div class="title-row">
+          <h1 id="headerMainTitle">МГПУ • ИИЯ</h1>
+          <span id="offlineBadge" class="offline-badge">📡 Офлайн</span>
+        </div>
         <div class="target-badge-btn" onclick="openProfileModal()" title="Нажмите для смены группы или преподавателя">
           <span class="target-badge-text" id="headerTargetLabel">Выбрать</span>
           <span style="font-size: 10px;">▾</span>
@@ -586,7 +655,6 @@
   <div class="controls-panel">
     <select id="weekSelect" class="week-select" onchange="onWeekChange()"></select>
 
-    <!-- Поиск по расписанию -->
     <div class="search-wrapper">
       <span class="search-icon-left">🔍</span>
       <input 
@@ -603,19 +671,41 @@
   <div class="days-bar" id="daysBar"></div>
   <div class="schedule-list" id="scheduleList"></div>
 
-  <!-- Плавающий баннер для Safari на iOS -->
+  <!-- iOS Баннер -->
   <div id="iosInstallBanner" class="ios-install-banner">
     <div class="ios-banner-body">
       <div class="ios-banner-icon">📲</div>
       <div class="ios-banner-text">
-        Установите расписание: нажмите <b>«Поделиться» ⎋</b> (или меню <b>≡</b>) внизу и выберите <b>«На экран „Домой“»</b>
+        Установите расписание: нажмите <b>«Поделиться» ⎋</b> внизу и выберите <b>«На экран „Домой“»</b>
       </div>
       <button type="button" class="ios-banner-close" onclick="dismissIosBanner()">&times;</button>
     </div>
     <div class="ios-banner-arrow">▼</div>
   </div>
 
-  <!-- Модальное окно выбора профиля -->
+  <!-- Шторка ДЗ -->
+  <div class="modal-overlay" id="hwModal">
+    <div class="modal-sheet" style="padding-bottom: 25px;">
+      <div class="drag-handle-bar"></div>
+      <div class="modal-header-row">
+        <div class="modal-title" id="hwModalTitle">Домашнее задание</div>
+        <button type="button" class="modal-close-btn" onclick="closeHwModal()">&times;</button>
+      </div>
+
+      <div id="hwModalSubtitle" style="font-size: 13px; color: var(--text-sub); margin-bottom: 8px;"></div>
+      <div id="hwAuthorInfo" style="display: none; margin-bottom: 8px; font-size: 11px; color: var(--text-sub);"></div>
+
+      <textarea id="hwInputText" class="hw-textarea" maxlength="1000" placeholder="Напишите задание (номера страниц, упражнения, темы к сдаче)..."></textarea>
+
+      <div class="hw-actions-col">
+        <button type="button" class="hw-btn-primary" onclick="saveHomeworkCurrent()">💾 Сохранить к этой паре</button>
+        <button type="button" class="hw-btn-secondary" onclick="saveHomeworkNext()">➡️ Задать на следующую пару</button>
+        <button type="button" id="hwDeleteBtn" class="hw-btn-delete" style="display: none;" onclick="deleteHomework()">🗑️ Удалить задание</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модальное окно профиля -->
   <div class="modal-overlay" id="profileModal">
     <div class="modal-sheet" id="modalSheet">
       <div class="drag-handle-bar"></div>
@@ -630,7 +720,6 @@
         <button type="button" class="role-btn" id="btnRoleTeacher" onclick="switchModalRole('teacher')">👨‍🏫 Преподаватель</button>
       </div>
       
-      <!-- Студент -->
       <div id="studentFields">
         <input 
           type="text" 
@@ -651,7 +740,6 @@
         </div>
       </div>
 
-      <!-- Преподаватель -->
       <div id="teacherFields" style="display: none;">
         <input 
           type="text" 
@@ -676,33 +764,26 @@
     </div>
   </div>
 
-  <!-- Инструкция Safari -->
-  <div class="modal-overlay" id="iosInstructionModal">
-    <div class="modal-sheet" style="padding-bottom: 20px;">
-      <div class="modal-header-row">
-        <div class="modal-title">Добавление на экран</div>
-        <button type="button" class="modal-close-btn" onclick="closeIosModal()">&times;</button>
-      </div>
-      <p style="font-size: 13px; color: var(--text-sub); margin-bottom: 14px;">Установите расписание прямо на рабочий стол:</p>
-      
-      <div class="ios-step">
-        <div class="ios-step-icon">⎋</div>
-        <div>1. Нажмите кнопку <b>«Поделиться»</b> (или меню <b>≡</b>) в Safari</div>
-      </div>
-      <div class="ios-step">
-        <div class="ios-step-icon">➕</div>
-        <div>2. В появившемся меню выберите <b>«На экран „Домой“»</b></div>
-      </div>
-      <div class="ios-step">
-        <div class="ios-step-icon">✨</div>
-        <div>3. Нажмите <b>«Добавить»</b> в правом верхнем углу</div>
-      </div>
-
-      <div class="ios-arrow-bounce">⬇️</div>
-    </div>
-  </div>
-
   <script>
+    /* ========== РЕГИСТРАЦИЯ SERVICE WORKER ========== */
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+
+    /* ========== ОТСЛЕЖИВАНИЕ СЕТИ ========== */
+    function updateOnlineStatus() {
+      const isOnline = navigator.onLine;
+      const badge = document.getElementById("offlineBadge");
+      if (badge) badge.style.display = isOnline ? "none" : "inline-block";
+    }
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    /* ========== НАСТРОЙКИ СЕРВЕРА ========== */
+    const WORKER_URL = "https://steep-forest-40b2.okroma007.workers.dev";
+
     /* ========== ОПРЕДЕЛЕНИЕ ПЛАТФОРМЫ ========== */
     const tg = window.Telegram?.WebApp;
     const isInsideTelegram = Boolean(tg && tg.initData);
@@ -724,10 +805,14 @@
       vkBridge.subscribe((e) => {
         if (e.detail?.type === 'VKWebAppUpdateConfig') {
           const scheme = e.detail.data.scheme;
-          const isDark = scheme ? scheme.includes('dark') : false;
-          applyTheme(isDark ? 'dark' : 'light');
+          applyTheme(scheme?.includes('dark') ? 'dark' : 'light');
         }
       });
+      vkBridge.send('VKWebAppGetUserInfo').then(u => {
+        if (u && u.first_name) {
+          window.currentVkUserName = `${u.first_name} ${u.last_name || ''}`.trim();
+        }
+      }).catch(() => {});
     }
 
     /* ========== ТЕМА ОФОРМЛЕНИЯ ========== */
@@ -761,18 +846,10 @@
       const isTgDark = tg?.colorScheme === 'dark';
       const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
       applyTheme(isTgDark || isSystemDark ? 'dark' : 'light');
-
-      if (tg?.onEvent) {
-        tg.onEvent('themeChanged', () => {
-          if (!localStorage.getItem('mgpu_user_theme')) {
-            applyTheme(tg.colorScheme === 'dark' ? 'dark' : 'light');
-          }
-        });
-      }
     }
     initTheme();
 
-    /* ========== ПЕРЕАДРЕСАЦИЯ ДЛЯ УСТАНОВКИ ========== */
+    /* ========== УСТАНОВКА И БАННЕР ========== */
     function triggerSmartInstall() {
       const targetUrl = "https://rom41g.github.io/mcu-schedule/";
       if (tg && typeof tg.openLink === 'function') {
@@ -785,18 +862,9 @@
         });
         return;
       }
-      if (isIOS) {
-        document.getElementById("iosInstructionModal").style.display = "flex";
-        return;
-      }
       window.location.href = targetUrl;
     }
 
-    function closeIosModal() {
-      document.getElementById("iosInstructionModal").style.display = "none";
-    }
-
-    /* Управление плавающим баннером Safari */
     function checkIosBanner() {
       const isDismissed = localStorage.getItem('mgpu_ios_banner_dismissed') === 'true';
       if (isIOS && !isStandalone && !isInsideTelegram && !isInsideVK && !isDismissed) {
@@ -811,11 +879,7 @@
       localStorage.setItem('mgpu_ios_banner_dismissed', 'true');
     }
 
-    /* ========== ДАННЫЕ И СОСТОЯНИЕ ========== */
-    const tgUser = tg?.initDataUnsafe?.user;
-    const vkUid = new URLSearchParams(window.location.search).get('vk_user_id');
-    const userId = tgUser?.id ? `tg_${tgUser.id}` : (vkUid ? `vk_${vkUid}` : "guest_user");
-
+    /* ========== СОСТОЯНИЕ И ДАННЫЕ ========== */
     const DAYS = ["ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА"];
     const SHORT_DAYS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
     
@@ -830,13 +894,11 @@
     let selectedDay = "ПОНЕДЕЛЬНИК";
     let modalActiveRole = "student";
     let activeSearchQuery = "";
+    let currentWeekHw = {};
+    let activeLessonContext = null;
 
     const todayIndex = new Date().getDay();
-    if (todayIndex >= 1 && todayIndex <= 6) {
-      selectedDay = DAYS[todayIndex - 1];
-    } else {
-      selectedDay = DAYS[0];
-    }
+    selectedDay = (todayIndex >= 1 && todayIndex <= 6) ? DAYS[todayIndex - 1] : DAYS[0];
 
     function formatGroupWithCourse(groupName) {
       const m = groupName.trim().match(/^([А-Яа-яA-Za-z0-9_]+?)[-_]?(\d{2})/);
@@ -864,7 +926,6 @@
       return list;
     }
 
-    /* Удаление суффикса (замена) для объединения преподавателей */
     function normalizeTeacherName(name) {
       return (name || '').replace(/\s*\((?:замена|зам\.?)\)/gi, '').trim();
     }
@@ -902,20 +963,37 @@
       return dates;
     }
 
-    async function init() {
+    /* ОФЛАЙН ЗАГРУЗКА РАСПИСАНИЯ */
+    async function fetchScheduleWithCache() {
       try {
         const res = await fetch('schedule.json?t=' + Date.now());
-        db = await res.json();
+        if (!res.ok) throw new Error('Network error');
+        const data = await res.json();
+        try {
+          localStorage.setItem('mgpu_schedule_db_cache', JSON.stringify(data));
+        } catch (e) {}
+        return data;
+      } catch (err) {
+        const cached = localStorage.getItem('mgpu_schedule_db_cache');
+        if (cached) {
+          updateOnlineStatus();
+          return JSON.parse(cached);
+        }
+        throw err;
+      }
+    }
+
+    async function init() {
+      updateOnlineStatus();
+      try {
+        db = await fetchScheduleWithCache();
 
         allGroups = Object.keys(db.groups || {});
 
-        // Объединение преподавателей и их замен в единый профиль
         const unifiedTeachers = {};
         for (const [rawName, lessons] of Object.entries(db.teachers || {})) {
           const cleanName = normalizeTeacherName(rawName);
-          if (!unifiedTeachers[cleanName]) {
-            unifiedTeachers[cleanName] = [];
-          }
+          if (!unifiedTeachers[cleanName]) unifiedTeachers[cleanName] = [];
           const isSub = /\((?:замена|зам\.?)\)/i.test(rawName);
           lessons.forEach(lesson => {
             unifiedTeachers[cleanName].push({
@@ -934,16 +1012,19 @@
 
         directionsList = buildDirectionsList();
 
-        const savedRole = localStorage.getItem(`mgpu_role_${userId}`) || "student";
-        const savedGroup = localStorage.getItem(`mgpu_group_${userId}`);
-        const savedTeacher = localStorage.getItem(`mgpu_teacher_${userId}`);
+        const savedRole = localStorage.getItem('mgpu_current_role') || "student";
+        const savedGroup = localStorage.getItem('mgpu_current_group');
+        const savedTeacher = localStorage.getItem('mgpu_current_teacher');
+
+        const matchedGroup = allGroups.find(g => g.trim().toLowerCase() === (savedGroup || '').trim().toLowerCase());
+        const matchedTeacher = allTeachers.find(t => t.trim().toLowerCase() === (savedTeacher || '').trim().toLowerCase());
 
         currentRole = savedRole;
-        if (currentRole === "teacher" && savedTeacher && db.teachers[savedTeacher]) {
-          currentTeacher = savedTeacher;
-        } else if (savedGroup && db.groups[savedGroup]) {
+        if (currentRole === "teacher" && matchedTeacher) {
+          currentTeacher = matchedTeacher;
+        } else if (matchedGroup) {
           currentRole = "student";
-          currentGroup = savedGroup;
+          currentGroup = matchedGroup;
         } else {
           currentGroup = allGroups[0] || "";
           currentTeacher = allTeachers[0] || "";
@@ -953,11 +1034,12 @@
         updateHeaderTitle();
         initDateSelection();
         renderDaysBar();
+        await loadWeekHomework();
         render();
         checkIosBanner();
       } catch (err) {
         document.getElementById("scheduleList").innerHTML = 
-          `<div class="empty-state">Ошибка загрузки расписания.<br>Проверьте файл schedule.json на GitHub.</div>`;
+          `<div class="empty-state">Расписание пока не загружено в кэш.<br>Подключитесь к интернету для первого открытия.</div>`;
       }
     }
 
@@ -1026,8 +1108,9 @@
       else if (uniqueWeeks.length > 0) weekSelect.value = uniqueWeeks[0];
     }
 
-    function onWeekChange() {
+    async function onWeekChange() {
       renderDaysBar();
+      await loadWeekHomework();
       render();
     }
 
@@ -1053,7 +1136,6 @@
       render();
     }
 
-    /* Подсчет пар преподавателя с учетом замен */
     function getTeacherStatsMap() {
       const list = db.teachers[currentTeacher] || [];
       const sorted = [...list].sort((a, b) => {
@@ -1074,11 +1156,253 @@
       return map;
     }
 
-    /* Поиск по расписанию */
+    /* ========== АВТОРИЗАЦИЯ И ДЗ С ОФЛАЙН-КЭШЕМ ========== */
+    function getFallbackAuthorIdentity() {
+      if (isInsideVK) {
+        const vkName = window.currentVkUserName || "Студент ВКонтакте";
+        const vkUid = new URLSearchParams(window.location.search).get('vk_user_id') || 'vk_guest';
+        return {
+          id: `vk_${vkUid}`,
+          platform: 'vk',
+          badge: vkName,
+          name: vkName
+        };
+      }
+      let guestId = localStorage.getItem('mgpu_guest_uid');
+      if (!guestId) {
+        guestId = 'web_' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem('mgpu_guest_uid', guestId);
+      }
+      return {
+        id: guestId,
+        platform: 'web',
+        badge: 'Студент',
+        name: 'Студент'
+      };
+    }
+
+    function getLessonKey(day, pair, subject, subgroup) {
+      const cleanSub = (subject || '').trim().replace(/\s+/g, '_');
+      const cleanSubgrp = (subgroup || '').trim().replace(/\s+/g, '_');
+      return `${day}_${pair}_${cleanSub}${cleanSubgrp ? '_' + cleanSubgrp : ''}`;
+    }
+
+    async function loadWeekHomework() {
+      if (currentRole !== "student" || !currentGroup) {
+        currentWeekHw = {};
+        return;
+      }
+      const weekNum = document.getElementById("weekSelect")?.value;
+      if (!weekNum) return;
+
+      const cacheKey = `mgpu_hw_${currentGroup.trim().toLowerCase()}_w${weekNum}`;
+
+      try {
+        const res = await fetch(`${WORKER_URL}/api/hw?group=${encodeURIComponent(currentGroup)}&week=${weekNum}`);
+        if (!res.ok) throw new Error("Offline");
+        currentWeekHw = await res.json();
+        localStorage.setItem(cacheKey, JSON.stringify(currentWeekHw));
+      } catch (e) {
+        // Загружаем из локального кэша при отсутствии интернета
+        const cached = localStorage.getItem(cacheKey);
+        currentWeekHw = cached ? JSON.parse(cached) : {};
+      }
+    }
+
+    function openHwEditor(item) {
+      const weekNum = parseInt(document.getElementById("weekSelect").value, 10);
+      const lessonKey = getLessonKey(item.day, item.pair, item.subject, item.subgroup);
+
+      activeLessonContext = {
+        item: item,
+        group: currentGroup,
+        week: weekNum,
+        lessonKey: lessonKey
+      };
+
+      const hwItem = currentWeekHw[lessonKey];
+      const authorInfo = document.getElementById("hwAuthorInfo");
+      const delBtn = document.getElementById("hwDeleteBtn");
+      const textInput = document.getElementById("hwInputText");
+
+      document.getElementById("hwModalTitle").textContent = item.subject;
+      document.getElementById("hwModalSubtitle").textContent = 
+        `${item.day} • ${item.pair} пара (${item.time}) • ${currentGroup}${item.subgroup ? ' • ' + item.subgroup : ''}`;
+
+      if (hwItem) {
+        textInput.value = hwItem.text;
+        authorInfo.style.display = "block";
+        const icon = hwItem.author.platform === 'tg' ? '📱' : (hwItem.author.platform === 'vk' ? '🔵' : '🌐');
+        authorInfo.innerHTML = `Записал(а): <b>${icon} ${hwItem.author.badge}</b> • ${hwItem.updated_at}`;
+        delBtn.style.display = "block";
+      } else {
+        textInput.value = "";
+        authorInfo.style.display = "none";
+        delBtn.style.display = "none";
+      }
+
+      const modal = document.getElementById("hwModal");
+      modal.style.display = "flex";
+      modal.querySelector(".modal-sheet").style.transform = "translateY(0)";
+    }
+
+    function closeHwModal() {
+      const modal = document.getElementById("hwModal");
+      modal.querySelector(".modal-sheet").style.transform = "translateY(100%)";
+      setTimeout(() => { modal.style.display = "none"; }, 200);
+      activeLessonContext = null;
+    }
+
+    async function sendHwSave(group, week, lessonKey, text) {
+      if (!navigator.onLine) {
+        throw new Error("Для сохранения ДЗ требуется подключение к сети");
+      }
+
+      const payload = {
+        group: group,
+        week: week,
+        lessonKey: lessonKey,
+        text: text,
+        author: getFallbackAuthorIdentity(),
+        isDelete: false
+      };
+
+      const headers = { "Content-Type": "application/json" };
+      if (tg && tg.initData) {
+        headers["Authorization"] = `tma ${tg.initData}`;
+      }
+
+      const res = await fetch(`${WORKER_URL}/api/hw`, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    }
+
+    async function saveHomeworkCurrent() {
+      if (!activeLessonContext) return;
+      const text = document.getElementById("hwInputText").value.trim();
+      if (!text) {
+        alert("Пожалуйста, введите текст задания");
+        return;
+      }
+
+      try {
+        const ans = await sendHwSave(activeLessonContext.group, activeLessonContext.week, activeLessonContext.lessonKey, text);
+        if (ans.error) {
+          alert(ans.error);
+          return;
+        }
+        await loadWeekHomework();
+        render();
+        closeHwModal();
+      } catch (e) {
+        alert(e.message || "Ошибка связи с сервером при сохранении ДЗ");
+      }
+    }
+
+    function findNextOccurrence(item, currentWeek) {
+      const list = db.groups[currentGroup] || [];
+      const normSub = (item.subject || '').trim().toLowerCase();
+      const normSubgrp = (item.subgroup || '').trim().toLowerCase();
+
+      const sameSubject = list.filter(l => {
+        const sMatch = (l.subject || '').trim().toLowerCase() === normSub;
+        const sgMatch = (l.subgroup || '').trim().toLowerCase() === normSubgrp;
+        return sMatch && sgMatch;
+      });
+
+      const dayIdx = DAYS.indexOf(item.day);
+      let next = sameSubject.find(l => {
+        if (l.week > currentWeek) return true;
+        if (l.week === currentWeek) {
+          const lDayIdx = DAYS.indexOf(l.day);
+          if (lDayIdx > dayIdx) return true;
+          if (lDayIdx === dayIdx && l.pair > item.pair) return true;
+        }
+        return false;
+      });
+
+      if (!next && sameSubject.length > 0) next = sameSubject[0];
+      return next;
+    }
+
+    async function saveHomeworkNext() {
+      if (!activeLessonContext) return;
+      const text = document.getElementById("hwInputText").value.trim();
+      if (!text) {
+        alert("Пожалуйста, введите текст задания");
+        return;
+      }
+
+      const nextLesson = findNextOccurrence(activeLessonContext.item, activeLessonContext.week);
+      if (!nextLesson) {
+        alert("Следующая пара по этому предмету не найдена в расписании");
+        return;
+      }
+
+      const nextKey = getLessonKey(nextLesson.day, nextLesson.pair, nextLesson.subject, nextLesson.subgroup);
+
+      try {
+        const ans = await sendHwSave(activeLessonContext.group, nextLesson.week, nextKey, text);
+        if (ans.error) {
+          alert(ans.error);
+          return;
+        }
+        alert(`✅ Задание записано на следующую пару:\n${nextLesson.day} (${nextLesson.week} неделя, ${nextLesson.pair} пара)`);
+        await loadWeekHomework();
+        render();
+        closeHwModal();
+      } catch (e) {
+        alert(e.message || "Ошибка связи с сервером при сохранении ДЗ");
+      }
+    }
+
+    async function deleteHomework() {
+      if (!activeLessonContext || !confirm("Удалить это домашнее задание для всей группы?")) return;
+
+      if (!navigator.onLine) {
+        alert("Для удаления ДЗ требуется интернет-соединение");
+        return;
+      }
+
+      const payload = {
+        group: activeLessonContext.group,
+        week: activeLessonContext.week,
+        lessonKey: activeLessonContext.lessonKey,
+        author: getFallbackAuthorIdentity(),
+        isDelete: true
+      };
+
+      const headers = { "Content-Type": "application/json" };
+      if (tg && tg.initData) {
+        headers["Authorization"] = `tma ${tg.initData}`;
+      }
+
+      try {
+        const res = await fetch(`${WORKER_URL}/api/hw`, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload)
+        });
+        const ans = await res.json();
+        if (ans.error) {
+          alert(ans.error);
+          return;
+        }
+        await loadWeekHomework();
+        render();
+        closeHwModal();
+      } catch (e) {
+        alert("Не удалось удалить задание");
+      }
+    }
+
+    /* ========== ОТРИСОВКА И ПОИСК ========== */
     function handleScheduleSearch(query) {
       activeSearchQuery = (query || "").trim().toLowerCase();
-      const clearBtn = document.getElementById("scheduleSearchClear");
-      clearBtn.style.display = activeSearchQuery ? "block" : "none";
+      document.getElementById("scheduleSearchClear").style.display = activeSearchQuery ? "block" : "none";
       render();
     }
 
@@ -1150,6 +1474,32 @@
           }
         }
 
+        let hwHtml = "";
+        if (currentRole === "student") {
+          const lKey = getLessonKey(item.day, item.pair, item.subject, item.subgroup);
+          const hwData = currentWeekHw[lKey];
+
+          const itemJson = JSON.stringify(item).replace(/"/g, '&quot;');
+          if (hwData) {
+            const icon = hwData.author.platform === 'tg' ? '📱' : (hwData.author.platform === 'vk' ? '🔵' : '🌐');
+            hwHtml = `
+              <div class="hw-preview-box" onclick="openHwEditor(${itemJson})">
+                <div class="hw-preview-header">
+                  <span>📝 ДЗ к занятию:</span>
+                  <span class="hw-author-badge">${icon} ${hwData.author.badge}</span>
+                </div>
+                <div class="hw-preview-text">${hwData.text}</div>
+              </div>
+            `;
+          } else {
+            hwHtml = `
+              <button type="button" class="hw-empty-add-btn" onclick="openHwEditor(${itemJson})">
+                <span>➕</span> Добавить домашнее задание...
+              </button>
+            `;
+          }
+        }
+
         return `
           <div class="lesson-card ${item.is_parallel ? 'parallel' : ''}">
             <div class="lesson-header">
@@ -1168,11 +1518,13 @@
               ${item.room ? `<div class="lesson-room">${item.room}</div>` : ""}
             </div>
             ${teacherStatsHtml}
+            ${hwHtml}
           </div>
         `;
       }).join("");
     }
 
+    /* ========== МОДАЛЬНОЕ ОКНО ПРОФИЛЯ ========== */
     function switchModalRole(role) {
       modalActiveRole = role;
       document.getElementById("btnRoleStudent").classList.toggle("active", role === 'student');
@@ -1191,15 +1543,23 @@
 
       const dirSelect = document.getElementById("modalDirectionSelect");
       dirSelect.innerHTML = "";
-      let activeIndex = 0;
       directionsList.forEach((d, idx) => {
         const opt = document.createElement("option");
         opt.value = idx;
         opt.textContent = d.title;
         dirSelect.appendChild(opt);
-        if (idx !== 0 && d.groups.includes(currentGroup)) activeIndex = idx;
       });
-      dirSelect.value = activeIndex;
+
+      const savedDir = localStorage.getItem("mgpu_current_direction");
+      if (savedDir !== null && directionsList[parseInt(savedDir, 10)]) {
+        dirSelect.value = savedDir;
+      } else {
+        let activeIndex = 0;
+        directionsList.forEach((d, idx) => {
+          if (idx !== 0 && d.groups.includes(currentGroup)) activeIndex = idx;
+        });
+        dirSelect.value = activeIndex;
+      }
       onModalDirectionChange();
 
       renderModalTeachers(allTeachers);
@@ -1281,21 +1641,23 @@
       if (!grpSelect.value && groups.length > 0) grpSelect.value = groups[0];
     }
 
-    function saveProfileSelection() {
+    async function saveProfileSelection() {
       currentRole = modalActiveRole;
-      localStorage.setItem(`mgpu_role_${userId}`, currentRole);
+      localStorage.setItem('mgpu_current_role', currentRole);
 
       if (currentRole === "teacher") {
         const teacher = document.getElementById("modalTeacherSelect").value;
         if (teacher) {
           currentTeacher = teacher;
-          localStorage.setItem(`mgpu_teacher_${userId}`, currentTeacher);
+          localStorage.setItem('mgpu_current_teacher', currentTeacher);
         }
       } else {
         const group = document.getElementById("modalGroupSelect").value;
+        const dir = document.getElementById("modalDirectionSelect").value;
         if (group) {
           currentGroup = group;
-          localStorage.setItem(`mgpu_group_${userId}`, currentGroup);
+          localStorage.setItem('mgpu_current_group', currentGroup);
+          localStorage.setItem('mgpu_current_direction', dir);
         }
       }
 
@@ -1303,15 +1665,16 @@
       closeProfileModal();
       initDateSelection();
       renderDaysBar();
+      await loadWeekHomework();
       render();
     }
 
+    /* Мобильные жесты и закрытие */
     document.getElementById("profileModal").addEventListener("click", (e) => {
       if (e.target.id === "profileModal") closeProfileModal();
     });
-
-    document.getElementById("iosInstructionModal").addEventListener("click", (e) => {
-      if (e.target.id === "iosInstructionModal") closeIosModal();
+    document.getElementById("hwModal").addEventListener("click", (e) => {
+      if (e.target.id === "hwModal") closeHwModal();
     });
 
     let touchStartY = 0, touchCurrentY = 0, isSwiping = false;
