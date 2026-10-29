@@ -880,6 +880,58 @@
     }
 
     /* ========== СОСТОЯНИЕ И ДАННЫЕ ========== */
+    /* ========== УНИВЕРСАЛЬНЫЙ МЕНЕДЖЕР ПАМЯТИ (ОБЛАКО + LOCALSTORAGE) ========== */
+    const Storage = {
+      async get(key) {
+        let val = localStorage.getItem(key);
+
+        if (tg?.CloudStorage) {
+          try {
+            const cloudVal = await new Promise((resolve) => {
+              tg.CloudStorage.getItem(key, (err, res) => resolve(err ? null : res));
+            });
+            if (cloudVal) {
+              val = cloudVal;
+              localStorage.setItem(key, val);
+            }
+          } catch (e) {}
+        }
+
+        if (window.vkBridge) {
+          try {
+            const vkRes = await vkBridge.send('VKWebAppStorageGet', { keys: [key] });
+            if (vkRes?.keys?.[0]?.value) {
+              val = vkRes.keys[0].value;
+              localStorage.setItem(key, val);
+            }
+          } catch (e) {}
+        }
+
+        return val;
+      },
+
+      set(key, value) {
+        if (!value) return;
+        const strVal = String(value);
+        localStorage.setItem(key, strVal);
+
+        if (tg?.CloudStorage) {
+          try { tg.CloudStorage.setItem(key, strVal, () => {}); } catch (e) {}
+        }
+
+        if (window.vkBridge) {
+          try { vkBridge.send('VKWebAppStorageSet', { key: key, value: strVal }).catch(() => {}); } catch (e) {}
+        }
+      }
+    };
+
+    function sanitizeName(str) {
+      return (str || '')
+        .replace(/[\u00A0\u1680\u180E\u2000-\u200B\u202F\u205F\u3000\uFEFF]/g, ' ')
+        .replace(/[–—−]/g, '-')
+        .trim()
+        .toLowerCase();
+    }
     const DAYS = ["ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА"];
     const SHORT_DAYS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
     
@@ -1012,12 +1064,15 @@
 
         directionsList = buildDirectionsList();
 
-        const savedRole = localStorage.getItem('mgpu_current_role') || "student";
-        const savedGroup = localStorage.getItem('mgpu_current_group');
-        const savedTeacher = localStorage.getItem('mgpu_current_teacher');
+       const savedRole = (await Storage.get('mgpu_current_role')) || "student";
+        const savedGroup = await Storage.get('mgpu_current_group');
+        const savedTeacher = await Storage.get('mgpu_current_teacher');
 
-        const matchedGroup = allGroups.find(g => g.trim().toLowerCase() === (savedGroup || '').trim().toLowerCase());
-        const matchedTeacher = allTeachers.find(t => t.trim().toLowerCase() === (savedTeacher || '').trim().toLowerCase());
+        const normSavedGroup = sanitizeName(savedGroup);
+        const normSavedTeacher = sanitizeName(savedTeacher);
+
+        const matchedGroup = allGroups.find(g => sanitizeName(g) === normSavedGroup);
+        const matchedTeacher = allTeachers.find(t => sanitizeName(t) === normSavedTeacher);
 
         currentRole = savedRole;
         if (currentRole === "teacher" && matchedTeacher) {
@@ -1641,25 +1696,27 @@
       if (!grpSelect.value && groups.length > 0) grpSelect.value = groups[0];
     }
 
+  // СТАЛО:
     async function saveProfileSelection() {
       currentRole = modalActiveRole;
-      localStorage.setItem('mgpu_current_role', currentRole);
+      Storage.set('mgpu_current_role', currentRole);
 
       if (currentRole === "teacher") {
         const teacher = document.getElementById("modalTeacherSelect").value;
         if (teacher) {
           currentTeacher = teacher;
-          localStorage.setItem('mgpu_current_teacher', currentTeacher);
+          Storage.set('mgpu_current_teacher', currentTeacher);
         }
       } else {
         const group = document.getElementById("modalGroupSelect").value;
         const dir = document.getElementById("modalDirectionSelect").value;
         if (group) {
           currentGroup = group;
-          localStorage.setItem('mgpu_current_group', currentGroup);
-          localStorage.setItem('mgpu_current_direction', dir);
+          Storage.set('mgpu_current_group', currentGroup);
+          Storage.set('mgpu_current_direction', dir);
         }
       }
+      ...
 
       updateHeaderTitle();
       closeProfileModal();
