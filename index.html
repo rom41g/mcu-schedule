@@ -883,7 +883,6 @@
       async get(key) {
         let val = localStorage.getItem(key);
 
-        // Telegram CloudStorage с защитой от зависания на Desktop
         if (window.Telegram?.WebApp?.CloudStorage && window.Telegram.WebApp.isVersionAtLeast?.('6.9')) {
           try {
             const cloudVal = await new Promise((resolve) => {
@@ -900,7 +899,6 @@
           } catch (e) {}
         }
 
-        // VK CloudStorage с таймаутом
         if (window.vkBridge) {
           try {
             const vkRes = await Promise.race([
@@ -938,6 +936,42 @@
         .replace(/[–—−]/g, '-')
         .trim()
         .toLowerCase();
+    }
+
+    /* ========== ЭКОНОМИЧНАЯ ТЕЛЕМЕТРИЯ (ZERO-WASTE KV) ========== */
+    async function sendSmartTelemetry(force = false) {
+      try {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const currentTarget = currentRole === 'teacher' ? currentTeacher : currentGroup;
+        if (!currentTarget) return;
+
+        const statCacheKey = 'mcu_stat_' + todayStr;
+        const recordedTarget = localStorage.getItem(statCacheKey);
+
+        if (!force && recordedTarget === currentTarget) return;
+
+        let detectedPlatform = 'web';
+        if (isInsideTelegram) detectedPlatform = 'tg';
+        else if (isInsideVK) detectedPlatform = 'vk';
+        else if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+          detectedPlatform = 'pwa';
+        }
+
+        const isNewDayVisit = !recordedTarget;
+
+        await fetch(`${WORKER_URL}/api/stat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: detectedPlatform,
+            role: currentRole,
+            target: currentTarget,
+            isNewDayVisit: isNewDayVisit
+          })
+        });
+
+        localStorage.setItem(statCacheKey, currentTarget);
+      } catch (e) {}
     }
 
     /* ========== СОСТОЯНИЕ И ДАННЫЕ ========== */
@@ -1101,6 +1135,7 @@
         await loadWeekHomework();
         render();
         checkIosBanner();
+        sendSmartTelemetry();
       } catch (err) {
         document.getElementById("scheduleList").innerHTML = 
           `<div class="empty-state">Расписание пока не загружено в кэш.<br>Подключитесь к интернету для первого открытия.</div>`;
@@ -1730,9 +1765,10 @@
       renderDaysBar();
       await loadWeekHomework();
       render();
+      sendSmartTelemetry(true);
     }
 
-    /* Мобильные жесты и закрытие */
+    /* Мобильные жесты и закрытие окон */
     document.getElementById("profileModal").addEventListener("click", (e) => {
       if (e.target.id === "profileModal") closeProfileModal();
     });
