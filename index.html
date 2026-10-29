@@ -1,7 +1,6 @@
 <!--
-  МГПУ ИИЯ • Интерактивное расписание (MCU Schedule)
-  Copyright (c) 2026 Роман. Все права защищены.
-  Любое несанкционированное копирование, распространение или модификация запрещены.
+  Интерактивное расписание для МГПУ (MCU Schedule)
+  Copyright (c) 2026 Окороков Роман Александрович. Все права защищены.
 -->
 <!DOCTYPE html>
 <html lang="ru">
@@ -263,7 +262,7 @@
       color: #FFFFFF !important;
     }
 
-    /* Карточки пар */
+    /* Карточки расписания */
     .schedule-list { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
     .lesson-card {
       background: var(--card-bg);
@@ -357,7 +356,7 @@
     }
     .hw-empty-add-btn:active { background: var(--input-bg); }
 
-    /* Трекинг пар */
+    /* Трекинг пар преподавателя */
     .teacher-stats-box {
       margin-top: 10px;
       padding: 8px 10px;
@@ -879,16 +878,20 @@
       localStorage.setItem('mgpu_ios_banner_dismissed', 'true');
     }
 
-    /* ========== СОСТОЯНИЕ И ДАННЫЕ ========== */
-    /* ========== УНИВЕРСАЛЬНЫЙ МЕНЕДЖЕР ПАМЯТИ (ОБЛАКО + LOCALSTORAGE) ========== */
+    /* ========== МЕНЕДЖЕР ПАМЯТИ (ОБЛАКО + LOCALSTORAGE С ТАЙМАУТОМ) ========== */
     const Storage = {
       async get(key) {
         let val = localStorage.getItem(key);
 
-        if (tg?.CloudStorage) {
+        // Telegram CloudStorage с защитой от зависания на Desktop
+        if (window.Telegram?.WebApp?.CloudStorage && window.Telegram.WebApp.isVersionAtLeast?.('6.9')) {
           try {
             const cloudVal = await new Promise((resolve) => {
-              tg.CloudStorage.getItem(key, (err, res) => resolve(err ? null : res));
+              const timer = setTimeout(() => resolve(null), 300);
+              window.Telegram.WebApp.CloudStorage.getItem(key, (err, res) => {
+                clearTimeout(timer);
+                resolve(err ? null : res);
+              });
             });
             if (cloudVal) {
               val = cloudVal;
@@ -897,9 +900,13 @@
           } catch (e) {}
         }
 
+        // VK CloudStorage с таймаутом
         if (window.vkBridge) {
           try {
-            const vkRes = await vkBridge.send('VKWebAppStorageGet', { keys: [key] });
+            const vkRes = await Promise.race([
+              vkBridge.send('VKWebAppStorageGet', { keys: [key] }),
+              new Promise((_, reject) => setTimeout(() => reject('timeout'), 300))
+            ]);
             if (vkRes?.keys?.[0]?.value) {
               val = vkRes.keys[0].value;
               localStorage.setItem(key, val);
@@ -915,8 +922,8 @@
         const strVal = String(value);
         localStorage.setItem(key, strVal);
 
-        if (tg?.CloudStorage) {
-          try { tg.CloudStorage.setItem(key, strVal, () => {}); } catch (e) {}
+        if (window.Telegram?.WebApp?.CloudStorage && window.Telegram.WebApp.isVersionAtLeast?.('6.9')) {
+          try { window.Telegram.WebApp.CloudStorage.setItem(key, strVal, () => {}); } catch (e) {}
         }
 
         if (window.vkBridge) {
@@ -932,6 +939,8 @@
         .trim()
         .toLowerCase();
     }
+
+    /* ========== СОСТОЯНИЕ И ДАННЫЕ ========== */
     const DAYS = ["ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА"];
     const SHORT_DAYS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
     
@@ -1064,7 +1073,7 @@
 
         directionsList = buildDirectionsList();
 
-       const savedRole = (await Storage.get('mgpu_current_role')) || "student";
+        const savedRole = (await Storage.get('mgpu_current_role')) || "student";
         const savedGroup = await Storage.get('mgpu_current_group');
         const savedTeacher = await Storage.get('mgpu_current_teacher');
 
@@ -1258,7 +1267,6 @@
         currentWeekHw = await res.json();
         localStorage.setItem(cacheKey, JSON.stringify(currentWeekHw));
       } catch (e) {
-        // Загружаем из локального кэша при отсутствии интернета
         const cached = localStorage.getItem(cacheKey);
         currentWeekHw = cached ? JSON.parse(cached) : {};
       }
@@ -1696,7 +1704,6 @@
       if (!grpSelect.value && groups.length > 0) grpSelect.value = groups[0];
     }
 
-  // СТАЛО:
     async function saveProfileSelection() {
       currentRole = modalActiveRole;
       Storage.set('mgpu_current_role', currentRole);
@@ -1716,7 +1723,6 @@
           Storage.set('mgpu_current_direction', dir);
         }
       }
-      ...
 
       updateHeaderTitle();
       closeProfileModal();
