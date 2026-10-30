@@ -103,6 +103,7 @@
       display: flex;
       align-items: center;
       gap: 6px;
+      flex-wrap: wrap;
     }
     .header-titles h1 { font-size: 14px; font-weight: 800; line-height: 1.1; color: var(--mgpu-dark); }
 
@@ -110,11 +111,12 @@
       display: none;
       font-size: 10px;
       font-weight: 800;
-      background: #7A7A7E;
-      color: #FFF;
-      padding: 1px 6px;
+      background: #FF9F0A;
+      color: #1D1D1B;
+      padding: 2px 6px;
       border-radius: 6px;
       text-transform: uppercase;
+      letter-spacing: 0.3px;
     }
 
     .target-badge-btn {
@@ -681,7 +683,7 @@
       <button type="button" id="scheduleSearchClear" class="search-clear-btn" onclick="clearScheduleSearch()">&times;</button>
     </div>
 
-    <!-- Универсальная плашка календаря (Студенты и Преподаватели) -->
+    <!-- Универсальная плашка календаря -->
     <div id="syncCalBanner" class="sync-cal-banner" onclick="openCalendarModal()">
       <div class="sync-cal-left">
         <span>📅</span>
@@ -826,13 +828,33 @@
       });
     }
 
-    function updateOnlineStatus() {
-      const isOnline = navigator.onLine;
+    /* Очищаем старый тяжелый кэш из localStorage, чтобы освободить память для ДЗ */
+    try {
+      localStorage.removeItem('mgpu_schedule_db_cache');
+    } catch (e) {}
+
+    /* ========== ТОЧНОЕ ОТСЛЕЖИВАНИЕ ОФЛАЙН-РЕЖИМА ========== */
+    let isAppOffline = !navigator.onLine;
+
+    function setOfflineState(offline) {
+      const prev = isAppOffline;
+      isAppOffline = Boolean(offline);
       const badge = document.getElementById("offlineBadge");
-      if (badge) badge.style.display = isOnline ? "none" : "inline-block";
+      if (badge) {
+        badge.style.display = isAppOffline ? "inline-block" : "none";
+      }
+      if (prev !== isAppOffline && typeof render === 'function' && Object.keys(db.groups || {}).length > 0) {
+        render();
+      }
     }
-    window.addEventListener('online', updateOnlineStatus);
-    window.addEventListener('offline', updateOnlineStatus);
+
+    window.addEventListener('online', () => {
+      setOfflineState(false);
+      if (typeof loadWeekHomework === 'function') {
+        loadWeekHomework().then(() => render()).catch(() => {});
+      }
+    });
+    window.addEventListener('offline', () => setOfflineState(true));
 
     const WORKER_URL = "https://steep-forest-40b2.okroma007.workers.dev";
 
@@ -967,7 +989,9 @@
       set(key, value) {
         if (!value) return;
         const strVal = String(value);
-        localStorage.setItem(key, strVal);
+        try {
+          localStorage.setItem(key, strVal);
+        } catch (e) {}
 
         if (window.Telegram?.WebApp?.CloudStorage && window.Telegram.WebApp.isVersionAtLeast?.('6.9')) {
           try { window.Telegram.WebApp.CloudStorage.setItem(key, strVal, () => {}); } catch (e) {}
@@ -975,6 +999,42 @@
 
         if (window.vkBridge) {
           try { vkBridge.send('VKWebAppStorageSet', { key: key, value: strVal }).catch(() => {}); } catch (e) {}
+        }
+      }
+    };
+
+    /* Двойной кэш домашних заданий (localStorage + CacheStorage) */
+    const HwCache = {
+      async get(key) {
+        try {
+          const local = localStorage.getItem(key);
+          if (local) return JSON.parse(local);
+        } catch (e) {}
+
+        if ('caches' in window) {
+          try {
+            const cache = await caches.open('mgpu-hw-cache');
+            const res = await cache.match('/hw-cache/' + encodeURIComponent(key));
+            if (res) return await res.json();
+          } catch (e) {}
+        }
+        return {};
+      },
+
+      async set(key, data) {
+        const jsonStr = JSON.stringify(data || {});
+        try {
+          localStorage.setItem(key, jsonStr);
+        } catch (e) {}
+
+        if ('caches' in window) {
+          try {
+            const cache = await caches.open('mgpu-hw-cache');
+            await cache.put(
+              '/hw-cache/' + encodeURIComponent(key),
+              new Response(jsonStr, { headers: { 'Content-Type': 'application/json' } })
+            );
+          } catch (e) {}
         }
       }
     };
@@ -988,6 +1048,7 @@
     }
 
     async function sendSmartTelemetry(force = false) {
+      if (isAppOffline) return;
       try {
         const todayStr = new Date().toISOString().slice(0, 10);
         const currentTarget = currentRole === 'teacher' ? currentTeacher : currentGroup;
@@ -1022,7 +1083,7 @@
       } catch (e) {}
     }
 
-    /* ========== УМНЫЙ НЕЧЁТКИЙ ПОИСК (FUZZY & LAYOUT-AWARE) ========== */
+    /* ========== УМНЫЙ НЕЧЁТКИЙ ПОИСК ========== */
     const KEYBOARD_EN_TO_RU = {
       'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','[':'х',']':'ъ',
       'a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д',';':'ж','\'':'э',
@@ -1048,15 +1109,12 @@
       const normTarget = normalizeSearchStr(targetText);
       const normQuery = normalizeSearchStr(query);
 
-      // 1. Прямое совпадение
       if (normTarget.includes(normQuery)) return true;
 
-      // 2. Совпадение без пробелов и дефисов ("пое 252" vs "пое-252", "пое252")
       const collapsedTarget = normTarget.replace(/[^a-zа-я0-9]/gi, '');
       const collapsedQuery = normQuery.replace(/[^a-zа-я0-9]/gi, '');
       if (collapsedQuery && collapsedTarget.includes(collapsedQuery)) return true;
 
-      // 3. Поиск по отдельным словам-токенам (все слова из запроса должны быть в названии)
       const queryTokens = normQuery.split(/[\s\-_]+/).filter(Boolean);
       if (queryTokens.length > 1) {
         const targetWords = normTarget.replace(/[-_]/g, ' ');
@@ -1066,7 +1124,6 @@
         if (allTokensFound) return true;
       }
 
-      // 4. Поиск с исправлением ошибочной раскладки клавиатуры (gjt -> пое, dwr -> вцк)
       const fixedQuery = fixKeyboardLayout(normQuery);
       if (fixedQuery !== normQuery) {
         if (normTarget.includes(fixedQuery)) return true;
@@ -1161,6 +1218,7 @@
       return dates;
     }
 
+    /* Загрузка расписания в CacheStorage без засорения localStorage */
     async function fetchScheduleWithCache() {
       const cacheUrl = 'schedule.json';
 
@@ -1176,34 +1234,24 @@
           } catch (e) {}
         }
 
-        try {
-          localStorage.setItem('mgpu_schedule_db_cache', JSON.stringify(data));
-        } catch (e) {}
-
         return data;
       } catch (err) {
+        setOfflineState(true);
         if ('caches' in window) {
           try {
             const cache = await caches.open('mgpu-db-cache');
             const cachedRes = await cache.match(cacheUrl);
             if (cachedRes) {
-              updateOnlineStatus();
               return await cachedRes.json();
             }
           } catch (e) {}
-        }
-
-        const cached = localStorage.getItem('mgpu_schedule_db_cache');
-        if (cached) {
-          updateOnlineStatus();
-          return JSON.parse(cached);
         }
         throw err;
       }
     }
 
     async function init() {
-      updateOnlineStatus();
+      setOfflineState(!navigator.onLine);
       try {
         db = await fetchScheduleWithCache();
 
@@ -1267,6 +1315,7 @@
           sendSmartTelemetry();
         }
       } catch (err) {
+        setOfflineState(true);
         document.getElementById("scheduleList").innerHTML = 
           `<div class="empty-state">Расписание пока не загружено в кэш.<br>Подключитесь к интернету для первого открытия.</div>`;
       }
@@ -1433,7 +1482,7 @@
       window.open(getCalendarUrl(), '_blank');
     }
 
-    /* ========== АВТОРИЗАЦИЯ И ДЗ С ПОДДЕРЖКОЙ ПРЕПОДАВАТЕЛЕЙ ========== */
+    /* ========== АВТОРИЗАЦИЯ И ДЗ С НАДЕЖНЫМ ОФЛАЙН-КЭШЕМ ========== */
     function getFallbackAuthorIdentity() {
       if (isInsideVK) {
         const vkName = window.currentVkUserName || (currentRole === "teacher" ? `Преподаватель ${currentTeacher}` : "Студент ВКонтакте");
@@ -1465,6 +1514,19 @@
       return `${day}_${pair}_${cleanSub}${cleanSubgrp ? '_' + cleanSubgrp : ''}`;
     }
 
+    async function fetchWithTimeout(url, timeoutMs = 3500) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+        clearTimeout(timer);
+        return response;
+      } catch (err) {
+        clearTimeout(timer);
+        throw err;
+      }
+    }
+
     async function loadWeekHomework() {
       const weekNum = document.getElementById("weekSelect")?.value;
       if (!weekNum) return;
@@ -1475,14 +1537,19 @@
           return;
         }
         const cacheKey = `mgpu_hw_${currentGroup.trim().toLowerCase()}_w${weekNum}`;
+
+        // Сначала мгновенно берем из кэша на случай офлайна
+        currentWeekHw = await HwCache.get(cacheKey);
+
         try {
-          const res = await fetch(`${WORKER_URL}/api/hw?group=${encodeURIComponent(currentGroup)}&week=${weekNum}`);
+          const res = await fetchWithTimeout(`${WORKER_URL}/api/hw?group=${encodeURIComponent(currentGroup)}&week=${weekNum}`);
           if (!res.ok) throw new Error("Offline");
-          currentWeekHw = await res.json();
-          localStorage.setItem(cacheKey, JSON.stringify(currentWeekHw));
+          const freshData = await res.json();
+          currentWeekHw = freshData;
+          await HwCache.set(cacheKey, freshData);
+          setOfflineState(false);
         } catch (e) {
-          const cached = localStorage.getItem(cacheKey);
-          currentWeekHw = cached ? JSON.parse(cached) : {};
+          setOfflineState(true);
         }
       } else if (currentRole === "teacher") {
         teacherWeekHw = {};
@@ -1491,20 +1558,25 @@
         const teacherLessons = (db.teachers[currentTeacher] || []).filter(l => String(l.week) === String(weekNum));
         const groups = [...new Set(teacherLessons.map(l => (l.group || '').trim()).filter(Boolean))];
 
+        let anyNetworkFailed = false;
+
         await Promise.all(groups.map(async (grp) => {
           const gKey = grp.toLowerCase();
           const cacheKey = `mgpu_hw_${gKey}_w${weekNum}`;
+          teacherWeekHw[gKey] = await HwCache.get(cacheKey);
+
           try {
-            const res = await fetch(`${WORKER_URL}/api/hw?group=${encodeURIComponent(grp)}&week=${weekNum}`);
+            const res = await fetchWithTimeout(`${WORKER_URL}/api/hw?group=${encodeURIComponent(grp)}&week=${weekNum}`);
             if (!res.ok) throw new Error("Offline");
             const data = await res.json();
             teacherWeekHw[gKey] = data;
-            localStorage.setItem(cacheKey, JSON.stringify(data));
+            await HwCache.set(cacheKey, data);
           } catch (e) {
-            const cached = localStorage.getItem(cacheKey);
-            teacherWeekHw[gKey] = cached ? JSON.parse(cached) : {};
+            anyNetworkFailed = true;
           }
         }));
+
+        setOfflineState(anyNetworkFailed || !navigator.onLine);
       }
     }
 
@@ -1537,10 +1609,14 @@
 
       if (hwItem) {
         textInput.value = hwItem.text;
-        authorInfo.style.display = "block";
-        const icon = hwItem.author?.platform === 'tg' ? '📱' : (hwItem.author?.platform === 'vk' ? '🔵' : '🌐');
-        authorInfo.innerHTML = `Записал(а): <b>${icon} ${hwItem.author?.badge || 'Студент'}</b> • ${hwItem.updated_at || ''}`;
-        delBtn.style.display = "block";
+        if (!isAppOffline && hwItem.author?.badge) {
+          authorInfo.style.display = "block";
+          const icon = hwItem.author?.platform === 'tg' ? '📱' : (hwItem.author?.platform === 'vk' ? '🔵' : '🌐');
+          authorInfo.innerHTML = `Записал(а): <b>${icon} ${hwItem.author.badge}</b>${hwItem.updated_at ? ' • ' + hwItem.updated_at : ''}`;
+        } else {
+          authorInfo.style.display = "none";
+        }
+        delBtn.style.display = isAppOffline ? "none" : "block";
       } else {
         textInput.value = "";
         authorInfo.style.display = "none";
@@ -1560,8 +1636,8 @@
     }
 
     async function sendHwSave(group, week, lessonKey, text) {
-      if (!navigator.onLine) {
-        throw new Error("Для сохранения ДЗ требуется подключение к сети");
+      if (isAppOffline || !navigator.onLine) {
+        throw new Error("Вы находитесь в офлайн-режиме. Подключитесь к сети для сохранения ДЗ.");
       }
 
       const payload = {
@@ -1669,7 +1745,7 @@
     async function deleteHomework() {
       if (!activeLessonContext || !confirm("Удалить это домашнее задание для всей группы?")) return;
 
-      if (!navigator.onLine) {
+      if (isAppOffline || !navigator.onLine) {
         alert("Для удаления ДЗ требуется интернет-соединение");
         return;
       }
@@ -1791,13 +1867,18 @@
           const itemJson = JSON.stringify(item).replace(/"/g, '&quot;');
           const groupTitle = currentRole === "teacher" ? ` (${item.group})` : '';
 
-          if (hwData) {
+          if (hwData && hwData.text) {
             const icon = hwData.author?.platform === 'tg' ? '📱' : (hwData.author?.platform === 'vk' ? '🔵' : '🌐');
+            // В офлайн-режиме скрываем автора ДЗ
+            const authorBadgeHtml = (!isAppOffline && hwData.author?.badge)
+              ? `<span class="hw-author-badge">${icon} ${hwData.author.badge}</span>`
+              : '';
+
             hwHtml = `
               <div class="hw-preview-box" onclick="openHwEditor(${itemJson})">
                 <div class="hw-preview-header">
                   <span>📝 ДЗ${groupTitle}:</span>
-                  <span class="hw-author-badge">${icon} ${hwData.author?.badge || 'Студент'}</span>
+                  ${authorBadgeHtml}
                 </div>
                 <div class="hw-preview-text">${hwData.text}</div>
               </div>
@@ -1914,7 +1995,6 @@
       }
     }
 
-    /* Умный поиск по группам с обработкой дефисов и пробелов */
     function onModalGroupSearch(query) {
       const q = (query || "").trim();
       const dirGroup = document.getElementById("directionFormGroup");
