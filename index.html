@@ -9,9 +9,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>МГПУ • Расписание ИИЯ</title>
 
-  <!-- SDK Telegram и VK -->
+  <!-- Предварительное соединение с сервером API для ускорения запросов -->
+  <link rel="preconnect" href="https://steep-forest-40b2.okroma007.workers.dev" crossorigin>
+  <link rel="preload" href="schedule.json" as="fetch" crossorigin>
+
+  <!-- SDK Telegram и VK (defer не блокирует мгновенную отрисовку интерфейса) -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+  <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js" defer></script>
 
   <!-- PWA -->
   <link rel="manifest" href="manifest.json">
@@ -40,6 +44,7 @@
       --modal-overlay: rgba(0, 0, 0, 0.45);
       --input-bg: #FAFAFA;
       --segment-bg: #EEEEF2;
+      --skeleton-bg: #EAECEF;
     }
 
     [data-theme="dark"] {
@@ -60,6 +65,7 @@
       --modal-overlay: rgba(0, 0, 0, 0.75);
       --input-bg: #242428;
       --segment-bg: #2C2C32;
+      --skeleton-bg: #2A2A2E;
     }
 
     * { 
@@ -67,7 +73,6 @@
       margin: 0; 
       padding: 0; 
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-      transition: background-color 0.25s ease, border-color 0.25s ease, color 0.2s ease;
     }
     body { background-color: var(--bg); color: var(--mgpu-dark); padding-bottom: 40px; user-select: none; }
 
@@ -174,7 +179,7 @@
       justify-content: center;
       font-size: 12px;
       transform: translateX(0px);
-      transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.25s ease;
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     [data-theme="dark"] .theme-switch-thumb { transform: translateX(20px); }
 
@@ -279,6 +284,27 @@
     .day-chip.active .day-name,
     .day-chip.active .day-num {
       color: #FFFFFF !important;
+    }
+
+    /* Скелетон быстрой загрузки */
+    .skeleton-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 16px;
+      border-left: 4px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      animation: pulse 1.2s infinite ease-in-out;
+    }
+    .skeleton-line {
+      height: 12px;
+      background: var(--skeleton-bg);
+      border-radius: 6px;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
     }
 
     /* Карточки расписания */
@@ -477,7 +503,6 @@
       font-size: 13px;
       font-weight: 700;
       cursor: pointer;
-      transition: all 0.2s ease;
     }
     .role-btn.active {
       background: var(--card-bg);
@@ -656,7 +681,7 @@
           <span id="offlineBadge" class="offline-badge">📡 Офлайн</span>
         </div>
         <div class="target-badge-btn" onclick="openProfileModal()" title="Нажмите для смены группы или преподавателя">
-          <span class="target-badge-text" id="headerTargetLabel">Выбрать</span>
+          <span class="target-badge-text" id="headerTargetLabel">Загрузка...</span>
           <span style="font-size: 10px;">▾</span>
         </div>
       </div>
@@ -694,7 +719,18 @@
   </div>
 
   <div class="days-bar" id="daysBar"></div>
-  <div class="schedule-list" id="scheduleList"></div>
+  <div class="schedule-list" id="scheduleList">
+    <div class="skeleton-card">
+      <div class="skeleton-line" style="width: 35%;"></div>
+      <div class="skeleton-line" style="width: 85%; height: 16px;"></div>
+      <div class="skeleton-line" style="width: 50%;"></div>
+    </div>
+    <div class="skeleton-card">
+      <div class="skeleton-line" style="width: 35%;"></div>
+      <div class="skeleton-line" style="width: 75%; height: 16px;"></div>
+      <div class="skeleton-line" style="width: 45%;"></div>
+    </div>
+  </div>
 
   <div id="iosInstallBanner" class="ios-install-banner">
     <div class="ios-banner-body">
@@ -828,10 +864,7 @@
       });
     }
 
-    /* Очищаем старый тяжелый кэш из localStorage, чтобы освободить память для ДЗ */
-    try {
-      localStorage.removeItem('mgpu_schedule_db_cache');
-    } catch (e) {}
+    try { localStorage.removeItem('mgpu_schedule_db_cache'); } catch (e) {}
 
     /* ========== ТОЧНОЕ ОТСЛЕЖИВАНИЕ ОФЛАЙН-РЕЖИМА ========== */
     let isAppOffline = !navigator.onLine;
@@ -843,7 +876,7 @@
       if (badge) {
         badge.style.display = isAppOffline ? "inline-block" : "none";
       }
-      if (prev !== isAppOffline && typeof render === 'function' && Object.keys(db.groups || {}).length > 0) {
+      if (prev !== isAppOffline && typeof render === 'function' && allGroups.length > 0) {
         render();
       }
     }
@@ -851,16 +884,17 @@
     window.addEventListener('online', () => {
       setOfflineState(false);
       if (typeof loadWeekHomework === 'function') {
-        loadWeekHomework().then(() => render()).catch(() => {});
+        loadWeekHomework();
       }
     });
     window.addEventListener('offline', () => setOfflineState(true));
 
     const WORKER_URL = "https://steep-forest-40b2.okroma007.workers.dev";
 
+    /* Точное определение платформы без ложного срабатывания VK Bridge */
     const tg = window.Telegram?.WebApp;
     const isInsideTelegram = Boolean(tg && tg.initData);
-    const isInsideVK = window.location.search.includes('vk_user_id') || Boolean(window.vkBridge);
+    const isInsideVK = window.location.search.includes('vk_user_id') || window.location.search.includes('vk_app_id');
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
@@ -873,21 +907,24 @@
       tg.expand();
     }
 
-    if (window.vkBridge) {
-      vkBridge.send('VKWebAppInit');
-      vkBridge.subscribe((e) => {
-        if (e.detail?.type === 'VKWebAppUpdateConfig') {
-          const scheme = e.detail.data.scheme;
-          applyTheme(scheme?.includes('dark') ? 'dark' : 'light');
-        }
-      });
-      vkBridge.send('VKWebAppGetUserInfo').then(u => {
-        if (u && u.first_name) {
-          window.currentVkUserName = `${u.first_name} ${u.last_name || ''}`.trim();
-        }
-      }).catch(() => {});
-    }
+    window.addEventListener('DOMContentLoaded', () => {
+      if (isInsideVK && window.vkBridge) {
+        vkBridge.send('VKWebAppInit').catch(() => {});
+        vkBridge.subscribe((e) => {
+          if (e.detail?.type === 'VKWebAppUpdateConfig') {
+            const scheme = e.detail.data.scheme;
+            applyTheme(scheme?.includes('dark') ? 'dark' : 'light');
+          }
+        });
+        vkBridge.send('VKWebAppGetUserInfo').then(u => {
+          if (u && u.first_name) {
+            window.currentVkUserName = `${u.first_name} ${u.last_name || ''}`.trim();
+          }
+        }).catch(() => {});
+      }
+    });
 
+    /* ========== ТЕМА ОФОРМЛЕНИЯ ========== */
     let currentTheme = "light";
 
     function applyTheme(theme, saveManual = false) {
@@ -927,7 +964,7 @@
         tg.openLink(targetUrl);
         return;
       }
-      if (window.vkBridge) {
+      if (isInsideVK && window.vkBridge) {
         vkBridge.send('VKWebAppOpenUrl', { url: targetUrl }).catch(() => {
           window.open(targetUrl, '_blank');
         });
@@ -950,66 +987,77 @@
       localStorage.setItem('mgpu_ios_banner_dismissed', 'true');
     }
 
+    /* ========== БЫСТРЫЙ МЕНЕДЖЕР ПАМЯТИ (0 МС НА ЧТЕНИЕ LOCALSTORAGE) ========== */
     const Storage = {
-      async get(key) {
-        let val = localStorage.getItem(key);
+      getSync(key) {
+        try { return localStorage.getItem(key); } catch (e) { return null; }
+      },
 
-        if (window.Telegram?.WebApp?.CloudStorage && window.Telegram.WebApp.isVersionAtLeast?.('6.9')) {
+      async getCloud(key) {
+        const localVal = this.getSync(key);
+        if (localVal) return localVal;
+
+        if (isInsideTelegram && window.Telegram?.WebApp?.CloudStorage && window.Telegram.WebApp.isVersionAtLeast?.('6.9')) {
           try {
             const cloudVal = await new Promise((resolve) => {
-              const timer = setTimeout(() => resolve(null), 300);
+              const timer = setTimeout(() => resolve(null), 200);
               window.Telegram.WebApp.CloudStorage.getItem(key, (err, res) => {
                 clearTimeout(timer);
                 resolve(err ? null : res);
               });
             });
             if (cloudVal) {
-              val = cloudVal;
-              localStorage.setItem(key, val);
+              try { localStorage.setItem(key, cloudVal); } catch (e) {}
+              return cloudVal;
             }
           } catch (e) {}
         }
 
-        if (window.vkBridge) {
+        if (isInsideVK && window.vkBridge) {
           try {
             const vkRes = await Promise.race([
               vkBridge.send('VKWebAppStorageGet', { keys: [key] }),
-              new Promise((_, reject) => setTimeout(() => reject('timeout'), 300))
+              new Promise((_, reject) => setTimeout(() => reject('timeout'), 200))
             ]);
             if (vkRes?.keys?.[0]?.value) {
-              val = vkRes.keys[0].value;
-              localStorage.setItem(key, val);
+              const val = vkRes.keys[0].value;
+              try { localStorage.setItem(key, val); } catch (e) {}
+              return val;
             }
           } catch (e) {}
         }
 
-        return val;
+        return null;
       },
 
       set(key, value) {
         if (!value) return;
         const strVal = String(value);
-        try {
-          localStorage.setItem(key, strVal);
-        } catch (e) {}
+        try { localStorage.setItem(key, strVal); } catch (e) {}
 
-        if (window.Telegram?.WebApp?.CloudStorage && window.Telegram.WebApp.isVersionAtLeast?.('6.9')) {
+        if (isInsideTelegram && window.Telegram?.WebApp?.CloudStorage && window.Telegram.WebApp.isVersionAtLeast?.('6.9')) {
           try { window.Telegram.WebApp.CloudStorage.setItem(key, strVal, () => {}); } catch (e) {}
         }
 
-        if (window.vkBridge) {
+        if (isInsideVK && window.vkBridge) {
           try { vkBridge.send('VKWebAppStorageSet', { key: key, value: strVal }).catch(() => {}); } catch (e) {}
         }
       }
     };
 
-    /* Двойной кэш домашних заданий (localStorage + CacheStorage) */
+    /* Кэш домашних заданий с мгновенным синхронным чтением */
     const HwCache = {
-      async get(key) {
+      getSync(key) {
         try {
           const local = localStorage.getItem(key);
           if (local) return JSON.parse(local);
         } catch (e) {}
+        return null;
+      },
+
+      async get(key) {
+        const syncData = this.getSync(key);
+        if (syncData) return syncData;
 
         if ('caches' in window) {
           try {
@@ -1023,9 +1071,7 @@
 
       async set(key, data) {
         const jsonStr = JSON.stringify(data || {});
-        try {
-          localStorage.setItem(key, jsonStr);
-        } catch (e) {}
+        try { localStorage.setItem(key, jsonStr); } catch (e) {}
 
         if ('caches' in window) {
           try {
@@ -1062,9 +1108,7 @@
         let detectedPlatform = 'web';
         if (isInsideTelegram) detectedPlatform = 'tg';
         else if (isInsideVK) detectedPlatform = 'vk';
-        else if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
-          detectedPlatform = 'pwa';
-        }
+        else if (isStandalone) detectedPlatform = 'pwa';
 
         const isNewDayVisit = !recordedTarget;
 
@@ -1218,102 +1262,143 @@
       return dates;
     }
 
-    /* Загрузка расписания в CacheStorage без засорения localStorage */
-    async function fetchScheduleWithCache() {
-      const cacheUrl = 'schedule.json';
-
+    /* ========== МГНОВЕННАЯ ЗАГРУЗКА РАСПИСАНИЯ (STALE-WHILE-REVALIDATE) ========== */
+    async function getCachedSchedule() {
+      if (!('caches' in window)) return null;
       try {
-        const res = await fetch('schedule.json?t=' + Date.now());
-        if (!res.ok) throw new Error('Network error');
-        const data = await res.json();
+        const cache = await caches.open('mgpu-db-cache');
+        const res = await cache.match('schedule.json');
+        if (res) return await res.json();
+      } catch (e) {}
+      return null;
+    }
 
-        if ('caches' in window) {
-          try {
-            const cache = await caches.open('mgpu-db-cache');
-            await cache.put(cacheUrl, new Response(JSON.stringify(data)));
-          } catch (e) {}
-        }
-
-        return data;
-      } catch (err) {
-        setOfflineState(true);
-        if ('caches' in window) {
-          try {
-            const cache = await caches.open('mgpu-db-cache');
-            const cachedRes = await cache.match(cacheUrl);
-            if (cachedRes) {
-              return await cachedRes.json();
-            }
-          } catch (e) {}
-        }
-        throw err;
+    async function fetchNetworkSchedule() {
+      const res = await fetch('schedule.json');
+      if (!res.ok) throw new Error('Network error');
+      const data = await res.json();
+      if ('caches' in window) {
+        try {
+          const cache = await caches.open('mgpu-db-cache');
+          await cache.put('schedule.json', new Response(JSON.stringify(data)));
+        } catch (e) {}
       }
+      return data;
+    }
+
+    function prepareDatabase(rawData) {
+      db = rawData;
+      allGroups = Object.keys(db.groups || {});
+
+      const unifiedTeachers = {};
+      for (const [rawName, lessons] of Object.entries(db.teachers || {})) {
+        const cleanName = normalizeTeacherName(rawName);
+        if (!unifiedTeachers[cleanName]) unifiedTeachers[cleanName] = [];
+        const isSub = /\((?:замена|зам\.?)\)/i.test(rawName);
+        for (let i = 0; i < lessons.length; i++) {
+          const lesson = lessons[i];
+          if (isSub && !lesson.is_substitute) {
+            unifiedTeachers[cleanName].push({ ...lesson, is_substitute: true });
+          } else {
+            unifiedTeachers[cleanName].push(lesson);
+          }
+        }
+      }
+      db.teachers = unifiedTeachers;
+      allTeachers = Object.keys(db.teachers).sort((a, b) => a.localeCompare(b, 'ru'));
+      directionsList = buildDirectionsList();
+    }
+
+    async function resolveUserProfile() {
+      let savedRole = Storage.getSync('mgpu_current_role');
+      let savedGroup = Storage.getSync('mgpu_current_group');
+      let savedTeacher = Storage.getSync('mgpu_current_teacher');
+
+      if (!savedGroup && !savedTeacher) {
+        const [cRole, cGroup, cTeacher] = await Promise.all([
+          Storage.getCloud('mgpu_current_role'),
+          Storage.getCloud('mgpu_current_group'),
+          Storage.getCloud('mgpu_current_teacher')
+        ]);
+        savedRole = cRole || "student";
+        savedGroup = cGroup;
+        savedTeacher = cTeacher;
+      }
+
+      const normSavedGroup = sanitizeName(savedGroup);
+      const normSavedTeacher = sanitizeName(savedTeacher);
+
+      const matchedGroup = allGroups.find(g => sanitizeName(g) === normSavedGroup);
+      const matchedTeacher = allTeachers.find(t => sanitizeName(t) === normSavedTeacher);
+
+      let isFirstTime = false;
+      currentRole = savedRole || "student";
+
+      if (currentRole === "teacher" && matchedTeacher) {
+        currentTeacher = matchedTeacher;
+      } else if (matchedGroup) {
+        currentRole = "student";
+        currentGroup = matchedGroup;
+      } else {
+        currentGroup = allGroups[0] || "";
+        currentTeacher = allTeachers[0] || "";
+        isFirstTime = true;
+      }
+
+      return isFirstTime;
     }
 
     async function init() {
       setOfflineState(!navigator.onLine);
       try {
-        db = await fetchScheduleWithCache();
+        // 1. Пробуем мгновенно достать расписание из локального кэша (20-40 мс)
+        const cachedData = await getCachedSchedule();
 
-        allGroups = Object.keys(db.groups || {});
+        if (cachedData) {
+          prepareDatabase(cachedData);
+          const isFirstTime = await resolveUserProfile();
 
-        const unifiedTeachers = {};
-        for (const [rawName, lessons] of Object.entries(db.teachers || {})) {
-          const cleanName = normalizeTeacherName(rawName);
-          if (!unifiedTeachers[cleanName]) unifiedTeachers[cleanName] = [];
-          const isSub = /\((?:замена|зам\.?)\)/i.test(rawName);
-          lessons.forEach(lesson => {
-            unifiedTeachers[cleanName].push({
-              ...lesson,
-              is_substitute: isSub || Boolean(lesson.is_substitute)
-            });
-          });
+          updateHeaderTitle();
+          initDateSelection();
+          renderDaysBar();
+          preloadHomeworkFromLocalSync();
+          render();
+          checkIosBanner();
+
+          if (isFirstTime) openProfileModal();
+          else sendSmartTelemetry();
+
+          // Неблокирующее фоновое обновление ДЗ и базы расписания
+          loadWeekHomework();
+          fetchNetworkSchedule().then((freshData) => {
+            prepareDatabase(freshData);
+            render();
+          }).catch(() => {});
+          return;
         }
-        db.teachers = unifiedTeachers;
-        allTeachers = Object.keys(db.teachers).sort((a, b) => a.localeCompare(b, 'ru'));
+
+        // 2. Холодный первый запуск (если кэша еще нет)
+        const freshData = await fetchNetworkSchedule();
+        prepareDatabase(freshData);
 
         if (allGroups.length === 0 && allTeachers.length === 0) {
           document.getElementById("scheduleList").innerHTML = `<div class="empty-state">Нет данных расписания.</div>`;
           return;
         }
 
-        directionsList = buildDirectionsList();
-
-        const savedRole = (await Storage.get('mgpu_current_role')) || "student";
-        const savedGroup = await Storage.get('mgpu_current_group');
-        const savedTeacher = await Storage.get('mgpu_current_teacher');
-
-        const normSavedGroup = sanitizeName(savedGroup);
-        const normSavedTeacher = sanitizeName(savedTeacher);
-
-        const matchedGroup = allGroups.find(g => sanitizeName(g) === normSavedGroup);
-        const matchedTeacher = allTeachers.find(t => sanitizeName(t) === normSavedTeacher);
-
-        let isFirstTime = false;
-
-        currentRole = savedRole;
-        if (currentRole === "teacher" && matchedTeacher) {
-          currentTeacher = matchedTeacher;
-        } else if (matchedGroup) {
-          currentRole = "student";
-          currentGroup = matchedGroup;
-        } else {
-          currentGroup = allGroups[0] || "";
-          currentTeacher = allTeachers[0] || "";
-          isFirstTime = true;
-          openProfileModal();
-        }
+        const isFirstTime = await resolveUserProfile();
 
         updateHeaderTitle();
         initDateSelection();
         renderDaysBar();
-        await loadWeekHomework();
+        preloadHomeworkFromLocalSync();
         render();
         checkIosBanner();
 
-        if (!isFirstTime) {
-          sendSmartTelemetry();
-        }
+        if (isFirstTime) openProfileModal();
+        else sendSmartTelemetry();
+
+        loadWeekHomework();
       } catch (err) {
         setOfflineState(true);
         document.getElementById("scheduleList").innerHTML = 
@@ -1389,10 +1474,12 @@
       else if (uniqueWeeks.length > 0) weekSelect.value = uniqueWeeks[0];
     }
 
-    async function onWeekChange() {
+    /* Мгновенная смена недели: сначала рендер из памяти, затем фоновая докачка ДЗ */
+    function onWeekChange() {
       renderDaysBar();
-      await loadWeekHomework();
+      preloadHomeworkFromLocalSync();
       render();
+      loadWeekHomework();
     }
 
     function renderDaysBar() {
@@ -1482,7 +1569,7 @@
       window.open(getCalendarUrl(), '_blank');
     }
 
-    /* ========== АВТОРИЗАЦИЯ И ДЗ С НАДЕЖНЫМ ОФЛАЙН-КЭШЕМ ========== */
+    /* ========== НЕБЛОКИРУЮЩАЯ ЗАГРУЗКА ДЗ С МГНОВЕННЫМ ОФЛАЙН-КЭШЕМ ========== */
     function getFallbackAuthorIdentity() {
       if (isInsideVK) {
         const vkName = window.currentVkUserName || (currentRole === "teacher" ? `Преподаватель ${currentTeacher}` : "Студент ВКонтакте");
@@ -1514,7 +1601,7 @@
       return `${day}_${pair}_${cleanSub}${cleanSubgrp ? '_' + cleanSubgrp : ''}`;
     }
 
-    async function fetchWithTimeout(url, timeoutMs = 3500) {
+    async function fetchWithTimeout(url, timeoutMs = 3000) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
@@ -1524,6 +1611,26 @@
       } catch (err) {
         clearTimeout(timer);
         throw err;
+      }
+    }
+
+    /* Синхронное предчтение ДЗ за 0 мс перед первым рендером */
+    function preloadHomeworkFromLocalSync() {
+      const weekNum = document.getElementById("weekSelect")?.value;
+      if (!weekNum) return;
+
+      if (currentRole === "student" && currentGroup) {
+        const cacheKey = `mgpu_hw_${currentGroup.trim().toLowerCase()}_w${weekNum}`;
+        currentWeekHw = HwCache.getSync(cacheKey) || {};
+      } else if (currentRole === "teacher" && currentTeacher) {
+        teacherWeekHw = {};
+        const teacherLessons = (db.teachers[currentTeacher] || []).filter(l => String(l.week) === String(weekNum));
+        const groups = [...new Set(teacherLessons.map(l => (l.group || '').trim()).filter(Boolean))];
+        groups.forEach(grp => {
+          const gKey = grp.toLowerCase();
+          const cacheKey = `mgpu_hw_${gKey}_w${weekNum}`;
+          teacherWeekHw[gKey] = HwCache.getSync(cacheKey) || {};
+        });
       }
     }
 
@@ -1537,9 +1644,10 @@
           return;
         }
         const cacheKey = `mgpu_hw_${currentGroup.trim().toLowerCase()}_w${weekNum}`;
-
-        // Сначала мгновенно берем из кэша на случай офлайна
-        currentWeekHw = await HwCache.get(cacheKey);
+        if (!Object.keys(currentWeekHw).length) {
+          currentWeekHw = await HwCache.get(cacheKey);
+          render();
+        }
 
         try {
           const res = await fetchWithTimeout(`${WORKER_URL}/api/hw?group=${encodeURIComponent(currentGroup)}&week=${weekNum}`);
@@ -1548,11 +1656,11 @@
           currentWeekHw = freshData;
           await HwCache.set(cacheKey, freshData);
           setOfflineState(false);
+          render();
         } catch (e) {
           setOfflineState(true);
         }
       } else if (currentRole === "teacher") {
-        teacherWeekHw = {};
         if (!currentTeacher || !db.teachers[currentTeacher]) return;
 
         const teacherLessons = (db.teachers[currentTeacher] || []).filter(l => String(l.week) === String(weekNum));
@@ -1563,7 +1671,9 @@
         await Promise.all(groups.map(async (grp) => {
           const gKey = grp.toLowerCase();
           const cacheKey = `mgpu_hw_${gKey}_w${weekNum}`;
-          teacherWeekHw[gKey] = await HwCache.get(cacheKey);
+          if (!teacherWeekHw[gKey] || !Object.keys(teacherWeekHw[gKey]).length) {
+            teacherWeekHw[gKey] = await HwCache.get(cacheKey);
+          }
 
           try {
             const res = await fetchWithTimeout(`${WORKER_URL}/api/hw?group=${encodeURIComponent(grp)}&week=${weekNum}`);
@@ -1577,6 +1687,7 @@
         }));
 
         setOfflineState(anyNetworkFailed || !navigator.onLine);
+        render();
       }
     }
 
@@ -1676,9 +1787,8 @@
           alert(ans.error);
           return;
         }
-        await loadWeekHomework();
-        render();
         closeHwModal();
+        await loadWeekHomework();
       } catch (e) {
         alert(e.message || "Ошибка связи с сервером при сохранении ДЗ");
       }
@@ -1734,9 +1844,8 @@
           return;
         }
         alert(`✅ Задание записано на следующую пару для группы ${targetGroup}:\n${nextLesson.day} (${nextLesson.week} неделя, ${nextLesson.pair} пара)`);
-        await loadWeekHomework();
-        render();
         closeHwModal();
+        await loadWeekHomework();
       } catch (e) {
         alert(e.message || "Ошибка связи с сервером при сохранении ДЗ");
       }
@@ -1774,9 +1883,8 @@
           alert(ans.error);
           return;
         }
-        await loadWeekHomework();
-        render();
         closeHwModal();
+        await loadWeekHomework();
       } catch (e) {
         alert("Не удалось удалить задание");
       }
@@ -1869,7 +1977,6 @@
 
           if (hwData && hwData.text) {
             const icon = hwData.author?.platform === 'tg' ? '📱' : (hwData.author?.platform === 'vk' ? '🔵' : '🌐');
-            // В офлайн-режиме скрываем автора ДЗ
             const authorBadgeHtml = (!isAppOffline && hwData.author?.badge)
               ? `<span class="hw-author-badge">${icon} ${hwData.author.badge}</span>`
               : '';
@@ -2051,7 +2158,7 @@
       if (!grpSelect.value && groups.length > 0) grpSelect.value = groups[0];
     }
 
-    async function saveProfileSelection() {
+    function saveProfileSelection() {
       currentRole = modalActiveRole;
       Storage.set('mgpu_current_role', currentRole);
 
@@ -2075,8 +2182,9 @@
       closeProfileModal();
       initDateSelection();
       renderDaysBar();
-      await loadWeekHomework();
+      preloadHomeworkFromLocalSync();
       render();
+      loadWeekHomework();
       sendSmartTelemetry(true);
     }
 
