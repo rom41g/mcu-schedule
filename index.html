@@ -227,7 +227,7 @@
       padding: 4px;
     }
 
-    /* Универсальная плашка синхронизации с календарём (Студенты и Преподаватели) */
+    /* Универсальная плашка календаря */
     .sync-cal-banner {
       display: flex;
       background: var(--card-bg);
@@ -681,7 +681,7 @@
       <button type="button" id="scheduleSearchClear" class="search-clear-btn" onclick="clearScheduleSearch()">&times;</button>
     </div>
 
-    <!-- Универсальная плашка календаря (видна ВСЕГДА и студентам, и преподавателям) -->
+    <!-- Универсальная плашка календаря (Студенты и Преподаватели) -->
     <div id="syncCalBanner" class="sync-cal-banner" onclick="openCalendarModal()">
       <div class="sync-cal-left">
         <span>📅</span>
@@ -727,7 +727,7 @@
     </div>
   </div>
 
-  <!-- Шторка Google Календаря (Универсальная для студентов и преподавателей) -->
+  <!-- Шторка Google Календаря -->
   <div class="modal-overlay" id="calendarModal">
     <div class="modal-sheet" style="padding-bottom: 30px;">
       <div class="drag-handle-bar"></div>
@@ -776,7 +776,7 @@
           type="text" 
           id="modalGroupSearchInput" 
           class="modal-filter-input" 
-          placeholder="🔍 Быстрый поиск группы (например: ВЦК, ПОЕ)..." 
+          placeholder="🔍 Быстрый поиск группы (например: ВЦК, ПОЕ 252)..." 
           oninput="onModalGroupSearch(this.value)"
         >
 
@@ -1022,6 +1022,61 @@
       } catch (e) {}
     }
 
+    /* ========== УМНЫЙ НЕЧЁТКИЙ ПОИСК (FUZZY & LAYOUT-AWARE) ========== */
+    const KEYBOARD_EN_TO_RU = {
+      'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','[':'х',']':'ъ',
+      'a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д',';':'ж','\'':'э',
+      'z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь',',':'б','.':'ю'
+    };
+
+    function fixKeyboardLayout(str) {
+      return (str || '').split('').map(ch => KEYBOARD_EN_TO_RU[ch.toLowerCase()] || ch).join('');
+    }
+
+    function normalizeSearchStr(str) {
+      return (str || '')
+        .toLowerCase()
+        .replace(/ё/g, 'е')
+        .replace(/[–—−_]/g, '-')
+        .trim();
+    }
+
+    function smartMatch(targetText, query) {
+      if (!query) return true;
+      if (!targetText) return false;
+
+      const normTarget = normalizeSearchStr(targetText);
+      const normQuery = normalizeSearchStr(query);
+
+      // 1. Прямое совпадение
+      if (normTarget.includes(normQuery)) return true;
+
+      // 2. Совпадение без пробелов и дефисов ("пое 252" vs "пое-252", "пое252")
+      const collapsedTarget = normTarget.replace(/[^a-zа-я0-9]/gi, '');
+      const collapsedQuery = normQuery.replace(/[^a-zа-я0-9]/gi, '');
+      if (collapsedQuery && collapsedTarget.includes(collapsedQuery)) return true;
+
+      // 3. Поиск по отдельным словам-токенам (все слова из запроса должны быть в названии)
+      const queryTokens = normQuery.split(/[\s\-_]+/).filter(Boolean);
+      if (queryTokens.length > 1) {
+        const targetWords = normTarget.replace(/[-_]/g, ' ');
+        const allTokensFound = queryTokens.every(tok => 
+          targetWords.includes(tok) || collapsedTarget.includes(tok)
+        );
+        if (allTokensFound) return true;
+      }
+
+      // 4. Поиск с исправлением ошибочной раскладки клавиатуры (gjt -> пое, dwr -> вцк)
+      const fixedQuery = fixKeyboardLayout(normQuery);
+      if (fixedQuery !== normQuery) {
+        if (normTarget.includes(fixedQuery)) return true;
+        const collapsedFixed = fixedQuery.replace(/[^a-zа-я0-9]/gi, '');
+        if (collapsedFixed && collapsedTarget.includes(collapsedFixed)) return true;
+      }
+
+      return false;
+    }
+
     const DAYS = ["ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА"];
     const SHORT_DAYS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
     
@@ -1085,8 +1140,8 @@
         const match = str.match(/(\d{2})\.(\d{2})\.(\d{2,4})/);
         if (match) {
           const y = match[3].length === 2 ? 2000 + parseInt(match[3], 10) : parseInt(match[3], 10);
-          const mon = parseInt(m[2], 10) - 1;
-          const d = parseInt(m[1], 10);
+          const mon = parseInt(match[2], 10) - 1;
+          const d = parseInt(match[1], 10);
           mondayDate = new Date(y, mon, d);
         }
       }
@@ -1333,7 +1388,7 @@
       return map;
     }
 
-    /* ========== УНИВЕРСАЛЬНАЯ СИНХРОНИЗАЦИЯ С КАЛЕНДАРЁМ (СТУДЕНТЫ + ПРЕПОДАВАТЕЛИ) ========== */
+    /* ========== УНИВЕРСАЛЬНАЯ СИНХРОНИЗАЦИЯ С КАЛЕНДАРЁМ ========== */
     function getCalendarUrl() {
       if (currentRole === "teacher") {
         return `${WORKER_URL}/api/cal.ics?teacher=${encodeURIComponent(currentTeacher)}`;
@@ -1652,7 +1707,7 @@
     }
 
     function handleScheduleSearch(query) {
-      activeSearchQuery = (query || "").trim().toLowerCase();
+      activeSearchQuery = (query || "").trim();
       document.getElementById("scheduleSearchClear").style.display = activeSearchQuery ? "block" : "none";
       render();
     }
@@ -1673,16 +1728,11 @@
 
       if (activeSearchQuery) {
         lessons = lessons.filter(item => {
-          const s = (item.subject || "").toLowerCase();
-          const t = (item.teacher || "").toLowerCase();
-          const r = (item.room || "").toLowerCase();
-          const g = (item.group || "").toLowerCase();
-          const tp = (item.type || "").toLowerCase();
-          return s.includes(activeSearchQuery) || 
-                 t.includes(activeSearchQuery) || 
-                 r.includes(activeSearchQuery) || 
-                 g.includes(activeSearchQuery) || 
-                 tp.includes(activeSearchQuery);
+          return smartMatch(item.subject, activeSearchQuery) || 
+                 smartMatch(item.teacher, activeSearchQuery) || 
+                 smartMatch(item.room, activeSearchQuery) || 
+                 smartMatch(item.group, activeSearchQuery) || 
+                 smartMatch(item.type, activeSearchQuery);
         });
       }
 
@@ -1843,6 +1893,15 @@
     function renderModalTeachers(list) {
       const teacherSelect = document.getElementById("modalTeacherSelect");
       teacherSelect.innerHTML = "";
+      if (list.length === 0) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "Ничего не найдено";
+        opt.disabled = true;
+        opt.selected = true;
+        teacherSelect.appendChild(opt);
+        return;
+      }
       list.forEach(t => {
         const opt = document.createElement("option");
         opt.value = t;
@@ -1855,22 +1914,33 @@
       }
     }
 
+    /* Умный поиск по группам с обработкой дефисов и пробелов */
     function onModalGroupSearch(query) {
-      const q = (query || "").trim().toLowerCase();
+      const q = (query || "").trim();
       const dirGroup = document.getElementById("directionFormGroup");
       const grpSelect = document.getElementById("modalGroupSelect");
 
       if (q) {
         dirGroup.style.display = "none";
-        const filtered = allGroups.filter(g => g.toLowerCase().includes(q));
+        const filtered = allGroups.filter(g => smartMatch(g, q));
         grpSelect.innerHTML = "";
-        filtered.forEach(g => {
+
+        if (filtered.length > 0) {
+          filtered.forEach(g => {
+            const opt = document.createElement("option");
+            opt.value = g;
+            opt.textContent = formatGroupWithCourse(g);
+            grpSelect.appendChild(opt);
+          });
+          grpSelect.value = filtered[0];
+        } else {
           const opt = document.createElement("option");
-          opt.value = g;
-          opt.textContent = formatGroupWithCourse(g);
+          opt.value = "";
+          opt.textContent = "Ничего не найдено";
+          opt.disabled = true;
+          opt.selected = true;
           grpSelect.appendChild(opt);
-        });
-        if (filtered.length > 0) grpSelect.value = filtered[0];
+        }
       } else {
         dirGroup.style.display = "block";
         onModalDirectionChange();
@@ -1878,8 +1948,8 @@
     }
 
     function onModalTeacherSearch(query) {
-      const q = (query || "").trim().toLowerCase();
-      const filtered = q ? allTeachers.filter(t => t.toLowerCase().includes(q)) : allTeachers;
+      const q = (query || "").trim();
+      const filtered = q ? allTeachers.filter(t => smartMatch(t, q)) : allTeachers;
       renderModalTeachers(filtered);
     }
 
