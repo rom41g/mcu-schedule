@@ -1,7 +1,4 @@
-<!--
-  Интерактивное расписание для МГПУ (MCU Schedule)
-  Copyright (c) 2026 Окороков Роман Александрович. Все права защищены.
--->
+<!-- Интерактивное расписание для МГПУ (MCU Schedule) Copyright (c) 2026 Окороков Роман Александрович. Все права защищены. -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -9,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>МГПУ • Расписание ИИЯ</title>
 
-  <!-- Предварительное соединение с сервером API для ускорения запросов -->
+  <!-- Предварительное соединение с сервером API и предзагрузка базы -->
   <link rel="preconnect" href="https://steep-forest-40b2.okroma007.workers.dev" crossorigin>
   <link rel="preload" href="schedule.json" as="fetch" crossorigin>
 
@@ -708,7 +705,7 @@
       <button type="button" id="scheduleSearchClear" class="search-clear-btn" onclick="clearScheduleSearch()">&times;</button>
     </div>
 
-    <!-- Универсальная плашка календаря -->
+    <!-- Универсальная плашка календаря (Студенты и Преподаватели) -->
     <div id="syncCalBanner" class="sync-cal-banner" onclick="openCalendarModal()">
       <div class="sync-cal-left">
         <span>📅</span>
@@ -864,6 +861,7 @@
       });
     }
 
+    /* Очищаем старый тяжелый кэш базы из localStorage, чтобы освободить память под ДЗ */
     try { localStorage.removeItem('mgpu_schedule_db_cache'); } catch (e) {}
 
     /* ========== ТОЧНОЕ ОТСЛЕЖИВАНИЕ ОФЛАЙН-РЕЖИМА ========== */
@@ -891,7 +889,7 @@
 
     const WORKER_URL = "https://steep-forest-40b2.okroma007.workers.dev";
 
-    /* Точное определение платформы без ложного срабатывания VK Bridge */
+    /* Точное определение платформы без ложных ожиданий VK Bridge */
     const tg = window.Telegram?.WebApp;
     const isInsideTelegram = Boolean(tg && tg.initData);
     const isInsideVK = window.location.search.includes('vk_user_id') || window.location.search.includes('vk_app_id');
@@ -987,7 +985,7 @@
       localStorage.setItem('mgpu_ios_banner_dismissed', 'true');
     }
 
-    /* ========== БЫСТРЫЙ МЕНЕДЖЕР ПАМЯТИ (0 МС НА ЧТЕНИЕ LOCALSTORAGE) ========== */
+    /* ========== БЫСТРЫЙ МЕНЕДЖЕР ПАМЯТИ ========== */
     const Storage = {
       getSync(key) {
         try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -1045,7 +1043,7 @@
       }
     };
 
-    /* Кэш домашних заданий с мгновенным синхронным чтением */
+    /* Двойной кэш домашних заданий (localStorage + CacheStorage) */
     const HwCache = {
       getSync(key) {
         try {
@@ -1093,16 +1091,33 @@
         .toLowerCase();
     }
 
+    /* ========== ТЕЛЕМЕТРИЯ С ЗАЩИТОЙ ОТ НАКРУТКИ И ЦИКЛОМ 02:59 МСК ========== */
     async function sendSmartTelemetry(force = false) {
       if (isAppOffline) return;
       try {
-        const todayStr = new Date().toISOString().slice(0, 10);
+        const isConfirmed = localStorage.getItem('mgpu_profile_confirmed') === 'true';
+        if (!force && !isConfirmed) return;
+
         const currentTarget = currentRole === 'teacher' ? currentTeacher : currentGroup;
         if (!currentTarget) return;
 
-        const statCacheKey = 'mcu_stat_' + todayStr;
-        const recordedTarget = localStorage.getItem(statCacheKey);
+        // Сдвиг +1 минута к UTC переводит границу суток/недели/месяца ровно на 02:59:00 МСК
+        const shifted = new Date(Date.now() + 60 * 1000);
+        const y = shifted.getUTCFullYear();
+        const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(shifted.getUTCDate()).padStart(2, '0');
+        const dayId = `${y}-${m}-${d}`;
+        const monthId = `${y}-${m}`;
 
+        const dayOfWeek = (shifted.getUTCDay() + 6) % 7;
+        const mon = new Date(Date.UTC(y, shifted.getUTCMonth(), shifted.getUTCDate() - dayOfWeek));
+        const weekId = `${mon.getUTCFullYear()}-${String(mon.getUTCMonth() + 1).padStart(2, '0')}-${String(mon.getUTCDate()).padStart(2, '0')}`;
+
+        const dayKey = 'mcu_stat_d_' + dayId;
+        const weekKey = 'mcu_stat_w_' + weekId;
+        const monthKey = 'mcu_stat_m_' + monthId;
+
+        const recordedTarget = localStorage.getItem(dayKey);
         if (!force && recordedTarget === currentTarget) return;
 
         let detectedPlatform = 'web';
@@ -1111,6 +1126,8 @@
         else if (isStandalone) detectedPlatform = 'pwa';
 
         const isNewDayVisit = !recordedTarget;
+        const isNewWeekVisit = !localStorage.getItem(weekKey);
+        const isNewMonthVisit = !localStorage.getItem(monthKey);
 
         await fetch(`${WORKER_URL}/api/stat`, {
           method: 'POST',
@@ -1119,15 +1136,19 @@
             platform: detectedPlatform,
             role: currentRole,
             target: currentTarget,
-            isNewDayVisit: isNewDayVisit
+            isNewDayVisit,
+            isNewWeekVisit,
+            isNewMonthVisit
           })
         });
 
-        localStorage.setItem(statCacheKey, currentTarget);
+        localStorage.setItem(dayKey, currentTarget);
+        localStorage.setItem(weekKey, '1');
+        localStorage.setItem(monthKey, '1');
       } catch (e) {}
     }
 
-    /* ========== УМНЫЙ НЕЧЁТКИЙ ПОИСК ========== */
+    /* ========== УМНЫЙ НЕЧЁТКИЙ ПОИСК С АВТОИСПРАВЛЕНИЕМ РАСКЛАДКИ ========== */
     const KEYBOARD_EN_TO_RU = {
       'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','[':'х',']':'ъ',
       'a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д',';':'ж','\'':'э',
@@ -1351,7 +1372,7 @@
     async function init() {
       setOfflineState(!navigator.onLine);
       try {
-        // 1. Пробуем мгновенно достать расписание из локального кэша (20-40 мс)
+        // 1. Мгновенный запуск из локального кэша (20-40 мс)
         const cachedData = await getCachedSchedule();
 
         if (cachedData) {
@@ -1377,7 +1398,7 @@
           return;
         }
 
-        // 2. Холодный первый запуск (если кэша еще нет)
+        // 2. Первый холодный запуск (если в кэше еще ничего нет)
         const freshData = await fetchNetworkSchedule();
         prepareDatabase(freshData);
 
@@ -1474,7 +1495,6 @@
       else if (uniqueWeeks.length > 0) weekSelect.value = uniqueWeeks[0];
     }
 
-    /* Мгновенная смена недели: сначала рендер из памяти, затем фоновая докачка ДЗ */
     function onWeekChange() {
       renderDaysBar();
       preloadHomeworkFromLocalSync();
@@ -1569,7 +1589,7 @@
       window.open(getCalendarUrl(), '_blank');
     }
 
-    /* ========== НЕБЛОКИРУЮЩАЯ ЗАГРУЗКА ДЗ С МГНОВЕННЫМ ОФЛАЙН-КЭШЕМ ========== */
+    /* ========== НЕБЛОКИРУЮЩАЯ ЗАГРУЗКА ДЗ С ОФЛАЙН-КЭШЕМ ========== */
     function getFallbackAuthorIdentity() {
       if (isInsideVK) {
         const vkName = window.currentVkUserName || (currentRole === "teacher" ? `Преподаватель ${currentTeacher}` : "Студент ВКонтакте");
@@ -1614,7 +1634,6 @@
       }
     }
 
-    /* Синхронное предчтение ДЗ за 0 мс перед первым рендером */
     function preloadHomeworkFromLocalSync() {
       const weekNum = document.getElementById("weekSelect")?.value;
       if (!weekNum) return;
@@ -2177,6 +2196,8 @@
           Storage.set('mgpu_current_direction', dir);
         }
       }
+
+      try { localStorage.setItem('mgpu_profile_confirmed', 'true'); } catch (e) {}
 
       updateHeaderTitle();
       closeProfileModal();
