@@ -1,7 +1,9 @@
-/* ============================================================
-   SERVICE WORKER • ОФЛАЙН КЭШИРОВАНИЕ РАСПИСАНИЯ МГПУ
-============================================================ */
-const CACHE_NAME = 'mgpu-schedule-v2';
+/*
+  Интерактивное расписание для МГПУ (MCU Schedule)
+  Copyright (c) 2026 Окороков Роман Александрович. Все права защищены.
+*/
+
+const CACHE_NAME = 'mgpu-schedule-v3';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -11,37 +13,39 @@ const ASSETS_TO_CACHE = [
   'schedule.json'
 ];
 
-// Установка: предварительное кэширование основы приложения
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      for (const asset of ASSETS_TO_CACHE) {
+        try {
+          await cache.add(asset);
+        } catch (e) {
+          console.warn('Не удалось закэшировать ресурс:', asset);
+        }
+      }
     }).then(() => self.skipWaiting())
   );
 });
 
-// Активация: удаление старых версий кэша
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
+          if (key !== CACHE_NAME) return caches.delete(key);
         })
       );
     }).then(() => self.clients.claim())
   );
 });
 
-// Перехват сетевых запросов: Network First с переходом в кэш
 self.addEventListener('fetch', (event) => {
-  // Запросы к внешним API (Worker, Telegram, VK Bridge) пропускаем мимо кэша файлов
-  if (event.request.url.includes('/api/') || 
-      event.request.url.includes('telegram.org') || 
-      event.request.url.includes('vk.com') ||
-      event.request.url.includes('workers.dev')) {
+  const url = event.request.url;
+
+  if (url.includes('/api/') || 
+      url.includes('telegram.org') || 
+      url.includes('vk.com') ||
+      url.includes('workers.dev')) {
     return;
   }
 
@@ -56,13 +60,23 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       })
-      .catch(() => {
-        // Если интернета нет — отдаём файл из кэша
-        return caches.match(event.request).then((cachedResponse) => {
-          if (cachedResponse) return cachedResponse;
-          if (event.request.mode === 'navigate') {
-            return caches.match('index.html');
-          }
+      .catch(async () => {
+        const cached = await caches.match(event.request, { ignoreSearch: true });
+        if (cached) return cached;
+
+        if (event.request.mode === 'navigate') {
+          const fallback = await caches.match('./') || await caches.match('index.html');
+          if (fallback) return fallback;
+        }
+
+        if (url.includes('schedule.json')) {
+          const cachedDb = await caches.match('schedule.json', { ignoreSearch: true });
+          if (cachedDb) return cachedDb;
+        }
+
+        return new Response('Офлайн: ресурс недоступен', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
         });
       })
   );
