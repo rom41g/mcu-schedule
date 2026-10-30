@@ -227,9 +227,9 @@
       padding: 4px;
     }
 
-    /* Кнопка календаря для преподавателей */
-    .teacher-cal-banner {
-      display: none;
+    /* Универсальная плашка синхронизации с календарём (Студенты и Преподаватели) */
+    .sync-cal-banner {
+      display: flex;
       background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -240,9 +240,9 @@
       cursor: pointer;
       margin-top: 2px;
     }
-    .teacher-cal-banner:active { opacity: 0.8; }
-    .teacher-cal-left { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--mgpu-dark); }
-    .teacher-cal-arrow { font-size: 12px; color: var(--mgpu-red); font-weight: 800; }
+    .sync-cal-banner:active { opacity: 0.8; }
+    .sync-cal-left { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--mgpu-dark); }
+    .sync-cal-arrow { font-size: 12px; color: var(--mgpu-red); font-weight: 800; }
 
     /* Дни недели */
     .days-bar {
@@ -571,12 +571,12 @@
       padding: 12px;
       background: var(--input-bg);
       color: var(--mgpu-dark);
-      border: 1.5px dashed var(--mgpu-red);
+      border: 1.5px dashed var(--border);
       border-radius: 12px;
       font-size: 14px;
       font-weight: 700;
       cursor: pointer;
-      margin-top: 14px;
+      margin-top: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -681,12 +681,13 @@
       <button type="button" id="scheduleSearchClear" class="search-clear-btn" onclick="clearScheduleSearch()">&times;</button>
     </div>
 
-    <div id="teacherCalBanner" class="teacher-cal-banner" onclick="openTeacherCalendarModal()">
-      <div class="teacher-cal-left">
+    <!-- Универсальная плашка календаря (видна ВСЕГДА и студентам, и преподавателям) -->
+    <div id="syncCalBanner" class="sync-cal-banner" onclick="openCalendarModal()">
+      <div class="sync-cal-left">
         <span>📅</span>
-        <span>Синхронизация с Google Календарём</span>
+        <span id="syncCalBannerText">Синхронизация с Google Календарём</span>
       </div>
-      <span class="teacher-cal-arrow">Настроить ➔</span>
+      <span class="sync-cal-arrow">Настроить ➔</span>
     </div>
   </div>
 
@@ -704,6 +705,7 @@
     <div class="ios-banner-arrow">▼</div>
   </div>
 
+  <!-- Шторка ДЗ -->
   <div class="modal-overlay" id="hwModal">
     <div class="modal-sheet" style="padding-bottom: 25px;">
       <div class="drag-handle-bar"></div>
@@ -725,34 +727,36 @@
     </div>
   </div>
 
-  <div class="modal-overlay" id="teacherCalModal">
+  <!-- Шторка Google Календаря (Универсальная для студентов и преподавателей) -->
+  <div class="modal-overlay" id="calendarModal">
     <div class="modal-sheet" style="padding-bottom: 30px;">
       <div class="drag-handle-bar"></div>
       <div class="modal-header-row">
-        <div class="modal-title">📅 Календарь преподавателя</div>
-        <button type="button" class="modal-close-btn" onclick="closeTeacherCalendarModal()">&times;</button>
+        <div class="modal-title">📅 Синхронизация расписания</div>
+        <button type="button" class="modal-close-btn" onclick="closeCalendarModal()">&times;</button>
       </div>
 
-      <div id="teacherCalSubtitle" style="font-size: 13px; color: var(--text-sub); margin-bottom: 14px;"></div>
+      <div id="calModalSubtitle" style="font-size: 13px; color: var(--text-sub); margin-bottom: 14px;"></div>
 
       <div style="font-size: 12px; color: var(--mgpu-dark); line-height: 1.4; margin-bottom: 16px; background: var(--input-bg); padding: 12px; border-radius: 12px; border: 1px solid var(--border);">
-        💡 <b>Подписка по ссылке:</b> все пары кафедры автоматически появятся в вашем личном Google или Apple Календаре и будут обновляться без вашего участия.
+        💡 <b>Авто-обновление:</b> все пары автоматически появятся в вашем личном Google или Apple Календаре со временем, аудиториями и преподавателями.
       </div>
 
       <div class="hw-actions-col">
         <button type="button" class="hw-btn-primary" onclick="openGoogleCalendarSubscription()">
           🗓️ Добавить в Google Календарь
         </button>
-        <button type="button" class="hw-btn-secondary" onclick="copyTeacherCalendarUrl()">
+        <button type="button" class="hw-btn-secondary" onclick="copyCalendarUrl()">
           📋 Скопировать ссылку подписки (.ics)
         </button>
-        <button type="button" class="hw-empty-add-btn" style="text-align: center; justify-content: center; padding: 10px;" onclick="downloadTeacherIcsFile()">
-          💾 Скачать файл календаря на телефон
+        <button type="button" class="hw-empty-add-btn" style="text-align: center; justify-content: center; padding: 10px;" onclick="downloadIcsFile()">
+          💾 Скачать файл календаря (.ics)
         </button>
       </div>
     </div>
   </div>
 
+  <!-- Модальное окно профиля -->
   <div class="modal-overlay" id="profileModal">
     <div class="modal-sheet" id="modalSheet">
       <div class="drag-handle-bar"></div>
@@ -802,6 +806,10 @@
           <div class="modal-note">ℹ️ Отображаются пары кафедр корпуса ИИЯ. Замены объединены в единый профиль.</div>
         </div>
       </div>
+
+      <button type="button" class="install-home-btn" style="border-color: var(--mgpu-red); color: var(--mgpu-red);" onclick="closeProfileModal(); openCalendarModal();">
+        📅 Подключить Google Календарь
+      </button>
 
       <button type="button" class="install-home-btn" id="installHomeBtn" onclick="triggerSmartInstall()">
         📲 Добавить на рабочий стол
@@ -1077,9 +1085,9 @@
         const match = str.match(/(\d{2})\.(\d{2})\.(\d{2,4})/);
         if (match) {
           const y = match[3].length === 2 ? 2000 + parseInt(match[3], 10) : parseInt(match[3], 10);
-          const m = parseInt(match[2], 10) - 1;
-          const d = parseInt(match[1], 10);
-          mondayDate = new Date(y, m, d);
+          const mon = parseInt(m[2], 10) - 1;
+          const d = parseInt(m[1], 10);
+          mondayDate = new Date(y, mon, d);
         }
       }
 
@@ -1194,7 +1202,6 @@
         }
 
         updateHeaderTitle();
-        updateTeacherControlsVisibility();
         initDateSelection();
         renderDaysBar();
         await loadWeekHomework();
@@ -1212,17 +1219,13 @@
 
     function updateHeaderTitle() {
       const lbl = document.getElementById("headerTargetLabel");
+      const bannerText = document.getElementById("syncCalBannerText");
       if (currentRole === "teacher") {
         lbl.textContent = `👨‍🏫 ${currentTeacher || "Преподаватель"}`;
+        if (bannerText) bannerText.textContent = "Google Календарь преподавателя";
       } else {
         lbl.textContent = `🎓 ${currentGroup || "Группа"}`;
-      }
-    }
-
-    function updateTeacherControlsVisibility() {
-      const calBanner = document.getElementById("teacherCalBanner");
-      if (calBanner) {
-        calBanner.style.display = (currentRole === "teacher") ? "flex" : "none";
+        if (bannerText) bannerText.textContent = `Календарь группы ${currentGroup}`;
       }
     }
 
@@ -1330,44 +1333,52 @@
       return map;
     }
 
-    function getTeacherCalendarUrl() {
-      return `${WORKER_URL}/api/cal.ics?teacher=${encodeURIComponent(currentTeacher)}`;
+    /* ========== УНИВЕРСАЛЬНАЯ СИНХРОНИЗАЦИЯ С КАЛЕНДАРЁМ (СТУДЕНТЫ + ПРЕПОДАВАТЕЛИ) ========== */
+    function getCalendarUrl() {
+      if (currentRole === "teacher") {
+        return `${WORKER_URL}/api/cal.ics?teacher=${encodeURIComponent(currentTeacher)}`;
+      }
+      return `${WORKER_URL}/api/cal.ics?group=${encodeURIComponent(currentGroup)}`;
     }
 
-    function openTeacherCalendarModal() {
-      if (currentRole !== "teacher" || !currentTeacher) return;
-      document.getElementById("teacherCalSubtitle").textContent = `Преподаватель: ${currentTeacher}`;
-      const modal = document.getElementById("teacherCalModal");
+    function openCalendarModal() {
+      const targetLabel = currentRole === "teacher" 
+        ? `👨‍🏫 Преподаватель: ${currentTeacher}` 
+        : `🎓 Академическая группа: ${currentGroup}`;
+
+      document.getElementById("calModalSubtitle").textContent = targetLabel;
+      const modal = document.getElementById("calendarModal");
       modal.style.display = "flex";
       modal.querySelector(".modal-sheet").style.transform = "translateY(0)";
     }
 
-    function closeTeacherCalendarModal() {
-      const modal = document.getElementById("teacherCalModal");
+    function closeCalendarModal() {
+      const modal = document.getElementById("calendarModal");
       modal.querySelector(".modal-sheet").style.transform = "translateY(100%)";
       setTimeout(() => { modal.style.display = "none"; }, 200);
     }
 
     function openGoogleCalendarSubscription() {
-      const icsUrl = getTeacherCalendarUrl();
+      const icsUrl = getCalendarUrl();
       const webcalUrl = icsUrl.replace(/^https?:\/\//i, "webcal://");
       const googleSubscribeUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalUrl)}`;
       window.open(googleSubscribeUrl, '_blank');
     }
 
-    function copyTeacherCalendarUrl() {
-      const icsUrl = getTeacherCalendarUrl();
+    function copyCalendarUrl() {
+      const icsUrl = getCalendarUrl();
       navigator.clipboard.writeText(icsUrl).then(() => {
-        alert("✅ Ссылка подписки скопирована в буфер обмена!\n\nВставьте её в настройках Google или Apple Календаря (раздел «Добавить по URL»).");
+        alert("✅ Ссылка подписки скопирована!\n\nВставьте её в настройках Google или Apple Календаря (раздел «Добавить по URL»).");
       }).catch(() => {
         prompt("Скопируйте ссылку на подписку вручную:", icsUrl);
       });
     }
 
-    function downloadTeacherIcsFile() {
-      window.open(getTeacherCalendarUrl(), '_blank');
+    function downloadIcsFile() {
+      window.open(getCalendarUrl(), '_blank');
     }
 
+    /* ========== АВТОРИЗАЦИЯ И ДЗ С ПОДДЕРЖКОЙ ПРЕПОДАВАТЕЛЕЙ ========== */
     function getFallbackAuthorIdentity() {
       if (isInsideVK) {
         const vkName = window.currentVkUserName || (currentRole === "teacher" ? `Преподаватель ${currentTeacher}` : "Студент ВКонтакте");
@@ -1911,7 +1922,6 @@
       }
 
       updateHeaderTitle();
-      updateTeacherControlsVisibility();
       closeProfileModal();
       initDateSelection();
       renderDaysBar();
@@ -1926,8 +1936,8 @@
     document.getElementById("hwModal").addEventListener("click", (e) => {
       if (e.target.id === "hwModal") closeHwModal();
     });
-    document.getElementById("teacherCalModal").addEventListener("click", (e) => {
-      if (e.target.id === "teacherCalModal") closeTeacherCalendarModal();
+    document.getElementById("calendarModal").addEventListener("click", (e) => {
+      if (e.target.id === "calendarModal") closeCalendarModal();
     });
 
     let touchStartY = 0, touchCurrentY = 0, isSwiping = false;
