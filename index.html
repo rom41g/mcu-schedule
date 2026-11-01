@@ -173,7 +173,6 @@
       flex-shrink: 0;
     }
 
-    /* Переключатель темы в шапке */
     .theme-switch {
       position: relative;
       width: 48px;
@@ -264,7 +263,6 @@
       display: none;
     }
 
-    /* Секции контента вкладок */
     .tab-content-view {
       display: none;
     }
@@ -277,7 +275,7 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
-    /* Экраны и элементы вкладки Расписание */
+    /* Вкладка 1: Расписание */
     .controls-panel { padding: 12px 16px 6px; display: flex; flex-direction: column; gap: 8px; }
     .week-select {
       width: 100%;
@@ -328,7 +326,22 @@
       padding: 4px;
     }
 
-    /* Дни недели */
+    .sync-cal-banner {
+      display: flex;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 12px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: pointer;
+      margin-top: 2px;
+    }
+    .sync-cal-banner:active { opacity: 0.8; }
+    .sync-cal-left { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--mgpu-dark); }
+    .sync-cal-arrow { font-size: 12px; color: var(--mgpu-red); font-weight: 800; }
+
     .days-bar {
       display: flex;
       gap: 6px;
@@ -363,7 +376,6 @@
       color: #FFFFFF !important;
     }
 
-    /* Карточки расписания */
     .schedule-list { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
     .lesson-card {
       background: var(--card-bg);
@@ -407,7 +419,6 @@
     .lesson-room { font-weight: 600; color: var(--mgpu-dark); margin-top: 2px; }
     .lesson-target-group { font-weight: 700; color: var(--mgpu-red); margin-bottom: 2px; }
 
-    /* Домашнее задание в карточке */
     .hw-preview-box {
       margin-top: 10px;
       padding: 9px 12px;
@@ -469,7 +480,6 @@
     }
     .hw-empty-add-btn:active { background: var(--input-bg); }
 
-    /* Трекинг пар преподавателя */
     .teacher-stats-box {
       margin-top: 10px;
       padding: 8px 10px;
@@ -499,7 +509,6 @@
       transition: width 0.3s ease;
     }
 
-    /* Скелетон */
     .skeleton-card {
       background: var(--card-bg);
       border-radius: 12px;
@@ -513,9 +522,7 @@
     .skeleton-line { height: 12px; background: var(--skeleton-bg); border-radius: 6px; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
-    /* ============================================================
-       ВКЛАДКА 2: ЛЕНТА ДОМАШНИХ ЗАДАНИЙ
-    ============================================================ */
+    /* Вкладка 2: Домашка */
     .hw-feed-wrap {
       padding: 16px;
       display: flex;
@@ -624,9 +631,7 @@
       height: 15px;
     }
 
-    /* ============================================================
-       ВКЛАДКА 3: СЕССИЯ (ДИНАМИЧЕСКАЯ)
-    ============================================================ */
+    /* Вкладка 3: Сессия */
     .session-view-wrap {
       padding: 16px;
       display: flex;
@@ -667,9 +672,7 @@
       line-height: 1.4;
     }
 
-    /* ============================================================
-       ВКЛАДКА 4: ПРОФИЛЬ И НАСТРОЙКИ
-    ============================================================ */
+    /* Вкладка 4: Профиль */
     .profile-view-wrap {
       padding: 16px;
       display: flex;
@@ -1522,7 +1525,7 @@
 
     function sanitizeName(str) {
       return (str || '')
-        .replace(/[  ᠎ -​  　﻿]/g, ' ')
+        .replace(/[\u00A0\u1680\u180E\u2000-\u200B\u202F\u205F\u3000\uFEFF]/g, ' ')
         .replace(/[–—−]/g, '-')
         .trim()
         .toLowerCase();
@@ -1591,10 +1594,10 @@
       } catch (e) {}
     }
 
-    /* ========== УМНЫЙ ПОИСК ========== */
+    /* ========== УМНЫЙ ПОИСК (БЕЗ СИНТАКСИЧЕСКИХ ОШИБОК) ========== */
     const KEYBOARD_EN_TO_RU = {
       'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','[':'х',']':'ъ',
-      'a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д',';':'ж',''':'э',
+      'a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д',';':'ж',"'":'э',
       'z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь',',':'б','.':'ю'
     };
 
@@ -1754,10 +1757,9 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    /* Проверка активности сессионного режима (1 дек - 10 фев И 1 мая - 10 июля) */
     function checkSessionTabAvailability() {
       const now = new Date();
-      const month = now.getMonth(); // 0 = Jan, 1 = Feb ... 11 = Dec
+      const month = now.getMonth();
       const day = now.getDate();
 
       const isWinterSession = (month === 11) || (month === 0) || (month === 1 && day <= 10);
@@ -1775,7 +1777,6 @@
       if (titleEl) titleEl.textContent = periodTitle;
     }
 
-    /* Отрисовка вкладки Сессия */
     function renderSessionTab() {
       const container = document.getElementById('sessionExamsList');
       const targetName = currentRole === 'teacher' ? currentTeacher : currentGroup;
@@ -1812,7 +1813,6 @@
       `).join('');
     }
 
-    /* Отрисовка ленты ДЗ */
     function renderHomeworkFeed() {
       const container = document.getElementById('hwFeedList');
       const query = (document.getElementById('hwFeedSearchInput')?.value || '').trim().toLowerCase();
@@ -1925,7 +1925,6 @@
       if (card) card.classList.toggle('is-completed', isChecked);
     }
 
-    /* Обновление данных экрана Профиль */
     function updateProfileTabInfo() {
       const roleBadge = document.getElementById('profileRoleBadge');
       const targetName = document.getElementById('profileTargetName');
@@ -1938,7 +1937,6 @@
       }
     }
 
-    /* Принудительная очистка кэша */
     async function forceClearCacheAndReload() {
       if (!confirm('Очистить локальный кэш расписания и принудительно обновить приложение?')) return;
       try {
@@ -2117,6 +2115,7 @@
       return db.groups[currentGroup] || [];
     }
 
+    /* ========== УМНАЯ СИНХРОНИЗАЦИЯ НЕДЕЛИ (БЕЗ СЛЁТА НА 31.08) ========== */
     function initDateSelection() {
       const weekSelect = document.getElementById("weekSelect");
       const list = getActiveLessonsList();
@@ -2139,6 +2138,9 @@
       });
 
       const now = new Date();
+      // Если сегодня воскресенье (getDay() === 0), смотрим расписание на завтра (понедельник)
+      const targetDate = (now.getDay() === 0) ? new Date(now.getTime() + 86400000) : now;
+
       let matchedWeek = null;
       for (const w of uniqueWeeks) {
         const wMeta = db.weeks ? (db.weeks[w] || db.weeks[String(w)]) : null;
@@ -2150,15 +2152,41 @@
           const str = (typeof wMeta === 'string') ? wMeta : (list.find(x => x.week === w)?.date_range || "");
           const match = str.match(/(\d{2})\.(\d{2})\.(\d{2,4})\s*–\s*(\d{2})\.(\d{2})\.(\d{2,4})/);
           if (match) {
-            const y1 = match[3].length === 2 ? 2000 + parseInt(match[3]) : parseInt(match[3]);
-            const y2 = match[6].length === 2 ? 2000 + parseInt(match[6]) : parseInt(match[6]);
-            startDt = new Date(y1, parseInt(match[2]) - 1, parseInt(match[1]), 0, 0, 0);
-            endDt = new Date(y2, parseInt(match[5]) - 1, parseInt(match[4]), 23, 59, 59);
+            const y1 = match[3].length === 2 ? 2000 + parseInt(match[3], 10) : parseInt(match[3], 10);
+            const y2 = match[6].length === 2 ? 2000 + parseInt(match[6], 10) : parseInt(match[6], 10);
+            startDt = new Date(y1, parseInt(match[2], 10) - 1, parseInt(match[1], 10), 0, 0, 0);
+            endDt = new Date(y2, parseInt(match[5], 10) - 1, parseInt(match[4], 10), 23, 59, 59);
           }
         }
-        if (startDt && endDt && now >= startDt && now <= endDt) {
+        if (startDt && endDt && targetDate >= startDt && targetDate <= endDt) {
           matchedWeek = w;
           break;
+        }
+      }
+
+      // Если точного диапазона нет — ищем БЛИЖАЙШУЮ неделю по дате (а не первую с 31.08)
+      if (!matchedWeek && uniqueWeeks.length > 0) {
+        let minDiff = Infinity;
+        for (const w of uniqueWeeks) {
+          const wMeta = db.weeks ? (db.weeks[w] || db.weeks[String(w)]) : null;
+          let startDt = null;
+          if (wMeta && typeof wMeta === 'object' && wMeta.start) {
+            startDt = new Date(wMeta.start);
+          } else {
+            const str = (typeof wMeta === 'string') ? wMeta : (list.find(x => x.week === w)?.date_range || "");
+            const m = str.match(/(\d{2})\.(\d{2})\.(\d{2,4})/);
+            if (m) {
+              const y = m[3].length === 2 ? 2000 + parseInt(m[3], 10) : parseInt(m[3], 10);
+              startDt = new Date(y, parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+            }
+          }
+          if (startDt && !isNaN(startDt.getTime())) {
+            const diff = Math.abs(targetDate.getTime() - startDt.getTime());
+            if (diff < minDiff) {
+              minDiff = diff;
+              matchedWeek = w;
+            }
+          }
         }
       }
 
@@ -2250,9 +2278,7 @@
     function copyCalendarUrl() {
       const icsUrl = getCalendarUrl();
       navigator.clipboard.writeText(icsUrl).then(() => {
-        alert("✅ Ссылка подписки скопирована!
-
-Вставьте её в настройках Google или Apple Календаря (раздел «Добавить по URL»).");
+        alert("✅ Ссылка подписки скопирована!\n\nВставьте её в настройках Google или Apple Календаря (раздел «Добавить по URL»).");
       }).catch(() => {
         prompt("Скопируйте ссылку на подписку вручную:", icsUrl);
       });
@@ -2539,8 +2565,7 @@
           alert(ans.error);
           return;
         }
-        alert(`✅ Задание записано на следующую пару для группы ${targetGroup}:
-${nextLesson.day} (${nextLesson.week} неделя, ${nextLesson.pair} пара)`);
+        alert(`✅ Задание записано на следующую пару для группы ${targetGroup}:\n${nextLesson.day} (${nextLesson.week} неделя, ${nextLesson.pair} пара)`);
         closeHwModal();
         await loadWeekHomework();
       } catch (e) {
