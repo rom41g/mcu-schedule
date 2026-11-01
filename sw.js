@@ -3,7 +3,7 @@
   Copyright (c) 2026 Окороков Роман Александрович. Все права защищены.
 */
 
-const CACHE_NAME = 'mgpu-schedule-v4';
+const CACHE_NAME = 'mgpu-schedule-v5';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -37,7 +37,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Стратегия Stale-While-Revalidate: мгновенно отдаем из кэша, в фоне обновляем
+// Стратегия Stale-While-Revalidate: мгновенная отдача из кэша с фоновым обновлением
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
@@ -65,7 +65,6 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => null);
 
-      // Если есть в кэше — отдаем за 0 мс, не дожидаясь сети
       return cachedResponse || fetchPromise.then((res) => {
         if (res) return res;
         if (event.request.mode === 'navigate') {

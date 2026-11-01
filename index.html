@@ -1,4 +1,7 @@
-<!-- Интерактивное расписание для МГПУ (MCU Schedule) Copyright (c) 2026 Окороков Роман Александрович. Все права защищены. -->
+<!--
+  Интерактивное расписание для МГПУ (MCU Schedule)
+  Copyright (c) 2026 Окороков Роман Александрович. Все права защищены.
+-->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -10,7 +13,7 @@
   <link rel="preconnect" href="https://steep-forest-40b2.okroma007.workers.dev" crossorigin>
   <link rel="preload" href="schedule.json" as="fetch" crossorigin>
 
-  <!-- SDK Telegram и VK (defer не блокирует мгновенную отрисовку интерфейса) -->
+  <!-- SDK Telegram и VK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js" defer></script>
 
@@ -42,6 +45,12 @@
       --input-bg: #FAFAFA;
       --segment-bg: #EEEEF2;
       --skeleton-bg: #EAECEF;
+      --tab-bar-bg: #FFFFFF;
+      --tab-bar-border: #E8E8ED;
+      --tab-inactive: #8E8E93;
+      --tab-active: #E30613;
+      --badge-green: #E8F5E9;
+      --badge-green-text: #2E7D32;
     }
 
     [data-theme="dark"] {
@@ -63,6 +72,12 @@
       --input-bg: #242428;
       --segment-bg: #2C2C32;
       --skeleton-bg: #2A2A2E;
+      --tab-bar-bg: #1C1C1E;
+      --tab-bar-border: #2C2C30;
+      --tab-inactive: #8E8E93;
+      --tab-active: #FF3B30;
+      --badge-green: #1B2E1E;
+      --badge-green-text: #4ADE80;
     }
 
     * { 
@@ -71,7 +86,13 @@
       padding: 0; 
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
     }
-    body { background-color: var(--bg); color: var(--mgpu-dark); padding-bottom: 40px; user-select: none; }
+    body { 
+      background-color: var(--bg); 
+      color: var(--mgpu-dark); 
+      padding-bottom: calc(72px + env(safe-area-inset-bottom)); 
+      user-select: none; 
+      min-height: 100vh;
+    }
 
     /* Шапка МГПУ */
     .header {
@@ -152,7 +173,7 @@
       flex-shrink: 0;
     }
 
-    /* Переключатель темы */
+    /* Переключатель темы в шапке */
     .theme-switch {
       position: relative;
       width: 48px;
@@ -180,7 +201,83 @@
     }
     [data-theme="dark"] .theme-switch-thumb { transform: translateX(20px); }
 
-    /* Панель управления */
+    /* ============================================================
+       НИЖНИЙ ТАББАР (BOTTOM NAVIGATION BAR)
+    ============================================================ */
+    .bottom-tab-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--tab-bar-bg);
+      border-top: 1px solid var(--tab-bar-border);
+      padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      z-index: 900;
+      box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .tab-btn {
+      flex: 1;
+      max-width: 90px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      background: transparent;
+      border: none;
+      color: var(--tab-inactive);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 4px 0;
+      position: relative;
+      transition: color 0.18s ease;
+    }
+
+    .tab-btn .tab-icon {
+      font-size: 20px;
+      line-height: 1;
+      transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .tab-btn.active {
+      color: var(--tab-active);
+    }
+
+    .tab-btn.active .tab-icon {
+      transform: translateY(-2px) scale(1.1);
+    }
+
+    .tab-badge-dot {
+      position: absolute;
+      top: 3px;
+      right: 24px;
+      width: 7px;
+      height: 7px;
+      background: var(--mgpu-red);
+      border-radius: 50%;
+      border: 1.5px solid var(--card-bg);
+      display: none;
+    }
+
+    /* Секции контента вкладок */
+    .tab-content-view {
+      display: none;
+    }
+    .tab-content-view.active-view {
+      display: block;
+      animation: tabFadeIn 0.2s ease-out;
+    }
+    @keyframes tabFadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Экраны и элементы вкладки Расписание */
     .controls-panel { padding: 12px 16px 6px; display: flex; flex-direction: column; gap: 8px; }
     .week-select {
       width: 100%;
@@ -231,23 +328,6 @@
       padding: 4px;
     }
 
-    /* Универсальная плашка календаря */
-    .sync-cal-banner {
-      display: flex;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 8px 12px;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      cursor: pointer;
-      margin-top: 2px;
-    }
-    .sync-cal-banner:active { opacity: 0.8; }
-    .sync-cal-left { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--mgpu-dark); }
-    .sync-cal-arrow { font-size: 12px; color: var(--mgpu-red); font-weight: 800; }
-
     /* Дни недели */
     .days-bar {
       display: flex;
@@ -281,27 +361,6 @@
     .day-chip.active .day-name,
     .day-chip.active .day-num {
       color: #FFFFFF !important;
-    }
-
-    /* Скелетон быстрой загрузки */
-    .skeleton-card {
-      background: var(--card-bg);
-      border-radius: 12px;
-      padding: 16px;
-      border-left: 4px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      animation: pulse 1.2s infinite ease-in-out;
-    }
-    .skeleton-line {
-      height: 12px;
-      background: var(--skeleton-bg);
-      border-radius: 6px;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.55; }
     }
 
     /* Карточки расписания */
@@ -348,7 +407,7 @@
     .lesson-room { font-weight: 600; color: var(--mgpu-dark); margin-top: 2px; }
     .lesson-target-group { font-weight: 700; color: var(--mgpu-red); margin-bottom: 2px; }
 
-    /* Домашнее задание */
+    /* Домашнее задание в карточке */
     .hw-preview-box {
       margin-top: 10px;
       padding: 9px 12px;
@@ -366,6 +425,7 @@
       font-weight: 700;
       color: var(--mgpu-dark);
       font-size: 11px;
+      gap: 6px;
     }
     .hw-author-badge {
       font-size: 11px;
@@ -373,7 +433,18 @@
       color: var(--text-sub);
       display: inline-flex;
       align-items: center;
-      gap: 3px;
+      gap: 4px;
+    }
+    .hw-admin-tag {
+      color: var(--mgpu-red);
+      background: var(--mgpu-red-light);
+      border: 1px solid rgba(227, 6, 19, 0.28);
+      font-weight: 800;
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 5px;
+      text-transform: lowercase;
+      letter-spacing: 0.2px;
     }
     .hw-preview-text {
       font-size: 13px;
@@ -428,7 +499,252 @@
       transition: width 0.3s ease;
     }
 
-    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-sub); font-size: 14px; }
+    /* Скелетон */
+    .skeleton-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 16px;
+      border-left: 4px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      animation: pulse 1.2s infinite ease-in-out;
+    }
+    .skeleton-line { height: 12px; background: var(--skeleton-bg); border-radius: 6px; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+    /* ============================================================
+       ВКЛАДКА 2: ЛЕНТА ДОМАШНИХ ЗАДАНИЙ
+    ============================================================ */
+    .hw-feed-wrap {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .hw-feed-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .hw-feed-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--mgpu-dark);
+    }
+    .hw-feed-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .hw-feed-search {
+      flex: 1;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      border-radius: 10px;
+      font-size: 13px;
+      color: var(--mgpu-dark);
+      outline: none;
+    }
+    .hw-feed-search:focus { border-color: var(--mgpu-red); }
+    .hw-card-feed {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--hw-border);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .hw-card-feed.is-admin-hw {
+      border-left-color: var(--mgpu-red);
+    }
+    .hw-card-feed.is-completed {
+      opacity: 0.55;
+    }
+    .hw-card-feed.is-completed .hw-feed-body {
+      text-decoration: line-through;
+    }
+    .hw-card-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .hw-card-subj {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--mgpu-dark);
+      line-height: 1.25;
+    }
+    .hw-card-meta {
+      font-size: 11px;
+      color: var(--text-sub);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .hw-feed-body {
+      font-size: 13px;
+      color: var(--mgpu-dark);
+      line-height: 1.4;
+      white-space: pre-wrap;
+      background: var(--input-bg);
+      padding: 9px 12px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+    }
+    .hw-card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--text-sub);
+      padding-top: 2px;
+    }
+    .hw-done-check {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-sub);
+      cursor: pointer;
+    }
+    .hw-done-check input {
+      accent-color: var(--mgpu-red);
+      width: 15px;
+      height: 15px;
+    }
+
+    /* ============================================================
+       ВКЛАДКА 3: СЕССИЯ (ДИНАМИЧЕСКАЯ)
+    ============================================================ */
+    .session-view-wrap {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .session-banner-card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 18px 16px;
+      border: 1px solid var(--border);
+      border-left: 4px solid #FF9F0A;
+      box-shadow: 0 3px 12px rgba(0,0,0,0.03);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .session-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--accent-orange);
+      color: var(--accent-orange-text);
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 9px;
+      border-radius: 8px;
+      width: fit-content;
+    }
+    .session-title {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--mgpu-dark);
+    }
+    .session-desc {
+      font-size: 13px;
+      color: var(--text-sub);
+      line-height: 1.4;
+    }
+
+    /* ============================================================
+       ВКЛАДКА 4: ПРОФИЛЬ И НАСТРОЙКИ
+    ============================================================ */
+    .profile-view-wrap {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .profile-hero-card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 18px 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 3px 12px rgba(0,0,0,0.03);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .profile-hero-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .profile-user-role {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .profile-user-target {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--mgpu-dark);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .settings-group {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .settings-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--mgpu-dark);
+      text-decoration: none;
+    }
+    .settings-row:last-child {
+      border-bottom: none;
+    }
+    .settings-row:active {
+      background: var(--input-bg);
+    }
+    .settings-row-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .settings-row-icon {
+      font-size: 18px;
+    }
+    .settings-row-arrow {
+      font-size: 14px;
+      color: var(--text-sub);
+      font-weight: 700;
+    }
 
     /* Модальные окна */
     .modal-overlay {
@@ -623,7 +939,7 @@
     .ios-install-banner {
       display: none;
       position: fixed;
-      bottom: calc(16px + env(safe-area-inset-bottom));
+      bottom: calc(76px + env(safe-area-inset-bottom));
       left: 16px;
       right: 16px;
       max-width: 440px;
@@ -633,7 +949,7 @@
       border-radius: 16px;
       padding: 12px 14px;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
-      z-index: 999;
+      z-index: 890;
       animation: bannerSlideUp 0.35s ease-out;
     }
     @keyframes bannerSlideUp {
@@ -669,6 +985,7 @@
 </head>
 <body>
 
+  <!-- ШАПКА -->
   <div class="header">
     <div class="header-left">
       <img src="logo.png" alt="МГПУ" class="header-logo" onerror="this.style.display='none'">
@@ -690,45 +1007,164 @@
     </div>
   </div>
 
-  <div class="controls-panel">
-    <select id="weekSelect" class="week-select" onchange="onWeekChange()"></select>
+  <!-- ВКЛАДКА 1: РАСПИСАНИЕ (ГЛАВНЫЙ ЭКРАН) -->
+  <div class="tab-content-view active-view" id="viewSchedule">
+    <div class="controls-panel">
+      <select id="weekSelect" class="week-select" onchange="onWeekChange()"></select>
 
-    <div class="search-wrapper">
-      <span class="search-icon-left">🔍</span>
-      <input 
-        type="text" 
-        id="scheduleSearchInput" 
-        class="search-input" 
-        placeholder="Поиск по предмету, преподавателю, аудитории..." 
-        oninput="handleScheduleSearch(this.value)"
-      >
-      <button type="button" id="scheduleSearchClear" class="search-clear-btn" onclick="clearScheduleSearch()">&times;</button>
-    </div>
-
-    <!-- Универсальная плашка календаря (Студенты и Преподаватели) -->
-    <div id="syncCalBanner" class="sync-cal-banner" onclick="openCalendarModal()">
-      <div class="sync-cal-left">
-        <span>📅</span>
-        <span id="syncCalBannerText">Синхронизация с Google Календарём</span>
+      <div class="search-wrapper">
+        <span class="search-icon-left">🔍</span>
+        <input 
+          type="text" 
+          id="scheduleSearchInput" 
+          class="search-input" 
+          placeholder="Поиск по предмету, преподавателю, аудитории..." 
+          oninput="handleScheduleSearch(this.value)"
+        >
+        <button type="button" id="scheduleSearchClear" class="search-clear-btn" onclick="clearScheduleSearch()">&times;</button>
       </div>
-      <span class="sync-cal-arrow">Настроить ➔</span>
+
+      <!-- Плашка календаря на главной -->
+      <div id="syncCalBanner" class="sync-cal-banner" onclick="openCalendarModal()">
+        <div class="sync-cal-left">
+          <span>📅</span>
+          <span id="syncCalBannerText">Синхронизация с Google Календарём</span>
+        </div>
+        <span class="sync-cal-arrow">Настроить ➔</span>
+      </div>
+    </div>
+
+    <div class="days-bar" id="daysBar"></div>
+    <div class="schedule-list" id="scheduleList">
+      <div class="skeleton-card">
+        <div class="skeleton-line" style="width: 35%;"></div>
+        <div class="skeleton-line" style="width: 85%; height: 16px;"></div>
+        <div class="skeleton-line" style="width: 50%;"></div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton-line" style="width: 35%;"></div>
+        <div class="skeleton-line" style="width: 75%; height: 16px;"></div>
+        <div class="skeleton-line" style="width: 45%;"></div>
+      </div>
     </div>
   </div>
 
-  <div class="days-bar" id="daysBar"></div>
-  <div class="schedule-list" id="scheduleList">
-    <div class="skeleton-card">
-      <div class="skeleton-line" style="width: 35%;"></div>
-      <div class="skeleton-line" style="width: 85%; height: 16px;"></div>
-      <div class="skeleton-line" style="width: 50%;"></div>
-    </div>
-    <div class="skeleton-card">
-      <div class="skeleton-line" style="width: 35%;"></div>
-      <div class="skeleton-line" style="width: 75%; height: 16px;"></div>
-      <div class="skeleton-line" style="width: 45%;"></div>
+  <!-- ВКЛАДКА 2: ЛЕНТА ДОМАШНИХ ЗАДАНИЙ -->
+  <div class="tab-content-view" id="viewHomework">
+    <div class="hw-feed-wrap">
+      <div class="hw-feed-header">
+        <div class="hw-feed-title">📝 Все домашние задания</div>
+      </div>
+      <div class="hw-feed-controls">
+        <input 
+          type="text" 
+          id="hwFeedSearchInput" 
+          class="hw-feed-search" 
+          placeholder="🔍 Поиск по предмету или тексту задания..." 
+          oninput="renderHomeworkFeed()"
+        >
+      </div>
+      <div id="hwFeedList" style="display:flex; flex-direction:column; gap:10px;">
+        <div style="font-size:13px; color:var(--text-sub); text-align:center; padding:30px 10px;">Загрузка домашних заданий...</div>
+      </div>
     </div>
   </div>
 
+  <!-- ВКЛАДКА 3: СЕССИЯ (ДИНАМИЧЕСКАЯ) -->
+  <div class="tab-content-view" id="viewSession">
+    <div class="session-view-wrap">
+      <div class="session-banner-card">
+        <div class="session-status-badge">⏳ Статус расписания</div>
+        <div class="session-title" id="sessionPeriodTitle">Сессионный период</div>
+        <div class="session-desc">
+          Расписание зачётов и экзаменов публикуется учебной частью ИИЯ МГПУ в отдельном обсуждении группы ВКонтакте.
+        </div>
+        <div style="font-size:12px; color:var(--mgpu-red); font-weight:700; margin-top:4px;">
+          ℹ️ Как только деканат утвердит даты сессии, они появятся в этой вкладке со временем консультаций и экзаменов.
+        </div>
+      </div>
+
+      <div id="sessionExamsList" style="display:flex; flex-direction:column; gap:10px;"></div>
+    </div>
+  </div>
+
+  <!-- ВКЛАДКА 4: ПРОФИЛЬ И НАСТРОЙКИ -->
+  <div class="tab-content-view" id="viewProfile">
+    <div class="profile-view-wrap">
+      <div class="profile-hero-card">
+        <div class="profile-hero-top">
+          <span class="profile-user-role" id="profileRoleBadge">🎓 Академическая группа</span>
+          <button class="target-badge-btn" onclick="openProfileModal()">Сменить</button>
+        </div>
+        <div class="profile-user-target" id="profileTargetName">Загрузка...</div>
+        <div style="font-size:12px; color:var(--text-sub);">
+          Расписание Института иностранных языков МГПУ
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-row" onclick="openCalendarModal()">
+          <div class="settings-row-left">
+            <span class="settings-row-icon">🗓️</span>
+            <span>Google и Apple Календарь</span>
+          </div>
+          <span class="settings-row-arrow">Подключить ➔</span>
+        </div>
+
+        <div class="settings-row" onclick="toggleThemeManual()">
+          <div class="settings-row-left">
+            <span class="settings-row-icon">🌙</span>
+            <span>Тёмная / светлая тема</span>
+          </div>
+          <span class="settings-row-arrow" id="profileThemeState">☀️</span>
+        </div>
+
+        <div class="settings-row" onclick="triggerSmartInstall()">
+          <div class="settings-row-left">
+            <span class="settings-row-icon">📲</span>
+            <span>Установить на рабочий стол</span>
+          </div>
+          <span class="settings-row-arrow">➔</span>
+        </div>
+
+        <div class="settings-row" onclick="forceClearCacheAndReload()">
+          <div class="settings-row-left">
+            <span class="settings-row-icon">🔄</span>
+            <span>Очистить кэш и обновить базу</span>
+          </div>
+          <span class="settings-row-arrow">Сброс ➔</span>
+        </div>
+      </div>
+
+      <div style="text-align:center; font-size:11px; color:var(--text-sub); margin-top:10px; line-height:1.4;">
+        MCU Schedule • ИИЯ МГПУ 2026<br>
+        Автор: Окороков Роман Александрович
+      </div>
+    </div>
+  </div>
+
+  <!-- НИЖНИЙ ТАББАР -->
+  <div class="bottom-tab-bar" id="bottomTabBar">
+    <button type="button" class="tab-btn active" id="tabBtnSchedule" onclick="switchNavTab('schedule')">
+      <span class="tab-icon">📅</span>
+      <span>Расписание</span>
+    </button>
+    <button type="button" class="tab-btn" id="tabBtnHomework" onclick="switchNavTab('homework')">
+      <span class="tab-icon">📝</span>
+      <span>Домашка</span>
+      <span class="tab-badge-dot" id="hwTabDot"></span>
+    </button>
+    <button type="button" class="tab-btn" id="tabBtnSession" style="display:none;" onclick="switchNavTab('session')">
+      <span class="tab-icon">🎓</span>
+      <span>Сессия</span>
+    </button>
+    <button type="button" class="tab-btn" id="tabBtnProfile" onclick="switchNavTab('profile')">
+      <span class="tab-icon">⚙️</span>
+      <span>Профиль</span>
+    </button>
+  </div>
+
+  <!-- iOS Баннер -->
   <div id="iosInstallBanner" class="ios-install-banner">
     <div class="ios-banner-body">
       <div class="ios-banner-icon">📲</div>
@@ -791,7 +1227,7 @@
     </div>
   </div>
 
-  <!-- Модальное окно профиля -->
+  <!-- Модальное окно выбора профиля -->
   <div class="modal-overlay" id="profileModal">
     <div class="modal-sheet" id="modalSheet">
       <div class="drag-handle-bar"></div>
@@ -861,7 +1297,6 @@
       });
     }
 
-    /* Очищаем старый тяжелый кэш базы из localStorage, чтобы освободить память под ДЗ */
     try { localStorage.removeItem('mgpu_schedule_db_cache'); } catch (e) {}
 
     /* ========== ТОЧНОЕ ОТСЛЕЖИВАНИЕ ОФЛАЙН-РЕЖИМА ========== */
@@ -876,6 +1311,7 @@
       }
       if (prev !== isAppOffline && typeof render === 'function' && allGroups.length > 0) {
         render();
+        renderHomeworkFeed();
       }
     }
 
@@ -889,7 +1325,6 @@
 
     const WORKER_URL = "https://steep-forest-40b2.okroma007.workers.dev";
 
-    /* Точное определение платформы без ложных ожиданий VK Bridge */
     const tg = window.Telegram?.WebApp;
     const isInsideTelegram = Boolean(tg && tg.initData);
     const isInsideVK = window.location.search.includes('vk_user_id') || window.location.search.includes('vk_app_id');
@@ -930,6 +1365,9 @@
       document.documentElement.setAttribute('data-theme', theme);
       const thumb = document.getElementById("themeSwitchThumb");
       if (thumb) thumb.textContent = theme === 'dark' ? '🌙' : '☀️';
+
+      const profThemeState = document.getElementById("profileThemeState");
+      if (profThemeState) profThemeState.textContent = theme === 'dark' ? '🌙 Тёмная' : '☀️ Светлая';
 
       if (saveManual) localStorage.setItem('mgpu_user_theme', theme);
       if (tg && isInsideTelegram) {
@@ -1043,7 +1481,6 @@
       }
     };
 
-    /* Двойной кэш домашних заданий (localStorage + CacheStorage) */
     const HwCache = {
       getSync(key) {
         try {
@@ -1085,13 +1522,20 @@
 
     function sanitizeName(str) {
       return (str || '')
-        .replace(/[\u00A0\u1680\u180E\u2000-\u200B\u202F\u205F\u3000\uFEFF]/g, ' ')
+        .replace(/[  ᠎ -​  　﻿]/g, ' ')
         .replace(/[–—−]/g, '-')
         .trim()
         .toLowerCase();
     }
 
-    /* ========== ТЕЛЕМЕТРИЯ С ЗАЩИТОЙ ОТ НАКРУТКИ И ЦИКЛОМ 02:59 МСК ========== */
+    function isAdminHwAuthor(author) {
+      if (!author) return false;
+      if (author.is_admin === true) return true;
+      const badge = (author.badge || '').trim().toLowerCase();
+      return badge === '@kommunalkamus' || badge === 'kommunalkamus';
+    }
+
+    /* ========== ТЕЛЕМЕТРИЯ С ЦИКЛОМ 02:59 МСК ========== */
     async function sendSmartTelemetry(force = false) {
       if (isAppOffline) return;
       try {
@@ -1101,7 +1545,6 @@
         const currentTarget = currentRole === 'teacher' ? currentTeacher : currentGroup;
         if (!currentTarget) return;
 
-        // Сдвиг +1 минута к UTC переводит границу суток/недели/месяца ровно на 02:59:00 МСК
         const shifted = new Date(Date.now() + 60 * 1000);
         const y = shifted.getUTCFullYear();
         const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
@@ -1148,10 +1591,10 @@
       } catch (e) {}
     }
 
-    /* ========== УМНЫЙ НЕЧЁТКИЙ ПОИСК С АВТОИСПРАВЛЕНИЕМ РАСКЛАДКИ ========== */
+    /* ========== УМНЫЙ ПОИСК ========== */
     const KEYBOARD_EN_TO_RU = {
       'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','[':'х',']':'ъ',
-      'a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д',';':'ж','\'':'э',
+      'a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д',';':'ж',''':'э',
       'z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь',',':'б','.':'ю'
     };
 
@@ -1202,7 +1645,7 @@
     const DAYS = ["ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА"];
     const SHORT_DAYS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
     
-    let db = { groups: {}, weeks: {}, teachers: {} };
+    let db = { groups: {}, weeks: {}, teachers: {}, exams: {} };
     let directionsList = [];
     let allGroups = [];
     let allTeachers = [];
@@ -1283,7 +1726,232 @@
       return dates;
     }
 
-    /* ========== МГНОВЕННАЯ ЗАГРУЗКА РАСПИСАНИЯ (STALE-WHILE-REVALIDATE) ========== */
+    /* ========== УПРАВЛЕНИЕ НАВИГАЦИОННЫМИ ВКЛАДКАМИ ========== */
+    let currentActiveTab = 'schedule';
+
+    function switchNavTab(tabName) {
+      currentActiveTab = tabName;
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content-view').forEach(view => view.classList.remove('active-view'));
+
+      if (tabName === 'schedule') {
+        document.getElementById('tabBtnSchedule').classList.add('active');
+        document.getElementById('viewSchedule').classList.add('active-view');
+      } else if (tabName === 'homework') {
+        document.getElementById('tabBtnHomework').classList.add('active');
+        document.getElementById('viewHomework').classList.add('active-view');
+        renderHomeworkFeed();
+      } else if (tabName === 'session') {
+        document.getElementById('tabBtnSession').classList.add('active');
+        document.getElementById('viewSession').classList.add('active-view');
+        renderSessionTab();
+      } else if (tabName === 'profile') {
+        document.getElementById('tabBtnProfile').classList.add('active');
+        document.getElementById('viewProfile').classList.add('active-view');
+        updateProfileTabInfo();
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    /* Проверка активности сессионного режима (1 дек - 10 фев И 1 мая - 10 июля) */
+    function checkSessionTabAvailability() {
+      const now = new Date();
+      const month = now.getMonth(); // 0 = Jan, 1 = Feb ... 11 = Dec
+      const day = now.getDate();
+
+      const isWinterSession = (month === 11) || (month === 0) || (month === 1 && day <= 10);
+      const isSummerSession = (month === 4) || (month === 5) || (month === 6 && day <= 10);
+      const hasExamsData = Boolean(db.exams && Object.keys(db.exams).length > 0);
+
+      const isSessionActive = isWinterSession || isSummerSession || hasExamsData;
+      const sessionTabBtn = document.getElementById('tabBtnSession');
+      if (sessionTabBtn) {
+        sessionTabBtn.style.display = isSessionActive ? 'flex' : 'none';
+      }
+
+      const periodTitle = isWinterSession ? '❄️ Зимняя экзаменационная сессия' : (isSummerSession ? '☀️ Летняя экзаменационная сессия' : '🎓 Экзаменационная сессия');
+      const titleEl = document.getElementById('sessionPeriodTitle');
+      if (titleEl) titleEl.textContent = periodTitle;
+    }
+
+    /* Отрисовка вкладки Сессия */
+    function renderSessionTab() {
+      const container = document.getElementById('sessionExamsList');
+      const targetName = currentRole === 'teacher' ? currentTeacher : currentGroup;
+      const examsData = db.exams ? (db.exams[targetName] || []) : [];
+
+      if (!examsData || examsData.length === 0) {
+        container.innerHTML = `
+          <div style="text-align:center; padding:35px 20px; background:var(--card-bg); border-radius:14px; border:1px solid var(--border);">
+            <div style="font-size:28px; margin-bottom:8px;">📅</div>
+            <div style="font-weight:700; font-size:14px; margin-bottom:4px;">Расписание сессии пока не опубликовано</div>
+            <div style="font-size:12px; color:var(--text-sub); line-height:1.4;">
+              Учебная часть загрузит даты в обсуждения группы ВКонтакте перед началом зачётной недели.
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = examsData.map(item => `
+        <div class="lesson-card" style="border-left-color: ${item.type === 'Экзамен' ? 'var(--mgpu-red)' : '#FF9F0A'};">
+          <div class="lesson-header">
+            <span class="lesson-time">🗓️ ${item.date || 'Дата уточняется'} • ${item.time || ''}</span>
+            <span class="badge" style="background:${item.type === 'Экзамен' ? 'var(--mgpu-red-light)' : 'var(--accent-orange)'}; color:${item.type === 'Экзамен' ? 'var(--mgpu-red)' : 'var(--accent-orange-text)'};">
+              ${item.type || 'Зачёт'}
+            </span>
+          </div>
+          <div class="lesson-name">${item.subject || 'Предмет'}</div>
+          <div class="lesson-info">
+            ${item.teacher ? `<div>👨‍🏫 Преподаватель: ${item.teacher}</div>` : ''}
+            ${item.room ? `<div class="lesson-room">📍 Аудитория: ${item.room}</div>` : ''}
+            ${item.consultation ? `<div style="font-size:11px; color:var(--text-sub); margin-top:4px;">💬 Консультация: ${item.consultation}</div>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    /* Отрисовка ленты ДЗ */
+    function renderHomeworkFeed() {
+      const container = document.getElementById('hwFeedList');
+      const query = (document.getElementById('hwFeedSearchInput')?.value || '').trim().toLowerCase();
+      const currentWeekNum = parseInt(document.getElementById("weekSelect")?.value, 10);
+      const allLessons = getActiveLessonsList();
+
+      const items = [];
+      const currentHwSource = currentRole === 'teacher' ? teacherWeekHw : { [currentGroup.toLowerCase()]: currentWeekHw };
+
+      for (const [grpKey, grpHw] of Object.entries(currentHwSource)) {
+        if (!grpHw || typeof grpHw !== 'object') continue;
+        for (const [lessonKey, hwVal] of Object.entries(grpHw)) {
+          if (!hwVal || !hwVal.text) continue;
+
+          const parts = lessonKey.split('_');
+          const day = parts[0] || '';
+          const pair = parts[1] || '';
+          const rawSubj = parts.slice(2).join(' ');
+
+          const lessonObj = allLessons.find(l => 
+            l.day === day && 
+            String(l.pair) === String(pair) &&
+            smartMatch(l.subject, rawSubj)
+          );
+
+          const subject = lessonObj?.subject || rawSubj.replace(/_/g, ' ');
+          const time = lessonObj?.time || '';
+          const groupTitle = currentRole === 'teacher' ? (lessonObj?.group || grpKey.toUpperCase()) : currentGroup;
+
+          if (query) {
+            const fullStr = `${subject} ${hwVal.text} ${groupTitle} ${hwVal.author?.badge || ''}`.toLowerCase();
+            if (!fullStr.includes(query)) continue;
+          }
+
+          items.push({
+            lessonKey,
+            subject,
+            time,
+            day,
+            pair,
+            groupTitle,
+            text: hwVal.text,
+            author: hwVal.author,
+            updated_at: hwVal.updated_at,
+            originalLesson: lessonObj || { day, pair, subject, group: groupTitle }
+          });
+        }
+      }
+
+      const dot = document.getElementById('hwTabDot');
+      if (dot) dot.style.display = items.length > 0 ? 'block' : 'none';
+
+      if (items.length === 0) {
+        container.innerHTML = `
+          <div style="text-align:center; padding:35px 20px; background:var(--card-bg); border-radius:14px; border:1px solid var(--border);">
+            <div style="font-size:28px; margin-bottom:8px;">🎉</div>
+            <div style="font-weight:700; font-size:14px; margin-bottom:4px;">Домашних заданий пока нет</div>
+            <div style="font-size:12px; color:var(--text-sub);">
+              ${currentRole === 'teacher' ? 'У ваших групп нет записанных заданий на эту неделю.' : 'На эту неделю всё чисто или задания ещё не записаны.'}
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = items.map((item, idx) => {
+        const isAdm = isAdminHwAuthor(item.author);
+        const icon = item.author?.platform === 'tg' ? '📱' : (item.author?.platform === 'vk' ? '🔵' : '🌐');
+        const adminTagHtml = isAdm ? `<span class="hw-admin-tag">админ</span>` : '';
+        const authorHtml = (!isAppOffline && item.author?.badge)
+          ? `<span class="hw-author-badge">${icon} ${item.author.badge}${adminTagHtml}</span>`
+          : '';
+        const itemJson = JSON.stringify(item.originalLesson).replace(/"/g, '&quot;');
+        const checkKey = `mgpu_done_${item.groupTitle}_${item.lessonKey}`;
+        const isDone = localStorage.getItem(checkKey) === 'true';
+
+        return `
+          <div class="hw-card-feed ${isAdm ? 'is-admin-hw' : ''} ${isDone ? 'is-completed' : ''}" id="hwFeedCard_${idx}">
+            <div class="hw-card-top-row">
+              <div>
+                <div class="hw-card-subj">${item.subject}</div>
+                <div class="hw-card-meta">
+                  <span style="color:var(--mgpu-red); font-weight:700;">${item.groupTitle}</span>
+                  <span>•</span>
+                  <span>${item.day}, ${item.pair} пара ${item.time ? '(' + item.time + ')' : ''}</span>
+                </div>
+              </div>
+              <button type="button" class="btn-action" style="padding:4px 8px; font-size:11px;" onclick="openHwEditor(${itemJson})">✏️ Изм.</button>
+            </div>
+            <div class="hw-feed-body">${item.text}</div>
+            <div class="hw-card-footer">
+              <label class="hw-done-check">
+                <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleHomeworkDone('${checkKey}', this, 'hwFeedCard_${idx}')">
+                <span>Выполнено</span>
+              </label>
+              <div>${authorHtml} ${item.updated_at ? ' • ' + item.updated_at : ''}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleHomeworkDone(storageKey, checkbox, cardId) {
+      const isChecked = checkbox.checked;
+      try {
+        if (isChecked) localStorage.setItem(storageKey, 'true');
+        else localStorage.removeItem(storageKey);
+      } catch (e) {}
+      const card = document.getElementById(cardId);
+      if (card) card.classList.toggle('is-completed', isChecked);
+    }
+
+    /* Обновление данных экрана Профиль */
+    function updateProfileTabInfo() {
+      const roleBadge = document.getElementById('profileRoleBadge');
+      const targetName = document.getElementById('profileTargetName');
+      if (currentRole === 'teacher') {
+        if (roleBadge) roleBadge.textContent = '👨‍🏫 Преподаватель кафедры';
+        if (targetName) targetName.textContent = currentTeacher || 'Не выбран';
+      } else {
+        if (roleBadge) roleBadge.textContent = '🎓 Академическая группа';
+        if (targetName) targetName.textContent = currentGroup || 'Не выбрана';
+      }
+    }
+
+    /* Принудительная очистка кэша */
+    async function forceClearCacheAndReload() {
+      if (!confirm('Очистить локальный кэш расписания и принудительно обновить приложение?')) return;
+      try {
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+        localStorage.removeItem('mgpu_schedule_db_cache');
+      } catch (e) {}
+      location.reload(true);
+    }
+
+    /* ========== ЗАГРУЗКА И ИНИЦИАЛИЗАЦИЯ ========== */
     async function getCachedSchedule() {
       if (!('caches' in window)) return null;
       try {
@@ -1372,7 +2040,6 @@
     async function init() {
       setOfflineState(!navigator.onLine);
       try {
-        // 1. Мгновенный запуск из локального кэша (20-40 мс)
         const cachedData = await getCachedSchedule();
 
         if (cachedData) {
@@ -1380,25 +2047,26 @@
           const isFirstTime = await resolveUserProfile();
 
           updateHeaderTitle();
+          updateProfileTabInfo();
           initDateSelection();
           renderDaysBar();
           preloadHomeworkFromLocalSync();
           render();
+          checkSessionTabAvailability();
           checkIosBanner();
 
           if (isFirstTime) openProfileModal();
           else sendSmartTelemetry();
 
-          // Неблокирующее фоновое обновление ДЗ и базы расписания
           loadWeekHomework();
           fetchNetworkSchedule().then((freshData) => {
             prepareDatabase(freshData);
             render();
+            checkSessionTabAvailability();
           }).catch(() => {});
           return;
         }
 
-        // 2. Первый холодный запуск (если в кэше еще ничего нет)
         const freshData = await fetchNetworkSchedule();
         prepareDatabase(freshData);
 
@@ -1410,10 +2078,12 @@
         const isFirstTime = await resolveUserProfile();
 
         updateHeaderTitle();
+        updateProfileTabInfo();
         initDateSelection();
         renderDaysBar();
         preloadHomeworkFromLocalSync();
         render();
+        checkSessionTabAvailability();
         checkIosBanner();
 
         if (isFirstTime) openProfileModal();
@@ -1437,6 +2107,7 @@
         lbl.textContent = `🎓 ${currentGroup || "Группа"}`;
         if (bannerText) bannerText.textContent = `Календарь группы ${currentGroup}`;
       }
+      updateProfileTabInfo();
     }
 
     function getActiveLessonsList() {
@@ -1579,7 +2250,9 @@
     function copyCalendarUrl() {
       const icsUrl = getCalendarUrl();
       navigator.clipboard.writeText(icsUrl).then(() => {
-        alert("✅ Ссылка подписки скопирована!\n\nВставьте её в настройках Google или Apple Календаря (раздел «Добавить по URL»).");
+        alert("✅ Ссылка подписки скопирована!
+
+Вставьте её в настройках Google или Apple Календаря (раздел «Добавить по URL»).");
       }).catch(() => {
         prompt("Скопируйте ссылку на подписку вручную:", icsUrl);
       });
@@ -1589,7 +2262,7 @@
       window.open(getCalendarUrl(), '_blank');
     }
 
-    /* ========== НЕБЛОКИРУЮЩАЯ ЗАГРУЗКА ДЗ С ОФЛАЙН-КЭШЕМ ========== */
+    /* ========== НЕБЛОКИРУЮЩАЯ ЗАГРУЗКА ДЗ С МЕТКОЙ АДМИНА ========== */
     function getFallbackAuthorIdentity() {
       if (isInsideVK) {
         const vkName = window.currentVkUserName || (currentRole === "teacher" ? `Преподаватель ${currentTeacher}` : "Студент ВКонтакте");
@@ -1666,6 +2339,7 @@
         if (!Object.keys(currentWeekHw).length) {
           currentWeekHw = await HwCache.get(cacheKey);
           render();
+          if (currentActiveTab === 'homework') renderHomeworkFeed();
         }
 
         try {
@@ -1676,6 +2350,7 @@
           await HwCache.set(cacheKey, freshData);
           setOfflineState(false);
           render();
+          if (currentActiveTab === 'homework') renderHomeworkFeed();
         } catch (e) {
           setOfflineState(true);
         }
@@ -1707,6 +2382,7 @@
 
         setOfflineState(anyNetworkFailed || !navigator.onLine);
         render();
+        if (currentActiveTab === 'homework') renderHomeworkFeed();
       }
     }
 
@@ -1740,9 +2416,10 @@
       if (hwItem) {
         textInput.value = hwItem.text;
         if (!isAppOffline && hwItem.author?.badge) {
-          authorInfo.style.display = "block";
           const icon = hwItem.author?.platform === 'tg' ? '📱' : (hwItem.author?.platform === 'vk' ? '🔵' : '🌐');
-          authorInfo.innerHTML = `Записал(а): <b>${icon} ${hwItem.author.badge}</b>${hwItem.updated_at ? ' • ' + hwItem.updated_at : ''}`;
+          const adminTag = isAdminHwAuthor(hwItem.author) ? ' <span class="hw-admin-tag">админ</span>' : '';
+          authorInfo.style.display = "block";
+          authorInfo.innerHTML = `Записал(а): <b>${icon} ${hwItem.author.badge}</b>${adminTag}${hwItem.updated_at ? ' • ' + hwItem.updated_at : ''}`;
         } else {
           authorInfo.style.display = "none";
         }
@@ -1862,7 +2539,8 @@
           alert(ans.error);
           return;
         }
-        alert(`✅ Задание записано на следующую пару для группы ${targetGroup}:\n${nextLesson.day} (${nextLesson.week} неделя, ${nextLesson.pair} пара)`);
+        alert(`✅ Задание записано на следующую пару для группы ${targetGroup}:
+${nextLesson.day} (${nextLesson.week} неделя, ${nextLesson.pair} пара)`);
         closeHwModal();
         await loadWeekHomework();
       } catch (e) {
@@ -1996,8 +2674,10 @@
 
           if (hwData && hwData.text) {
             const icon = hwData.author?.platform === 'tg' ? '📱' : (hwData.author?.platform === 'vk' ? '🔵' : '🌐');
+            const isAdm = isAdminHwAuthor(hwData.author);
+            const adminTagHtml = isAdm ? `<span class="hw-admin-tag">админ</span>` : '';
             const authorBadgeHtml = (!isAppOffline && hwData.author?.badge)
-              ? `<span class="hw-author-badge">${icon} ${hwData.author.badge}</span>`
+              ? `<span class="hw-author-badge">${icon} ${hwData.author.badge}${adminTagHtml}</span>`
               : '';
 
             hwHtml = `
