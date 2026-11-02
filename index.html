@@ -1996,6 +1996,17 @@
       return data;
     }
 
+    function isIgnoredForJoint(sub, teach, room) {
+      const s = (sub || '').toLowerCase();
+      const stopWords = [
+        'самостоятельн', 'видеолекци', 'день для', 'библиотечн', 
+        'каникул', 'выходн', 'празднич', 'дежурств', 'окно', 'самоподготовк'
+      ];
+      if (stopWords.some(w => s.includes(w))) return true;
+      if (!teach && !room) return true;
+      return false;
+    }
+
     function enrichJointLessons(groupsDict) {
       const slotMap = new Map();
       for (const [grpName, lessons] of Object.entries(groupsDict || {})) {
@@ -2007,7 +2018,7 @@
           const sub = sanitizeName(item.subject);
           const teach = sanitizeName(item.teacher);
           const room = sanitizeName(item.room);
-          if (!sub) continue;
+          if (!sub || isIgnoredForJoint(sub, teach, room)) continue;
 
           const key = teach ? `${w}_${d}_${p}_${sub}_${teach}` : `${w}_${d}_${p}_${sub}_${room}`;
           if (!slotMap.has(key)) slotMap.set(key, new Set());
@@ -2024,11 +2035,16 @@
           const sub = sanitizeName(item.subject);
           const teach = sanitizeName(item.teacher);
           const room = sanitizeName(item.room);
-          if (!sub) continue;
+          if (!sub || isIgnoredForJoint(sub, teach, room)) {
+            item.all_joint_groups = [grpName];
+            item.joint_groups = [];
+            continue;
+          }
 
           const key = teach ? `${w}_${d}_${p}_${sub}_${teach}` : `${w}_${d}_${p}_${sub}_${room}`;
           const allGrps = Array.from(slotMap.get(key) || []).sort();
-          if (allGrps.length > 1) {
+          // Потоковые совместные пары объединяют от 2 до 6 групп. Более 6 — общевузовские события
+          if (allGrps.length > 1 && allGrps.length <= 4) {
             item.all_joint_groups = allGrps;
             item.joint_groups = allGrps.filter(g => g !== grpName);
           } else {
