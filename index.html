@@ -91,7 +91,13 @@
       color: var(--mgpu-dark); 
       padding-bottom: calc(72px + env(safe-area-inset-bottom)); 
       user-select: none; 
+      -webkit-user-select: none;
       min-height: 100vh;
+    }
+    input, textarea, select {
+      user-select: text !important;
+      -webkit-user-select: text !important;
+      pointer-events: auto !important;
     }
 
     /* Шапка МГПУ */
@@ -2232,6 +2238,8 @@
       });
 
       const now = new Date();
+      const targetDate = (now.getDay() === 0) ? new Date(now.getTime() + 86400000) : now;
+
       let matchedWeek = null;
       for (const w of uniqueWeeks) {
         const wMeta = db.weeks ? (db.weeks[w] || db.weeks[String(w)]) : null;
@@ -2243,15 +2251,40 @@
           const str = (typeof wMeta === 'string') ? wMeta : (list.find(x => x.week === w)?.date_range || "");
           const match = str.match(/(\d{2})\.(\d{2})\.(\d{2,4})\s*–\s*(\d{2})\.(\d{2})\.(\d{2,4})/);
           if (match) {
-            const y1 = match[3].length === 2 ? 2000 + parseInt(match[3]) : parseInt(match[3]);
-            const y2 = match[6].length === 2 ? 2000 + parseInt(match[6]) : parseInt(match[6]);
-            startDt = new Date(y1, parseInt(match[2]) - 1, parseInt(match[1]), 0, 0, 0);
-            endDt = new Date(y2, parseInt(match[5]) - 1, parseInt(match[4]), 23, 59, 59);
+            const y1 = match[3].length === 2 ? 2000 + parseInt(match[3], 10) : parseInt(match[3], 10);
+            const y2 = match[6].length === 2 ? 2000 + parseInt(match[6], 10) : parseInt(match[6], 10);
+            startDt = new Date(y1, parseInt(match[2], 10) - 1, parseInt(match[1], 10), 0, 0, 0);
+            endDt = new Date(y2, parseInt(match[5], 10) - 1, parseInt(match[4], 10), 23, 59, 59);
           }
         }
-        if (startDt && endDt && now >= startDt && now <= endDt) {
+        if (startDt && endDt && targetDate >= startDt && targetDate <= endDt) {
           matchedWeek = w;
           break;
+        }
+      }
+
+      if (!matchedWeek && uniqueWeeks.length > 0) {
+        let minDiff = Infinity;
+        for (const w of uniqueWeeks) {
+          const wMeta = db.weeks ? (db.weeks[w] || db.weeks[String(w)]) : null;
+          let startDt = null;
+          if (wMeta && typeof wMeta === 'object' && wMeta.start) {
+            startDt = new Date(wMeta.start);
+          } else {
+            const str = (typeof wMeta === 'string') ? wMeta : (list.find(x => x.week === w)?.date_range || "");
+            const m = str.match(/(\d{2})\.(\d{2})\.(\d{2,4})/);
+            if (m) {
+              const y = m[3].length === 2 ? 2000 + parseInt(m[3], 10) : parseInt(m[3], 10);
+              startDt = new Date(y, parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+            }
+          }
+          if (startDt && !isNaN(startDt.getTime())) {
+            const diff = Math.abs(targetDate.getTime() - startDt.getTime());
+            if (diff < minDiff) {
+              minDiff = diff;
+              matchedWeek = w;
+            }
+          }
         }
       }
 
@@ -2502,7 +2535,58 @@
       }
     }
 
+    let hwModalHideTimer = null;
+
+    function showAppAlert(msg, callback) {
+      try {
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+          document.activeElement.blur();
+        }
+      } catch (e) {}
+
+      if (tg && isInsideTelegram && typeof tg.showAlert === 'function') {
+        try {
+          tg.showAlert(String(msg), () => {
+            if (typeof callback === 'function') callback();
+          });
+          return;
+        } catch (e) {}
+      }
+
+      setTimeout(() => {
+        alert(String(msg));
+        if (typeof callback === 'function') callback();
+      }, 10);
+    }
+
+    function showAppConfirm(msg, callback) {
+      try {
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+          document.activeElement.blur();
+        }
+      } catch (e) {}
+
+      if (tg && isInsideTelegram && typeof tg.showConfirm === 'function') {
+        try {
+          tg.showConfirm(String(msg), (ok) => {
+            callback(Boolean(ok));
+          });
+          return;
+        } catch (e) {}
+      }
+
+      setTimeout(() => {
+        const ok = confirm(String(msg));
+        callback(Boolean(ok));
+      }, 10);
+    }
+
     function openHwEditor(item) {
+      if (hwModalHideTimer) {
+        clearTimeout(hwModalHideTimer);
+        hwModalHideTimer = null;
+      }
+
       const weekNum = parseInt(document.getElementById("weekSelect").value, 10);
       const lessonKey = getLessonKey(item.day, item.pair, item.subject, item.subgroup);
       const targetGroup = (currentRole === "teacher" ? item.group : currentGroup) || "";
@@ -2515,22 +2599,21 @@
         jointGroups: item.all_joint_groups || (item.joint_groups ? [targetGroup, ...item.joint_groups] : [targetGroup])
       };
 
-      let hwItem = null;
-      if (currentRole === "student") {
-        hwItem = currentWeekHw[lessonKey];
-      } else if (currentRole === "teacher" && targetGroup) {
-        hwItem = teacherWeekHw[targetGroup.trim().toLowerCase()]?.[lessonKey];
-      }
+      const hwItem = getLessonHomework(targetGroup, lessonKey, item.joint_groups);
 
       const authorInfo = document.getElementById("hwAuthorInfo");
       const delBtn = document.getElementById("hwDeleteBtn");
       const textInput = document.getElementById("hwInputText");
 
+      textInput.disabled = false;
+      textInput.readOnly = false;
+      textInput.style.pointerEvents = "auto";
+
       document.getElementById("hwModalTitle").textContent = item.subject;
       document.getElementById("hwModalSubtitle").textContent = 
         `${item.day} • ${item.pair} пара (${item.time}) • ${targetGroup}${item.subgroup ? ' • ' + item.subgroup : ''}`;
 
-      if (hwItem) {
+      if (hwItem && hwItem.text) {
         textInput.value = hwItem.text;
         if (!isAppOffline && hwItem.author?.badge) {
           const icon = hwItem.author?.platform === 'tg' ? '📱' : (hwItem.author?.platform === 'vk' ? '🔵' : '🌐');
@@ -2548,14 +2631,22 @@
       }
 
       const modal = document.getElementById("hwModal");
+      const sheetEl = modal.querySelector(".modal-sheet");
       modal.style.display = "flex";
-      modal.querySelector(".modal-sheet").style.transform = "translateY(0)";
+      sheetEl.style.transform = "translateY(0)";
     }
 
     function closeHwModal() {
+      const textInput = document.getElementById("hwInputText");
+      if (textInput) textInput.blur();
+
       const modal = document.getElementById("hwModal");
       modal.querySelector(".modal-sheet").style.transform = "translateY(100%)";
-      setTimeout(() => { modal.style.display = "none"; }, 200);
+      if (hwModalHideTimer) clearTimeout(hwModalHideTimer);
+      hwModalHideTimer = setTimeout(() => {
+        modal.style.display = "none";
+        hwModalHideTimer = null;
+      }, 200);
       activeLessonContext = null;
     }
 
@@ -2589,22 +2680,23 @@
 
     async function saveHomeworkCurrent() {
       if (!activeLessonContext) return;
-      const text = document.getElementById("hwInputText").value.trim();
+      const textInput = document.getElementById("hwInputText");
+      const text = textInput.value.trim();
       if (!text) {
-        alert("Пожалуйста, введите текст задания");
+        showAppAlert("Пожалуйста, введите текст задания");
         return;
       }
 
       try {
         const ans = await sendHwSave(activeLessonContext.group, activeLessonContext.week, activeLessonContext.lessonKey, text, activeLessonContext.jointGroups);
         if (ans.error) {
-          alert(ans.error);
+          showAppAlert(ans.error);
           return;
         }
         closeHwModal();
         await loadWeekHomework();
       } catch (e) {
-        alert(e.message || "Ошибка связи с сервером при сохранении ДЗ");
+        showAppAlert(e.message || "Ошибка связи с сервером при сохранении ДЗ");
       }
     }
 
@@ -2636,16 +2728,17 @@
 
     async function saveHomeworkNext() {
       if (!activeLessonContext) return;
-      const text = document.getElementById("hwInputText").value.trim();
+      const textInput = document.getElementById("hwInputText");
+      const text = textInput.value.trim();
       if (!text) {
-        alert("Пожалуйста, введите текст задания");
+        showAppAlert("Пожалуйста, введите текст задания");
         return;
       }
 
       const targetGroup = activeLessonContext.group;
       const nextLesson = findNextOccurrence(activeLessonContext.item, activeLessonContext.week, targetGroup);
       if (!nextLesson) {
-        alert("Следующая пара по этому предмету не найдена в расписании");
+        showAppAlert("Следующая пара по этому предмету не найдена в расписании");
         return;
       }
 
@@ -2654,56 +2747,60 @@
       try {
         const ans = await sendHwSave(targetGroup, nextLesson.week, nextKey, text, nextLesson.all_joint_groups || [targetGroup]);
         if (ans.error) {
-          alert(ans.error);
+          showAppAlert(ans.error);
           return;
         }
-        alert(`✅ Задание записано на следующую пару для группы ${targetGroup}:
-${nextLesson.day} (${nextLesson.week} неделя, ${nextLesson.pair} пара)`);
         closeHwModal();
+        showAppAlert(`✅ Задание записано на следующую пару для группы ${targetGroup}:\n${nextLesson.day} (${nextLesson.week} неделя, ${nextLesson.pair} пара)`);
         await loadWeekHomework();
       } catch (e) {
-        alert(e.message || "Ошибка связи с сервером при сохранении ДЗ");
+        showAppAlert(e.message || "Ошибка связи с сервером при сохранении ДЗ");
       }
     }
 
     async function deleteHomework() {
-      if (!activeLessonContext || !confirm("Удалить это домашнее задание для всей группы?")) return;
+      if (!activeLessonContext) return;
+      const ctx = { ...activeLessonContext };
 
-      if (isAppOffline || !navigator.onLine) {
-        alert("Для удаления ДЗ требуется интернет-соединение");
-        return;
-      }
+      showAppConfirm("Удалить это домашнее задание для всей группы?", async (confirmed) => {
+        if (!confirmed) return;
 
-      const payload = {
-        group: activeLessonContext.group,
-        week: activeLessonContext.week,
-        lessonKey: activeLessonContext.lessonKey,
-        jointGroups: activeLessonContext.jointGroups || [activeLessonContext.group],
-        author: getFallbackAuthorIdentity(),
-        isDelete: true
-      };
-
-      const headers = { "Content-Type": "application/json" };
-      if (tg && tg.initData) {
-        headers["Authorization"] = `tma ${tg.initData}`;
-      }
-
-      try {
-        const res = await fetch(`${WORKER_URL}/api/hw`, {
-          method: "POST",
-          headers: headers,
-          body: JSON.stringify(payload)
-        });
-        const ans = await res.json();
-        if (ans.error) {
-          alert(ans.error);
+        if (isAppOffline || !navigator.onLine) {
+          showAppAlert("Для удаления ДЗ требуется интернет-соединение");
           return;
         }
-        closeHwModal();
-        await loadWeekHomework();
-      } catch (e) {
-        alert("Не удалось удалить задание");
-      }
+
+        const payload = {
+          group: ctx.group,
+          week: ctx.week,
+          lessonKey: ctx.lessonKey,
+          jointGroups: ctx.jointGroups || [ctx.group],
+          author: getFallbackAuthorIdentity(),
+          isDelete: true
+        };
+
+        const headers = { "Content-Type": "application/json" };
+        if (tg && tg.initData) {
+          headers["Authorization"] = `tma ${tg.initData}`;
+        }
+
+        try {
+          const res = await fetch(`${WORKER_URL}/api/hw`, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+          const ans = await res.json();
+          if (ans.error) {
+            showAppAlert(ans.error);
+            return;
+          }
+          closeHwModal();
+          await loadWeekHomework();
+        } catch (e) {
+          showAppAlert("Не удалось удалить задание");
+        }
+      });
     }
 
     function handleScheduleSearch(query) {
