@@ -1321,10 +1321,9 @@
         navigator.serviceWorker.register('sw.js').catch(() => {});
       });
     }
-  function openTechSupport() {
-      // Укажи здесь юзернейм твоего аккаунта поддержки (без @)
+ function openTechSupport() {
       const supportUsername = "mcu_schedule_support"; 
-      const tgUrl = `https://t.me/${mcu_schedule_support}`;
+      const tgUrl = `https://t.me/${supportUsername}`;
 
       if (tg && typeof tg.openTelegramLink === 'function') {
         tg.openTelegramLink(tgUrl);
