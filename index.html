@@ -179,7 +179,6 @@
       flex-shrink: 0;
     }
 
-    /* Переключатель темы в шапке */
     .theme-switch {
       position: relative;
       width: 48px;
@@ -270,7 +269,6 @@
       display: none;
     }
 
-    /* Секции контента вкладок */
     .tab-content-view {
       display: none;
     }
@@ -283,18 +281,62 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
-    /* Экраны и элементы вкладки Расписание */
+    /* Элементы панели управления расписанием */
     .controls-panel { padding: 12px 16px 6px; display: flex; flex-direction: column; gap: 8px; }
-    .week-select {
+
+    /* Горизонтальная лента чипов недель */
+    .weeks-scroll-wrapper {
       width: 100%;
-      padding: 10px 14px;
-      border: 1px solid var(--border);
+      overflow: hidden;
+      margin-bottom: 2px;
+    }
+    .weeks-bar {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+      padding: 2px 0 4px;
+    }
+    .weeks-bar::-webkit-scrollbar { display: none; }
+    .week-chip {
+      flex: 0 0 auto;
+      min-width: 86px;
+      padding: 7px 12px;
       background: var(--card-bg);
-      border-radius: 12px;
-      font-size: 14px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      transition: all 0.15s ease;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .week-chip .week-chip-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--text-sub);
+    }
+    .week-chip .week-chip-dates {
+      font-size: 10px;
       font-weight: 600;
       color: var(--mgpu-dark);
-      outline: none;
+      opacity: 0.85;
+      white-space: nowrap;
+    }
+    .week-chip.active {
+      background: var(--mgpu-red) !important;
+      border-color: var(--mgpu-red) !important;
+      box-shadow: 0 2px 8px rgba(227, 6, 19, 0.22);
+    }
+    .week-chip.active .week-chip-title,
+    .week-chip.active .week-chip-dates {
+      color: #FFFFFF !important;
+      opacity: 1 !important;
     }
 
     .search-wrapper {
@@ -333,6 +375,22 @@
       display: none;
       padding: 4px;
     }
+
+    .sync-cal-banner {
+      display: flex;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 12px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: pointer;
+      margin-top: 2px;
+    }
+    .sync-cal-banner:active { opacity: 0.8; }
+    .sync-cal-left { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--mgpu-dark); }
+    .sync-cal-arrow { font-size: 12px; color: var(--mgpu-red); font-weight: 800; }
 
     /* Дни недели */
     .days-bar {
@@ -811,18 +869,35 @@
       margin-bottom: 6px;
     }
     .modal-title { font-size: 18px; font-weight: 800; color: var(--mgpu-dark); }
+    
+    /* Идеально круглая кнопка закрытия */
     .modal-close-btn {
       background: var(--bg);
       border: 1px solid var(--border);
-      width: 28px;
-      height: 28px;
+      width: 32px;
+      height: 32px;
+      min-width: 32px;
+      min-height: 32px;
+      max-width: 32px;
+      max-height: 32px;
+      aspect-ratio: 1 / 1;
+      padding: 0;
+      margin: 0;
       border-radius: 50%;
       font-size: 16px;
+      line-height: 1;
       color: var(--text-sub);
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
+      flex-shrink: 0;
+      box-sizing: border-box;
+      outline: none;
+    }
+    .modal-close-btn:active {
+      opacity: 0.7;
+      transform: scale(0.94);
     }
 
     .role-segmented-control {
@@ -850,6 +925,68 @@
       box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
 
+    /* Выпадающий автокомплит поиска */
+    .search-input-wrapper {
+      position: relative;
+      width: 100%;
+      margin-bottom: 12px;
+    }
+    .search-suggestions-box {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--card-bg);
+      border: 1.5px solid var(--mgpu-red);
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.18);
+      max-height: 220px;
+      overflow-y: auto;
+      z-index: 1050;
+      margin-top: 4px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .suggestion-item {
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--mgpu-dark);
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .suggestion-item:last-child {
+      border-bottom: none;
+    }
+    .suggestion-item:hover, .suggestion-item:active {
+      background: var(--input-bg);
+      color: var(--mgpu-red);
+    }
+    .suggestion-empty {
+      padding: 14px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+    .selected-target-indicator {
+      display: none;
+      margin-top: -6px;
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      background: var(--mgpu-red-light);
+      border: 1px solid rgba(227, 6, 19, 0.2);
+      border-radius: 9px;
+      font-size: 12px;
+      color: var(--mgpu-red);
+      font-weight: 700;
+      align-items: center;
+      justify-content: space-between;
+    }
+
     .modal-filter-input {
       width: 100%;
       padding: 10px 12px;
@@ -859,7 +996,7 @@
       background: var(--input-bg);
       color: var(--mgpu-dark);
       outline: none;
-      margin-bottom: 12px;
+      margin-bottom: 0;
     }
     .modal-filter-input:focus { border-color: var(--mgpu-red); }
 
@@ -1037,7 +1174,13 @@
   <!-- ВКЛАДКА 1: РАСПИСАНИЕ (ГЛАВНЫЙ ЭКРАН) -->
   <div class="tab-content-view active-view" id="viewSchedule">
     <div class="controls-panel">
-      <select id="weekSelect" class="week-select" onchange="onWeekChange()"></select>
+      <!-- Скрытый select для совместимости -->
+      <select id="weekSelect" class="week-select" onchange="onWeekChange()" style="display: none;"></select>
+
+      <!-- Горизонтальная лента недель -->
+      <div class="weeks-scroll-wrapper">
+        <div class="weeks-bar" id="weeksBar"></div>
+      </div>
 
       <div class="search-wrapper">
         <span class="search-icon-left">🔍</span>
@@ -1203,7 +1346,7 @@
     <div class="ios-banner-arrow">▼</div>
   </div>
 
-  <!-- Шторка ДЗ -->
+  <!-- Шторка ДЗ с двумя вкладками -->
   <div class="modal-overlay" id="hwModal">
     <div class="modal-sheet" style="padding-bottom: 25px;">
       <div class="drag-handle-bar"></div>
@@ -1212,15 +1355,31 @@
         <button type="button" class="modal-close-btn" onclick="closeHwModal()">&times;</button>
       </div>
 
-      <div id="hwModalSubtitle" style="font-size: 13px; color: var(--text-sub); margin-bottom: 8px;"></div>
-      <div id="hwAuthorInfo" style="display: none; margin-bottom: 8px; font-size: 11px; color: var(--text-sub);"></div>
+      <div class="role-segmented-control" style="margin: 8px 0 12px;">
+        <button type="button" class="role-btn active" id="hwTabBtnCurrent" onclick="switchHwModalTab('current')">📌 К этой паре</button>
+        <button type="button" class="role-btn" id="hwTabBtnNext" onclick="switchHwModalTab('next')">➡️ На следующую пару</button>
+      </div>
 
-      <textarea id="hwInputText" class="hw-textarea" maxlength="1000" placeholder="Напишите задание (номера страниц, упражнения, темы к сдаче)..."></textarea>
+      <!-- Вкладка: К этой паре -->
+      <div id="hwCurrentSection">
+        <div id="hwModalSubtitle" style="font-size: 13px; color: var(--text-sub); margin-bottom: 8px;"></div>
+        <div id="hwAuthorInfo" style="display: none; margin-bottom: 8px; font-size: 11px; color: var(--text-sub);"></div>
+        <textarea id="hwInputText" class="hw-textarea" maxlength="1000" placeholder="Напишите задание к этой паре..."></textarea>
+        <div class="hw-actions-col">
+          <button type="button" class="hw-btn-primary" onclick="saveHomeworkCurrent()">💾 Сохранить к этой паре</button>
+          <button type="button" id="hwDeleteBtn" class="hw-btn-delete" style="display: none;" onclick="deleteHomework()">🗑️ Удалить задание</button>
+        </div>
+      </div>
 
-      <div class="hw-actions-col">
-        <button type="button" class="hw-btn-primary" onclick="saveHomeworkCurrent()">💾 Сохранить к этой паре</button>
-        <button type="button" class="hw-btn-secondary" onclick="saveHomeworkNext()">➡️ Задать на следующую пару</button>
-        <button type="button" id="hwDeleteBtn" class="hw-btn-delete" style="display: none;" onclick="deleteHomework()">🗑️ Удалить задание</button>
+      <!-- Вкладка: На следующую пару -->
+      <div id="hwNextSection" style="display: none;">
+        <div id="hwNextSubtitle" style="font-size: 13px; color: var(--text-sub); margin-bottom: 8px;"></div>
+        <div id="hwNextAuthorInfo" style="display: none; margin-bottom: 8px; font-size: 11px; color: var(--text-sub);"></div>
+        <textarea id="hwNextInputText" class="hw-textarea" maxlength="1000" placeholder="Напишите задание на следующую пару..."></textarea>
+        <div class="hw-actions-col">
+          <button type="button" class="hw-btn-primary" onclick="saveHomeworkNext()">💾 Сохранить на следующую пару</button>
+          <button type="button" id="hwNextDeleteBtn" class="hw-btn-delete" style="display: none;" onclick="deleteNextHomework()">🗑️ Удалить со следующей пары</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1270,13 +1429,19 @@
       </div>
       
       <div id="studentFields">
-        <input 
-          type="text" 
-          id="modalGroupSearchInput" 
-          class="modal-filter-input" 
-          placeholder="🔍 Быстрый поиск группы (например: ВЦК, ПОЕ 252)..." 
-          oninput="onModalGroupSearch(this.value)"
-        >
+        <div class="search-input-wrapper" id="groupSearchWrapper">
+          <input 
+            type="text" 
+            id="modalGroupSearchInput" 
+            class="modal-filter-input" 
+            placeholder="🔍 Начните вводить группу (например: ВЦК, ПОЕ 252)..." 
+            oninput="onModalGroupSearch(this.value)"
+            onfocus="onModalGroupSearch(this.value)"
+            autocomplete="off"
+          >
+          <div id="groupSearchSuggestions" class="search-suggestions-box"></div>
+        </div>
+        <div id="groupSelectedBadge" class="selected-target-indicator"></div>
 
         <div class="form-group" id="directionFormGroup">
           <label>Направление подготовки</label>
@@ -1290,13 +1455,19 @@
       </div>
 
       <div id="teacherFields" style="display: none;">
-        <input 
-          type="text" 
-          id="modalTeacherSearchInput" 
-          class="modal-filter-input" 
-          placeholder="🔍 Быстрый поиск ФИО преподавателя..." 
-          oninput="onModalTeacherSearch(this.value)"
-        >
+        <div class="search-input-wrapper" id="teacherSearchWrapper">
+          <input 
+            type="text" 
+            id="modalTeacherSearchInput" 
+            class="modal-filter-input" 
+            placeholder="🔍 Начните вводить фамилию преподавателя..." 
+            oninput="onModalTeacherSearch(this.value)"
+            onfocus="onModalTeacherSearch(this.value)"
+            autocomplete="off"
+          >
+          <div id="teacherSearchSuggestions" class="search-suggestions-box"></div>
+        </div>
+        <div id="teacherSelectedBadge" class="selected-target-indicator"></div>
 
         <div class="form-group">
           <label>ФИО преподавателя</label>
@@ -1549,7 +1720,7 @@
 
     function sanitizeName(str) {
       return (str || '')
-        .replace(/[  ᠎ -​  　﻿]/g, ' ')
+        .replace(/[  ᠎ -​   ﻿]/g, ' ')
         .replace(/[–—−]/g, '-')
         .trim()
         .toLowerCase();
@@ -1685,6 +1856,7 @@
     let activeSearchQuery = "";
     let currentWeekHw = {};
     let teacherWeekHw = {};
+    let companionWeekHw = {};
     let activeLessonContext = null;
 
     const todayIndex = new Date().getDay();
@@ -1781,10 +1953,9 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    /* Проверка активности сессионного режима (1 дек - 10 фев И 1 мая - 10 июля) */
     function checkSessionTabAvailability() {
       const now = new Date();
-      const month = now.getMonth(); // 0 = Jan, 1 = Feb ... 11 = Dec
+      const month = now.getMonth();
       const day = now.getDate();
 
       const isWinterSession = (month === 11) || (month === 0) || (month === 1 && day <= 10);
@@ -1802,7 +1973,6 @@
       if (titleEl) titleEl.textContent = periodTitle;
     }
 
-    /* Отрисовка вкладки Сессия */
     function renderSessionTab() {
       const container = document.getElementById('sessionExamsList');
       const targetName = currentRole === 'teacher' ? currentTeacher : currentGroup;
@@ -1839,11 +2009,9 @@
       `).join('');
     }
 
-    /* Отрисовка ленты ДЗ */
     function renderHomeworkFeed() {
       const container = document.getElementById('hwFeedList');
       const query = (document.getElementById('hwFeedSearchInput')?.value || '').trim().toLowerCase();
-      const currentWeekNum = parseInt(document.getElementById("weekSelect")?.value, 10);
       const allLessons = getActiveLessonsList();
 
       const items = [];
@@ -1952,7 +2120,6 @@
       if (card) card.classList.toggle('is-completed', isChecked);
     }
 
-    /* Обновление данных экрана Профиль */
     function updateProfileTabInfo() {
       const roleBadge = document.getElementById('profileRoleBadge');
       const targetName = document.getElementById('profileTargetName');
@@ -1965,7 +2132,6 @@
       }
     }
 
-    /* Принудительная очистка кэша */
     async function forceClearCacheAndReload() {
       if (!confirm('Очистить локальный кэш расписания и принудительно обновить приложение?')) return;
       try {
@@ -2049,7 +2215,7 @@
 
           const key = teach ? `${w}_${d}_${p}_${sub}_${teach}` : `${w}_${d}_${p}_${sub}_${room}`;
           const allGrps = Array.from(slotMap.get(key) || []).sort();
-          // Потоковые совместные пары объединяют от 2 до 6 групп. Более 6 — общевузовские события
+          // Ограничиваем совместный поток от 2 до 4 групп
           if (allGrps.length > 1 && allGrps.length <= 4) {
             item.all_joint_groups = allGrps;
             item.joint_groups = allGrps.filter(g => g !== grpName);
@@ -2290,9 +2456,55 @@
 
       if (matchedWeek) weekSelect.value = matchedWeek;
       else if (uniqueWeeks.length > 0) weekSelect.value = uniqueWeeks[0];
+
+      renderWeeksBar();
+    }
+
+    function renderWeeksBar() {
+      const container = document.getElementById("weeksBar");
+      if (!container) return;
+      const list = getActiveLessonsList();
+      const uniqueWeeks = [...new Set(list.map(x => x.week))].sort((a,b) => a - b);
+      const currentSelected = parseInt(document.getElementById("weekSelect").value, 10);
+
+      container.innerHTML = uniqueWeeks.map(w => {
+        let dateRange = "";
+        const wMeta = db.weeks ? (db.weeks[w] || db.weeks[String(w)]) : null;
+        if (wMeta && typeof wMeta === 'object' && wMeta.label) {
+          dateRange = wMeta.label.replace(/^\d+\s*неделя\s*/i, '');
+        } else {
+          const sample = list.find(x => x.week === w && x.date_range);
+          if (sample?.date_range) {
+            dateRange = sample.date_range.replace(/^\d+\s*неделя\s*/i, '');
+          }
+        }
+
+        const isActive = w === currentSelected;
+        return `
+          <div class="week-chip ${isActive ? 'active' : ''}" id="weekChip_${w}" onclick="selectWeek(${w})">
+            <span class="week-chip-title">${w} нед.</span>
+            ${dateRange ? `<span class="week-chip-dates">${dateRange}</span>` : ''}
+          </div>
+        `;
+      }).join("");
+
+      setTimeout(() => {
+        const activeChip = document.getElementById(`weekChip_${currentSelected}`);
+        if (activeChip && typeof activeChip.scrollIntoView === 'function') {
+          activeChip.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+      }, 50);
+    }
+
+    function selectWeek(weekNum) {
+      const weekSelect = document.getElementById("weekSelect");
+      if (weekSelect) weekSelect.value = weekNum;
+      renderWeeksBar();
+      onWeekChange();
     }
 
     function onWeekChange() {
+      renderWeeksBar();
       renderDaysBar();
       preloadHomeworkFromLocalSync();
       render();
@@ -2376,7 +2588,7 @@
     function copyCalendarUrl() {
       const icsUrl = getCalendarUrl();
       navigator.clipboard.writeText(icsUrl).then(() => {
-        alert("✅ Ссылка подписки скопирована!\n\nВставьте её в настройках Google или Apple Календаря (раздел «Добавить по URL»).");
+        showAppAlert("✅ Ссылка подписки скопирована!\n\nВставьте её в настройках Google или Apple Календаря (раздел «Добавить по URL»).");
       }).catch(() => {
         prompt("Скопируйте ссылку на подписку вручную:", icsUrl);
       });
@@ -2411,8 +2623,6 @@
         name: defaultName
       };
     }
-
-    let companionWeekHw = {};
 
     function getLessonHomework(targetGroup, lessonKey, jointGroups = []) {
       const gKey = (targetGroup || '').trim().toLowerCase();
@@ -2581,6 +2791,32 @@
       }, 10);
     }
 
+    /* Управление вкладками внутри шторки ДЗ */
+    function switchHwModalTab(tab) {
+      const btnCur = document.getElementById("hwTabBtnCurrent");
+      const btnNxt = document.getElementById("hwTabBtnNext");
+      const secCur = document.getElementById("hwCurrentSection");
+      const secNxt = document.getElementById("hwNextSection");
+
+      if (tab === "next") {
+        if (!activeLessonContext || !activeLessonContext.nextLesson) {
+          showAppAlert("Следующая пара по этому предмету не найдена в расписании");
+          return;
+        }
+        btnNxt.classList.add("active");
+        btnCur.classList.remove("active");
+        secCur.style.display = "none";
+        secNxt.style.display = "block";
+        document.getElementById("hwNextInputText").focus();
+      } else {
+        btnCur.classList.add("active");
+        btnNxt.classList.remove("active");
+        secCur.style.display = "block";
+        secNxt.style.display = "none";
+        document.getElementById("hwInputText").focus();
+      }
+    }
+
     function openHwEditor(item) {
       if (hwModalHideTimer) {
         clearTimeout(hwModalHideTimer);
@@ -2591,16 +2827,21 @@
       const lessonKey = getLessonKey(item.day, item.pair, item.subject, item.subgroup);
       const targetGroup = (currentRole === "teacher" ? item.group : currentGroup) || "";
 
+      // Поиск следующей пары
+      const nextLesson = findNextOccurrence(item, weekNum, targetGroup);
+
       activeLessonContext = {
         item: item,
         group: targetGroup,
         week: weekNum,
         lessonKey: lessonKey,
+        nextLesson: nextLesson,
         jointGroups: item.all_joint_groups || (item.joint_groups ? [targetGroup, ...item.joint_groups] : [targetGroup])
       };
 
       const hwItem = getLessonHomework(targetGroup, lessonKey, item.joint_groups);
 
+      // 1. Настройка вкладки "К этой паре"
       const authorInfo = document.getElementById("hwAuthorInfo");
       const delBtn = document.getElementById("hwDeleteBtn");
       const textInput = document.getElementById("hwInputText");
@@ -2630,6 +2871,43 @@
         delBtn.style.display = "none";
       }
 
+      // 2. Настройка вкладки "На следующую пару"
+      const nextSec = document.getElementById("hwNextSection");
+      const nextInput = document.getElementById("hwNextInputText");
+      const nextSubtitle = document.getElementById("hwNextSubtitle");
+      const nextAuthorInfo = document.getElementById("hwNextAuthorInfo");
+      const nextDelBtn = document.getElementById("hwNextDeleteBtn");
+
+      if (nextLesson) {
+        const nextKey = getLessonKey(nextLesson.day, nextLesson.pair, nextLesson.subject, nextLesson.subgroup);
+        const nextHwItem = getLessonHomework(targetGroup, nextKey, nextLesson.joint_groups || nextLesson.all_joint_groups);
+
+        nextSubtitle.textContent = `Следующая пара: ${nextLesson.day} (${nextLesson.week} нед, ${nextLesson.pair} пара, ${nextLesson.time})`;
+        if (nextHwItem && nextHwItem.text) {
+          nextInput.value = nextHwItem.text;
+          if (!isAppOffline && nextHwItem.author?.badge) {
+            const icon = nextHwItem.author?.platform === 'tg' ? '📱' : (nextHwItem.author?.platform === 'vk' ? '🔵' : '🌐');
+            const adminTag = isAdminHwAuthor(nextHwItem.author) ? ' <span class="hw-admin-tag">админ</span>' : '';
+            nextAuthorInfo.style.display = "block";
+            nextAuthorInfo.innerHTML = `Записал(а): <b>${icon} ${nextHwItem.author.badge}</b>${adminTag}${nextHwItem.updated_at ? ' • ' + nextHwItem.updated_at : ''}`;
+          } else {
+            nextAuthorInfo.style.display = "none";
+          }
+          nextDelBtn.style.display = isAppOffline ? "none" : "block";
+        } else {
+          nextInput.value = "";
+          nextAuthorInfo.style.display = "none";
+          nextDelBtn.style.display = "none";
+        }
+      } else {
+        nextSubtitle.textContent = "Следующая пара не найдена в текущем семестре";
+        nextInput.value = "";
+        nextAuthorInfo.style.display = "none";
+        nextDelBtn.style.display = "none";
+      }
+
+      switchHwModalTab('current');
+
       const modal = document.getElementById("hwModal");
       const sheetEl = modal.querySelector(".modal-sheet");
       modal.style.display = "flex";
@@ -2638,7 +2916,9 @@
 
     function closeHwModal() {
       const textInput = document.getElementById("hwInputText");
+      const nextInput = document.getElementById("hwNextInputText");
       if (textInput) textInput.blur();
+      if (nextInput) nextInput.blur();
 
       const modal = document.getElementById("hwModal");
       modal.querySelector(".modal-sheet").style.transform = "translateY(100%)";
@@ -2728,7 +3008,13 @@
 
     async function saveHomeworkNext() {
       if (!activeLessonContext) return;
-      const textInput = document.getElementById("hwInputText");
+      const nextLesson = activeLessonContext.nextLesson;
+      if (!nextLesson) {
+        showAppAlert("Следующая пара по этому предмету не найдена в расписании");
+        return;
+      }
+
+      const textInput = document.getElementById("hwNextInputText");
       const text = textInput.value.trim();
       if (!text) {
         showAppAlert("Пожалуйста, введите текст задания");
@@ -2736,12 +3022,6 @@
       }
 
       const targetGroup = activeLessonContext.group;
-      const nextLesson = findNextOccurrence(activeLessonContext.item, activeLessonContext.week, targetGroup);
-      if (!nextLesson) {
-        showAppAlert("Следующая пара по этому предмету не найдена в расписании");
-        return;
-      }
-
       const nextKey = getLessonKey(nextLesson.day, nextLesson.pair, nextLesson.subject, nextLesson.subgroup);
 
       try {
@@ -2775,6 +3055,53 @@
           week: ctx.week,
           lessonKey: ctx.lessonKey,
           jointGroups: ctx.jointGroups || [ctx.group],
+          author: getFallbackAuthorIdentity(),
+          isDelete: true
+        };
+
+        const headers = { "Content-Type": "application/json" };
+        if (tg && tg.initData) {
+          headers["Authorization"] = `tma ${tg.initData}`;
+        }
+
+        try {
+          const res = await fetch(`${WORKER_URL}/api/hw`, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+          const ans = await res.json();
+          if (ans.error) {
+            showAppAlert(ans.error);
+            return;
+          }
+          closeHwModal();
+          await loadWeekHomework();
+        } catch (e) {
+          showAppAlert("Не удалось удалить задание");
+        }
+      });
+    }
+
+    async function deleteNextHomework() {
+      if (!activeLessonContext || !activeLessonContext.nextLesson) return;
+      const nextLesson = activeLessonContext.nextLesson;
+      const targetGroup = activeLessonContext.group;
+      const nextKey = getLessonKey(nextLesson.day, nextLesson.pair, nextLesson.subject, nextLesson.subgroup);
+
+      showAppConfirm(`Удалить домашнее задание со следующей пары (${nextLesson.day})?`, async (confirmed) => {
+        if (!confirmed) return;
+
+        if (isAppOffline || !navigator.onLine) {
+          showAppAlert("Для удаления ДЗ требуется интернет-соединение");
+          return;
+        }
+
+        const payload = {
+          group: targetGroup,
+          week: nextLesson.week,
+          lessonKey: nextKey,
+          jointGroups: nextLesson.all_joint_groups || [targetGroup],
           author: getFallbackAuthorIdentity(),
           isDelete: true
         };
@@ -2950,6 +3277,10 @@
 
       document.getElementById("modalGroupSearchInput").value = "";
       document.getElementById("modalTeacherSearchInput").value = "";
+      document.getElementById("groupSearchSuggestions").style.display = "none";
+      document.getElementById("teacherSearchSuggestions").style.display = "none";
+      document.getElementById("groupSelectedBadge").style.display = "none";
+      document.getElementById("teacherSelectedBadge").style.display = "none";
       document.getElementById("directionFormGroup").style.display = "block";
 
       const dirSelect = document.getElementById("modalDirectionSelect");
@@ -3015,43 +3346,127 @@
       }
     }
 
-    function onModalGroupSearch(query) {
+    /* Выпадающий поиск преподавателя с мгновенным кликом */
+    function onModalTeacherSearch(query) {
       const q = (query || "").trim();
-      const dirGroup = document.getElementById("directionFormGroup");
-      const grpSelect = document.getElementById("modalGroupSelect");
+      const suggestionsBox = document.getElementById("teacherSearchSuggestions");
 
-      if (q) {
-        dirGroup.style.display = "none";
-        const filtered = allGroups.filter(g => smartMatch(g, q));
-        grpSelect.innerHTML = "";
+      const filtered = q ? allTeachers.filter(t => smartMatch(t, q)) : allTeachers;
+      renderModalTeachers(filtered);
 
-        if (filtered.length > 0) {
-          filtered.forEach(g => {
-            const opt = document.createElement("option");
-            opt.value = g;
-            opt.textContent = formatGroupWithCourse(g);
-            grpSelect.appendChild(opt);
-          });
-          grpSelect.value = filtered[0];
+      if (!q) {
+        if (suggestionsBox) suggestionsBox.style.display = "none";
+        return;
+      }
+
+      if (suggestionsBox) {
+        if (filtered.length === 0) {
+          suggestionsBox.innerHTML = `<div class="suggestion-empty">Ничего не найдено</div>`;
         } else {
-          const opt = document.createElement("option");
-          opt.value = "";
-          opt.textContent = "Ничего не найдено";
-          opt.disabled = true;
-          opt.selected = true;
-          grpSelect.appendChild(opt);
+          suggestionsBox.innerHTML = filtered.slice(0, 8).map(t => {
+            const escaped = t.replace(/'/g, "\\'");
+            return `
+              <div class="suggestion-item" onclick="selectTeacherSuggestion('${escaped}')">
+                <span>👨‍🏫</span>
+                <span>${t}</span>
+              </div>
+            `;
+          }).join("");
         }
-      } else {
-        dirGroup.style.display = "block";
-        onModalDirectionChange();
+        suggestionsBox.style.display = "block";
       }
     }
 
-    function onModalTeacherSearch(query) {
-      const q = (query || "").trim();
-      const filtered = q ? allTeachers.filter(t => smartMatch(t, q)) : allTeachers;
-      renderModalTeachers(filtered);
+    function selectTeacherSuggestion(teacherName) {
+      document.getElementById("modalTeacherSearchInput").value = teacherName;
+      const select = document.getElementById("modalTeacherSelect");
+      document.getElementById("teacherSearchSuggestions").style.display = "none";
+
+      renderModalTeachers(allTeachers);
+      select.value = teacherName;
+
+      const badge = document.getElementById("teacherSelectedBadge");
+      if (badge) {
+        badge.style.display = "flex";
+        badge.innerHTML = `<span>✅ Выбран: <b>${teacherName}</b></span><span style="font-size:10px; opacity:0.8;">нажмите «Сохранить»</span>`;
+      }
     }
+
+    /* Выпадающий поиск группы с мгновенным кликом */
+    function onModalGroupSearch(query) {
+      const q = (query || "").trim();
+      const suggestionsBox = document.getElementById("groupSearchSuggestions");
+      const dirGroup = document.getElementById("directionFormGroup");
+      const grpSelect = document.getElementById("modalGroupSelect");
+
+      if (!q) {
+        if (suggestionsBox) suggestionsBox.style.display = "none";
+        dirGroup.style.display = "block";
+        onModalDirectionChange();
+        return;
+      }
+
+      const filtered = allGroups.filter(g => smartMatch(g, q));
+
+      if (suggestionsBox) {
+        if (filtered.length === 0) {
+          suggestionsBox.innerHTML = `<div class="suggestion-empty">Ничего не найдено</div>`;
+        } else {
+          suggestionsBox.innerHTML = filtered.slice(0, 8).map(g => {
+            const escaped = g.replace(/'/g, "\\'");
+            return `
+              <div class="suggestion-item" onclick="selectGroupSuggestion('${escaped}')">
+                <span>🎓</span>
+                <span>${formatGroupWithCourse(g)}</span>
+              </div>
+            `;
+          }).join("");
+        }
+        suggestionsBox.style.display = "block";
+      }
+
+      grpSelect.innerHTML = "";
+      if (filtered.length > 0) {
+        filtered.forEach(g => {
+          const opt = document.createElement("option");
+          opt.value = g;
+          opt.textContent = formatGroupWithCourse(g);
+          grpSelect.appendChild(opt);
+        });
+        grpSelect.value = filtered[0];
+      }
+    }
+
+    function selectGroupSuggestion(groupName) {
+      document.getElementById("modalGroupSearchInput").value = groupName;
+      document.getElementById("groupSearchSuggestions").style.display = "none";
+
+      let matchedDirIdx = 0;
+      directionsList.forEach((d, idx) => {
+        if (idx !== 0 && d.groups.includes(groupName)) matchedDirIdx = idx;
+      });
+      const dirSelect = document.getElementById("modalDirectionSelect");
+      if (dirSelect) dirSelect.value = matchedDirIdx;
+      onModalDirectionChange();
+      document.getElementById("modalGroupSelect").value = groupName;
+
+      const badge = document.getElementById("groupSelectedBadge");
+      if (badge) {
+        badge.style.display = "flex";
+        badge.innerHTML = `<span>✅ Выбрана: <b>${formatGroupWithCourse(groupName)}</b></span><span style="font-size:10px; opacity:0.8;">нажмите «Сохранить»</span>`;
+      }
+    }
+
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest("#groupSearchWrapper")) {
+        const box = document.getElementById("groupSearchSuggestions");
+        if (box) box.style.display = "none";
+      }
+      if (!e.target.closest("#teacherSearchWrapper")) {
+        const box = document.getElementById("teacherSearchSuggestions");
+        if (box) box.style.display = "none";
+      }
+    });
 
     function onModalDirectionChange() {
       const dirSelect = document.getElementById("modalDirectionSelect");
@@ -3116,7 +3531,7 @@
     let touchStartY = 0, touchCurrentY = 0, isSwiping = false;
     const sheet = document.getElementById("modalSheet");
     sheet.addEventListener("touchstart", (e) => {
-      if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
+      if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
       touchStartY = e.touches[0].clientY;
       isSwiping = true;
       sheet.style.transition = "none";
