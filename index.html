@@ -2895,7 +2895,7 @@
       const lessonKey = getLessonKey(item.day, item.pair, item.subject, item.subgroup);
       const targetGroup = (currentRole === "teacher" ? item.group : currentGroup) || "";
 
-      // Поиск следующей пары
+      // Поиск следующей пары по расписанию
       const nextLesson = findNextOccurrence(item, weekNum, targetGroup);
 
       activeLessonContext = {
@@ -2909,7 +2909,7 @@
 
       const hwItem = getLessonHomework(targetGroup, lessonKey, item.joint_groups);
 
-      // 1. Настройка вкладки "К этой паре"
+      // 1. Вкладка "К этой паре" (с датой в скобках)
       const authorInfo = document.getElementById("hwAuthorInfo");
       const delBtn = document.getElementById("hwDeleteBtn");
       const textInput = document.getElementById("hwInputText");
@@ -2918,11 +2918,12 @@
       textInput.readOnly = false;
       textInput.style.pointerEvents = "auto";
 
-      document.getElementById("hwModalTitle").textContent = item.subject;
       const curDate = getLessonExactDate(weekNum, item.day);
-const curDateStr = curDate ? ` (${curDate})` : '';
-document.getElementById("hwModalSubtitle").textContent = 
-  `${item.day}${curDateStr} • ${item.pair} пара (${item.time}) • ${targetGroup}${item.subgroup ? ' • ' + item.subgroup : ''}`;
+      const curDateStr = curDate ? ` (${curDate})` : '';
+
+      document.getElementById("hwModalTitle").textContent = item.subject;
+      document.getElementById("hwModalSubtitle").textContent = 
+        `${item.day}${curDateStr} • ${item.pair} пара (${item.time}) • ${targetGroup}${item.subgroup ? ' • ' + item.subgroup : ''}`;
 
       if (hwItem && hwItem.text) {
         textInput.value = hwItem.text;
@@ -2941,8 +2942,7 @@ document.getElementById("hwModalSubtitle").textContent =
         delBtn.style.display = "none";
       }
 
-      // 2. Настройка вкладки "На следующую пару"
-      const nextSec = document.getElementById("hwNextSection");
+      // 2. Вкладка "На следующую пару" (с датой в скобках)
       const nextInput = document.getElementById("hwNextInputText");
       const nextSubtitle = document.getElementById("hwNextSubtitle");
       const nextAuthorInfo = document.getElementById("hwNextAuthorInfo");
@@ -2953,8 +2953,10 @@ document.getElementById("hwModalSubtitle").textContent =
         const nextHwItem = getLessonHomework(targetGroup, nextKey, nextLesson.joint_groups || nextLesson.all_joint_groups);
 
         const nextDate = getLessonExactDate(nextLesson.week, nextLesson.day);
-const nextDateStr = nextDate ? `${nextDate}, ` : '';
-nextSubtitle.textContent = `Следующая пара: ${nextLesson.day} (${nextDateStr}${nextLesson.week} нед, ${nextLesson.pair} пара, ${nextLesson.time})`;
+        const nextDateStr = nextDate ? `${nextDate}, ` : '';
+
+        nextSubtitle.textContent = `Следующая пара: ${nextLesson.day} (${nextDateStr}${nextLesson.week} нед, ${nextLesson.pair} пара, ${nextLesson.time})`;
+
         if (nextHwItem && nextHwItem.text) {
           nextInput.value = nextHwItem.text;
           if (!isAppOffline && nextHwItem.author?.badge) {
