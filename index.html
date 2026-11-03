@@ -1893,12 +1893,19 @@
     }
 
     function getWeekDates(weekNum) {
+     function getLessonExactDate(weekNum, dayName) {
+      if (!weekNum || !dayName) return "";
       const list = getActiveLessonsList();
       const wMeta = db.weeks ? (db.weeks[weekNum] || db.weeks[String(weekNum)]) : null;
       let mondayDate = null;
 
       if (wMeta && typeof wMeta === 'object' && wMeta.start) {
-        mondayDate = new Date(wMeta.start);
+        if (typeof wMeta.start === 'string' && wMeta.start.includes('-')) {
+          const p = wMeta.start.split('-');
+          mondayDate = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10), 12, 0, 0);
+        } else {
+          mondayDate = new Date(wMeta.start);
+        }
       } else {
         const str = (typeof wMeta === 'string') ? wMeta : (list.find(x => x.week === weekNum)?.date_range || "");
         const match = str.match(/(\d{2})\.(\d{2})\.(\d{2,4})/);
@@ -1906,8 +1913,23 @@
           const y = match[3].length === 2 ? 2000 + parseInt(match[3], 10) : parseInt(match[3], 10);
           const mon = parseInt(match[2], 10) - 1;
           const d = parseInt(match[1], 10);
-          mondayDate = new Date(y, mon, d);
+          mondayDate = new Date(y, mon, d, 12, 0, 0);
         }
+      }
+
+      if (!mondayDate || isNaN(mondayDate.getTime())) return "";
+
+      const dayOfWeek = (mondayDate.getDay() + 6) % 7;
+      const actualMon = new Date(mondayDate.getTime() - dayOfWeek * 86400000);
+      const dayIdx = DAYS.indexOf(dayName);
+      if (dayIdx === -1) return "";
+
+      const d = new Date(actualMon.getTime() + dayIdx * 86400000);
+      const dayStr = String(d.getDate()).padStart(2, '0');
+      const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+      const yearStr = String(d.getFullYear()).slice(-2);
+      return `${dayStr}.${monthStr}.${yearStr}`;
+    }
       }
 
       const dates = {};
@@ -2851,7 +2873,10 @@
       textInput.style.pointerEvents = "auto";
 
       document.getElementById("hwModalTitle").textContent = item.subject;
-      document.getElementById("hwModalSubtitle").textContent = 
+      const curDate = getLessonExactDate(weekNum, item.day);
+const curDateStr = curDate ? ` (${curDate})` : '';
+document.getElementById("hwModalSubtitle").textContent = 
+  `${item.day}${curDateStr} • ${item.pair} пара (${item.time}) • ${targetGroup}${item.subgroup ? ' • ' + item.subgroup : ''}`;
         `${item.day} • ${item.pair} пара (${item.time}) • ${targetGroup}${item.subgroup ? ' • ' + item.subgroup : ''}`;
 
       if (hwItem && hwItem.text) {
@@ -2882,7 +2907,9 @@
         const nextKey = getLessonKey(nextLesson.day, nextLesson.pair, nextLesson.subject, nextLesson.subgroup);
         const nextHwItem = getLessonHomework(targetGroup, nextKey, nextLesson.joint_groups || nextLesson.all_joint_groups);
 
-        nextSubtitle.textContent = `Следующая пара: ${nextLesson.day} (${nextLesson.week} нед, ${nextLesson.pair} пара, ${nextLesson.time})`;
+        const nextDate = getLessonExactDate(nextLesson.week, nextLesson.day);
+const nextDateStr = nextDate ? `${nextDate}, ` : '';
+nextSubtitle.textContent = `Следующая пара: ${nextLesson.day} (${nextDateStr}${nextLesson.week} нед, ${nextLesson.pair} пара, ${nextLesson.time})`;
         if (nextHwItem && nextHwItem.text) {
           nextInput.value = nextHwItem.text;
           if (!isAppOffline && nextHwItem.author?.badge) {
