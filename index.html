@@ -2168,6 +2168,35 @@
         .trim();
     }
 
+    function normalizeSubjectForJoint(sub) {
+      return (sub || '')
+        .toLowerCase()
+        .replace(/[  ᠎ -​   ﻿]/g, ' ')
+        .replace(/[–—−_]/g, '-')
+        .replace(/^[фf]\s*[\.\-_]?\s*\d+\s*/i, '') // убираем префиксы Ф.1 - Ф.5
+        .replace(/^(лек|лекция|пр|практ|практика|лаб|семинар)[\.\s]+/i, '')
+        .replace(/\((?:лек|лекция|пр|практ|практика|лаб|семинар|порог[^\)]*)\)/gi, '')
+        .replace(/[^a-zа-я0-9]/gi, '')
+        .trim();
+    }
+
+    function normalizeTeacherForJoint(teach) {
+      return (teach || '')
+        .toLowerCase()
+        .replace(/[  ᠎ -​   ﻿]/g, ' ')
+        .replace(/\b(проф|профессор|доц|доцент|ст|преп|преподаватель|ас|асс|ассистент)\b[\.\s]*/gi, '')
+        .replace(/[^a-zа-я]/gi, '')
+        .trim();
+    }
+
+    function normalizeRoomForJoint(room) {
+      return (room || '')
+        .toLowerCase()
+        .replace(/ауд[\.\s]*/gi, '')
+        .replace(/[^a-zа-я0-9]/gi, '')
+        .trim();
+    }
+
     function isIgnoredForJoint(sub, teach, room) {
       const s = (sub || '').toLowerCase();
       const stopWords = [
@@ -2179,77 +2208,59 @@
       return false;
     }
 
+    function getJointSlotKey(w, d, p, subject, teacher, room) {
+      const normSub = normalizeSubjectForJoint(subject);
+      const normTeach = normalizeTeacherForJoint(teacher);
+      const normRoom = normalizeRoomForJoint(room);
+
+      if (!normSub && !normTeach) return '';
+      // Если у пар в одно время совпадает преподаватель и основа предмета — это гарантированно совместная пара
+      if (normTeach && normSub) {
+        return `${w}_${d}_${p}_ts_${normTeach}_${normSub}`;
+      } else if (normTeach) {
+        return `${w}_${d}_${p}_t_${normTeach}`;
+      } else if (normRoom && normSub) {
+        return `${w}_${d}_${p}_rs_${normRoom}_${normSub}`;
+      } else if (normSub) {
+        return `${w}_${d}_${p}_s_${normSub}`;
+      }
+      return '';
+    }
+
     function enrichJointLessons(groupsDict) {
       const slotMap = new Map();
 
-      // 1. Группируем по преподавателю или аудитории в одно время
+      // Шаг 1: построение карты совместных слотов
       for (const [grpName, lessons] of Object.entries(groupsDict || {})) {
         for (let i = 0; i < lessons.length; i++) {
           const item = lessons[i];
-          const w = item.week;
-          const d = item.day;
-          const p = item.pair;
-
           if (isIgnoredForJoint(item.subject, item.teacher, item.room)) continue;
 
-          const normSub = normalizeSubjectForJoint(item.subject);
-          const normTeach = normalizeTeacherForJoint(item.teacher);
-          const normRoom = normalizeRoomForJoint(item.room);
+          const key = getJointSlotKey(item.week, item.day, item.pair, item.subject, item.teacher, item.room);
+          if (!key) continue;
 
-          if (!normSub && !normTeach) continue;
-
-          let slotKey = '';
-          if (normTeach && normSub) {
-            slotKey = `${w}_${d}_${p}_ts_${normTeach}_${normSub}`;
-          } else if (normTeach) {
-            slotKey = `${w}_${d}_${p}_t_${normTeach}`;
-          } else if (normRoom && normSub) {
-            slotKey = `${w}_${d}_${p}_rs_${normRoom}_${normSub}`;
-          } else if (normSub) {
-            slotKey = `${w}_${d}_${p}_s_${normSub}`;
-          }
-
-          if (!slotKey) continue;
-          if (!slotMap.has(slotKey)) slotMap.set(slotKey, new Set());
-          slotMap.get(slotKey).add(grpName);
+          if (!slotMap.has(key)) slotMap.set(key, new Set());
+          slotMap.get(key).add(grpName);
         }
       }
 
-      // 2. Назначаем список групп в карточки для ВСЕХ предметов
+      // Шаг 2: привязка групп к каждой паре расписания
       for (const [grpName, lessons] of Object.entries(groupsDict || {})) {
         for (let i = 0; i < lessons.length; i++) {
           const item = lessons[i];
-          const w = item.week;
-          const d = item.day;
-          const p = item.pair;
-
           if (isIgnoredForJoint(item.subject, item.teacher, item.room)) {
             item.all_joint_groups = [grpName];
             item.joint_groups = [];
             continue;
           }
 
-          const normSub = normalizeSubjectForJoint(item.subject);
-          const normTeach = normalizeTeacherForJoint(item.teacher);
-          const normRoom = normalizeRoomForJoint(item.room);
-
-          let slotKey = '';
-          if (normTeach && normSub) {
-            slotKey = `${w}_${d}_${p}_ts_${normTeach}_${normSub}`;
-          } else if (normTeach) {
-            slotKey = `${w}_${d}_${p}_t_${normTeach}`;
-          } else if (normRoom && normSub) {
-            slotKey = `${w}_${d}_${p}_rs_${normRoom}_${normSub}`;
-          } else if (normSub) {
-            slotKey = `${w}_${d}_${p}_s_${normSub}`;
-          }
-
-          const allGrps = (slotKey && slotMap.has(slotKey)) 
-            ? Array.from(slotMap.get(slotKey)).sort((a,b) => a.localeCompare(b, 'ru'))
+          const key = getJointSlotKey(item.week, item.day, item.pair, item.subject, item.teacher, item.room);
+          const allGrps = (key && slotMap.has(key)) 
+            ? Array.from(slotMap.get(key)).sort((a,b) => a.localeCompare(b, 'ru'))
             : [grpName];
 
-          // Поддерживаем лекционные потоки любых предметов до 25 групп
-          if (allGrps.length > 1 && allGrps.length <= 25) {
+          // Поддерживаем любые потоковые пары до 30 групп включительно
+          if (allGrps.length > 1 && allGrps.length <= 30) {
             item.all_joint_groups = allGrps;
             item.joint_groups = allGrps.filter(g => g !== grpName);
           } else {
@@ -2273,14 +2284,8 @@
         const isSub = /\((?:замена|зам\.?)\)/i.test(rawName);
         for (let i = 0; i < lessons.length; i++) {
           const lesson = lessons[i];
-          const w = lesson.week;
-          const d = lesson.day;
-          const p = lesson.pair;
-          const sub = sanitizeName(lesson.subject).replace(/^ф\.\d+\s*/i, '');
-          const teach = sanitizeName(cleanName);
-          const room = sanitizeName(lesson.room);
-          const key = teach ? `${w}_${d}_${p}_${sub}_${teach}` : `${w}_${d}_${p}_${sub}_${room}`;
-          const allGrps = Array.from(slotMap.get(key) || []).sort();
+          const key = getJointSlotKey(lesson.week, lesson.day, lesson.pair, lesson.subject, cleanName, lesson.room);
+          const allGrps = (key && slotMap.has(key)) ? Array.from(slotMap.get(key)).sort() : [lesson.group];
 
           const lessonObj = {
             ...lesson,
