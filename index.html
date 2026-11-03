@@ -9,15 +9,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>МГПУ • Расписание ИИЯ</title>
 
+  <!-- Предварительное соединение с сервером API и предзагрузка базы -->
   <link rel="preconnect" href="https://steep-forest-40b2.okroma007.workers.dev" crossorigin>
   <link rel="preload" href="schedule.json" as="fetch" crossorigin>
 
+  <!-- SDK Telegram и VK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js" defer></script>
 
+  <!-- PWA -->
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="logo.png">
-  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Расписание МГПУ">
@@ -98,6 +100,7 @@
       pointer-events: auto !important;
     }
 
+    /* Шапка МГПУ */
     .header {
       background: var(--card-bg);
       padding: 10px 16px;
@@ -111,7 +114,9 @@
       z-index: 100;
     }
 
-    body.is-vk .header { padding-right: 95px; }
+    body.is-vk .header {
+      padding-right: 95px;
+    }
 
     .header-left { 
       display: flex; 
@@ -174,6 +179,7 @@
       flex-shrink: 0;
     }
 
+    /* Переключатель темы в шапке */
     .theme-switch {
       position: relative;
       width: 48px;
@@ -201,6 +207,9 @@
     }
     [data-theme="dark"] .theme-switch-thumb { transform: translateX(20px); }
 
+    /* ============================================================
+       НИЖНИЙ ТАББАР (BOTTOM NAVIGATION BAR)
+    ============================================================ */
     .bottom-tab-bar {
       position: fixed;
       bottom: 0;
@@ -241,8 +250,13 @@
       transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
 
-    .tab-btn.active { color: var(--tab-active); }
-    .tab-btn.active .tab-icon { transform: translateY(-2px) scale(1.1); }
+    .tab-btn.active {
+      color: var(--tab-active);
+    }
+
+    .tab-btn.active .tab-icon {
+      transform: translateY(-2px) scale(1.1);
+    }
 
     .tab-badge-dot {
       position: absolute;
@@ -256,7 +270,10 @@
       display: none;
     }
 
-    .tab-content-view { display: none; }
+    /* Секции контента вкладок */
+    .tab-content-view {
+      display: none;
+    }
     .tab-content-view.active-view {
       display: block;
       animation: tabFadeIn 0.2s ease-out;
@@ -266,42 +283,19 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
+    /* Экраны и элементы вкладки Расписание */
     .controls-panel { padding: 12px 16px 6px; display: flex; flex-direction: column; gap: 8px; }
-
-    .weeks-scroll-wrapper { width: 100%; overflow: hidden; margin-bottom: 2px; }
-    .weeks-bar {
-      display: flex;
-      gap: 6px;
-      overflow-x: auto;
-      scrollbar-width: none;
-      -webkit-overflow-scrolling: touch;
-      padding: 2px 0 4px;
-    }
-    .weeks-bar::-webkit-scrollbar { display: none; }
-    .week-chip {
-      flex: 0 0 auto;
-      min-width: 86px;
-      padding: 7px 12px;
-      background: var(--card-bg);
+    .week-select {
+      width: 100%;
+      padding: 10px 14px;
       border: 1px solid var(--border);
-      border-radius: 11px;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 2px;
-      transition: all 0.15s ease;
+      background: var(--card-bg);
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--mgpu-dark);
+      outline: none;
     }
-    .week-chip .week-chip-title { font-size: 12px; font-weight: 800; color: var(--text-sub); }
-    .week-chip .week-chip-dates { font-size: 10px; font-weight: 600; color: var(--mgpu-dark); opacity: 0.85; white-space: nowrap; }
-    .week-chip.active {
-      background: var(--mgpu-red) !important;
-      border-color: var(--mgpu-red) !important;
-      box-shadow: 0 2px 8px rgba(227, 6, 19, 0.22);
-    }
-    .week-chip.active .week-chip-title,
-    .week-chip.active .week-chip-dates { color: #FFFFFF !important; opacity: 1 !important; }
 
     .search-wrapper {
       position: relative;
@@ -340,22 +334,7 @@
       padding: 4px;
     }
 
-    .sync-cal-banner {
-      display: flex;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 8px 12px;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      cursor: pointer;
-      margin-top: 2px;
-    }
-    .sync-cal-banner:active { opacity: 0.8; }
-    .sync-cal-left { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--mgpu-dark); }
-    .sync-cal-arrow { font-size: 12px; color: var(--mgpu-red); font-weight: 800; }
-
+    /* Дни недели */
     .days-bar {
       display: flex;
       gap: 6px;
@@ -386,8 +365,11 @@
       border-color: var(--mgpu-red) !important;
     }
     .day-chip.active .day-name,
-    .day-chip.active .day-num { color: #FFFFFF !important; }
+    .day-chip.active .day-num {
+      color: #FFFFFF !important;
+    }
 
+    /* Карточки расписания */
     .schedule-list { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
     .lesson-card {
       background: var(--card-bg);
@@ -452,6 +434,7 @@
     .lesson-room { font-weight: 600; color: var(--mgpu-dark); margin-top: 2px; }
     .lesson-target-group { font-weight: 700; color: var(--mgpu-red); margin-bottom: 2px; }
 
+    /* Домашнее задание в карточке */
     .hw-preview-box {
       margin-top: 10px;
       padding: 9px 12px;
@@ -490,7 +473,12 @@
       text-transform: lowercase;
       letter-spacing: 0.2px;
     }
-    .hw-preview-text { font-size: 13px; color: var(--mgpu-dark); line-height: 1.35; white-space: pre-wrap; }
+    .hw-preview-text {
+      font-size: 13px;
+      color: var(--mgpu-dark);
+      line-height: 1.35;
+      white-space: pre-wrap;
+    }
     .hw-empty-add-btn {
       margin-top: 8px;
       font-size: 12px;
@@ -508,6 +496,7 @@
     }
     .hw-empty-add-btn:active { background: var(--input-bg); }
 
+    /* Трекинг пар преподавателя */
     .teacher-stats-box {
       margin-top: 10px;
       padding: 8px 10px;
@@ -524,9 +513,20 @@
       margin-bottom: 5px;
     }
     .teacher-stats-row b { color: var(--mgpu-red); }
-    .progress-bar-bg { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
-    .progress-bar-fill { height: 100%; background: var(--mgpu-red); border-radius: 2px; transition: width 0.3s ease; }
+    .progress-bar-bg {
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--mgpu-red);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
 
+    /* Скелетон */
     .skeleton-card {
       background: var(--card-bg);
       border-radius: 12px;
@@ -540,10 +540,32 @@
     .skeleton-line { height: 12px; background: var(--skeleton-bg); border-radius: 6px; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
-    .hw-feed-wrap { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-    .hw-feed-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-    .hw-feed-title { font-size: 18px; font-weight: 800; color: var(--mgpu-dark); }
-    .hw-feed-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+    /* ============================================================
+       ВКЛАДКА 2: ЛЕНТА ДОМАШНИХ ЗАДАНИЙ
+    ============================================================ */
+    .hw-feed-wrap {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .hw-feed-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .hw-feed-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--mgpu-dark);
+    }
+    .hw-feed-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 4px;
+    }
     .hw-feed-search {
       flex: 1;
       padding: 9px 12px;
@@ -566,12 +588,36 @@
       flex-direction: column;
       gap: 8px;
     }
-    .hw-card-feed.is-admin-hw { border-left-color: var(--mgpu-red); }
-    .hw-card-feed.is-completed { opacity: 0.55; }
-    .hw-card-feed.is-completed .hw-feed-body { text-decoration: line-through; }
-    .hw-card-top-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-    .hw-card-subj { font-size: 15px; font-weight: 800; color: var(--mgpu-dark); line-height: 1.25; }
-    .hw-card-meta { font-size: 11px; color: var(--text-sub); font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .hw-card-feed.is-admin-hw {
+      border-left-color: var(--mgpu-red);
+    }
+    .hw-card-feed.is-completed {
+      opacity: 0.55;
+    }
+    .hw-card-feed.is-completed .hw-feed-body {
+      text-decoration: line-through;
+    }
+    .hw-card-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .hw-card-subj {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--mgpu-dark);
+      line-height: 1.25;
+    }
+    .hw-card-meta {
+      font-size: 11px;
+      color: var(--text-sub);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
     .hw-feed-body {
       font-size: 13px;
       color: var(--mgpu-dark);
@@ -582,11 +628,38 @@
       border-radius: 9px;
       border: 1px solid var(--border);
     }
-    .hw-card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-sub); padding-top: 2px; }
-    .hw-done-check { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-sub); cursor: pointer; }
-    .hw-done-check input { accent-color: var(--mgpu-red); width: 15px; height: 15px; }
+    .hw-card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--text-sub);
+      padding-top: 2px;
+    }
+    .hw-done-check {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-sub);
+      cursor: pointer;
+    }
+    .hw-done-check input {
+      accent-color: var(--mgpu-red);
+      width: 15px;
+      height: 15px;
+    }
 
-    .session-view-wrap { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    /* ============================================================
+       ВКЛАДКА 3: СЕССИЯ (ДИНАМИЧЕСКАЯ)
+    ============================================================ */
+    .session-view-wrap {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
     .session-banner-card {
       background: var(--card-bg);
       border-radius: 16px;
@@ -610,10 +683,26 @@
       border-radius: 8px;
       width: fit-content;
     }
-    .session-title { font-size: 17px; font-weight: 800; color: var(--mgpu-dark); }
-    .session-desc { font-size: 13px; color: var(--text-sub); line-height: 1.4; }
+    .session-title {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--mgpu-dark);
+    }
+    .session-desc {
+      font-size: 13px;
+      color: var(--text-sub);
+      line-height: 1.4;
+    }
 
-    .profile-view-wrap { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    /* ============================================================
+       ВКЛАДКА 4: ПРОФИЛЬ И НАСТРОЙКИ
+    ============================================================ */
+    .profile-view-wrap {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
     .profile-hero-card {
       background: var(--card-bg);
       border-radius: 16px;
@@ -624,9 +713,26 @@
       flex-direction: column;
       gap: 12px;
     }
-    .profile-hero-top { display: flex; justify-content: space-between; align-items: center; }
-    .profile-user-role { font-size: 11px; font-weight: 800; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.5px; }
-    .profile-user-target { font-size: 20px; font-weight: 800; color: var(--mgpu-dark); display: flex; align-items: center; gap: 8px; }
+    .profile-hero-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .profile-user-role {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .profile-user-target {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--mgpu-dark);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
     .settings-group {
       background: var(--card-bg);
       border: 1px solid var(--border);
@@ -647,12 +753,27 @@
       color: var(--mgpu-dark);
       text-decoration: none;
     }
-    .settings-row:last-child { border-bottom: none; }
-    .settings-row:active { background: var(--input-bg); }
-    .settings-row-left { display: flex; align-items: center; gap: 10px; }
-    .settings-row-icon { font-size: 18px; }
-    .settings-row-arrow { font-size: 14px; color: var(--text-sub); font-weight: 700; }
+    .settings-row:last-child {
+      border-bottom: none;
+    }
+    .settings-row:active {
+      background: var(--input-bg);
+    }
+    .settings-row-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .settings-row-icon {
+      font-size: 18px;
+    }
+    .settings-row-arrow {
+      font-size: 14px;
+      color: var(--text-sub);
+      font-weight: 700;
+    }
 
+    /* Модальные окна */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -676,35 +797,33 @@
       max-height: 85vh;
       overflow-y: auto;
     }
-    .drag-handle-bar { width: 40px; height: 5px; background: var(--border); border-radius: 3px; margin: 4px auto 14px; }
-    .modal-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .drag-handle-bar {
+      width: 40px;
+      height: 5px;
+      background: var(--border);
+      border-radius: 3px;
+      margin: 4px auto 14px;
+    }
+    .modal-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
     .modal-title { font-size: 18px; font-weight: 800; color: var(--mgpu-dark); }
-    
     .modal-close-btn {
       background: var(--bg);
       border: 1px solid var(--border);
-      width: 32px;
-      height: 32px;
-      min-width: 32px;
-      min-height: 32px;
-      max-width: 32px;
-      max-height: 32px;
-      aspect-ratio: 1 / 1;
-      padding: 0;
-      margin: 0;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
       font-size: 16px;
-      line-height: 1;
       color: var(--text-sub);
-      display: inline-flex;
+      display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      flex-shrink: 0;
-      box-sizing: border-box;
-      outline: none;
     }
-    .modal-close-btn:active { opacity: 0.7; transform: scale(0.94); }
 
     .role-segmented-control {
       display: flex;
@@ -731,53 +850,6 @@
       box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
 
-    .search-input-wrapper { position: relative; width: 100%; margin-bottom: 12px; }
-    .search-suggestions-box {
-      display: none;
-      position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
-      background: var(--card-bg);
-      border: 1.5px solid var(--mgpu-red);
-      border-radius: 12px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.18);
-      max-height: 220px;
-      overflow-y: auto;
-      z-index: 1050;
-      margin-top: 4px;
-      -webkit-overflow-scrolling: touch;
-    }
-    .suggestion-item {
-      padding: 10px 14px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--mgpu-dark);
-      cursor: pointer;
-      border-bottom: 1px solid var(--border);
-      transition: background 0.15s;
-    }
-    .suggestion-item:last-child { border-bottom: none; }
-    .suggestion-item:hover, .suggestion-item:active { background: var(--input-bg); color: var(--mgpu-red); }
-    .suggestion-empty { padding: 14px; text-align: center; font-size: 12px; color: var(--text-sub); }
-    .selected-target-indicator {
-      display: none;
-      margin-top: -6px;
-      margin-bottom: 12px;
-      padding: 8px 12px;
-      background: var(--mgpu-red-light);
-      border: 1px solid rgba(227, 6, 19, 0.2);
-      border-radius: 9px;
-      font-size: 12px;
-      color: var(--mgpu-red);
-      font-weight: 700;
-      align-items: center;
-      justify-content: space-between;
-    }
-
     .modal-filter-input {
       width: 100%;
       padding: 10px 12px;
@@ -787,7 +859,7 @@
       background: var(--input-bg);
       color: var(--mgpu-dark);
       outline: none;
-      margin-bottom: 0;
+      margin-bottom: 12px;
     }
     .modal-filter-input:focus { border-color: var(--mgpu-red); }
 
@@ -804,7 +876,12 @@
       color: var(--mgpu-dark);
       outline: none;
     }
-    .modal-note { font-size: 11px; color: var(--text-sub); margin-top: 4px; line-height: 1.3; }
+    .modal-note {
+      font-size: 11px;
+      color: var(--text-sub);
+      margin-top: 4px;
+      line-height: 1.3;
+    }
 
     .hw-textarea {
       width: 100%;
@@ -957,16 +1034,10 @@
     </div>
   </div>
 
-  <!-- ВКЛАДКА 1: РАСПИСАНИЕ -->
+  <!-- ВКЛАДКА 1: РАСПИСАНИЕ (ГЛАВНЫЙ ЭКРАН) -->
   <div class="tab-content-view active-view" id="viewSchedule">
     <div class="controls-panel">
-      <!-- Скрытый select для программной совместимости -->
-      <select id="weekSelect" class="week-select" onchange="onWeekChange()" style="display: none;"></select>
-
-      <!-- Горизонтальная лента недель -->
-      <div class="weeks-scroll-wrapper">
-        <div class="weeks-bar" id="weeksBar"></div>
-      </div>
+      <select id="weekSelect" class="week-select" onchange="onWeekChange()"></select>
 
       <div class="search-wrapper">
         <span class="search-icon-left">🔍</span>
@@ -980,6 +1051,7 @@
         <button type="button" id="scheduleSearchClear" class="search-clear-btn" onclick="clearScheduleSearch()">&times;</button>
       </div>
 
+      <!-- Плашка календаря на главной -->
       <div id="syncCalBanner" class="sync-cal-banner" onclick="openCalendarModal()">
         <div class="sync-cal-left">
           <span>📅</span>
@@ -1025,7 +1097,7 @@
     </div>
   </div>
 
-  <!-- ВКЛАДКА 3: СЕССИЯ -->
+  <!-- ВКЛАДКА 3: СЕССИЯ (ДИНАМИЧЕСКАЯ) -->
   <div class="tab-content-view" id="viewSession">
     <div class="session-view-wrap">
       <div class="session-banner-card">
@@ -1043,7 +1115,7 @@
     </div>
   </div>
 
-  <!-- ВКЛАДКА 4: ПРОФИЛЬ -->
+  <!-- ВКЛАДКА 4: ПРОФИЛЬ И НАСТРОЙКИ -->
   <div class="tab-content-view" id="viewProfile">
     <div class="profile-view-wrap">
       <div class="profile-hero-card">
@@ -1131,40 +1203,7 @@
     <div class="ios-banner-arrow">▼</div>
   </div>
 
-  <!-- ШТОРКА ТЕХНИЧЕСКИХ НЕПОЛАДОК (WATCHDOG) -->
-  <div class="modal-overlay" id="techErrorModal" style="z-index: 2500;">
-    <div class="modal-sheet" style="padding-bottom: 30px; text-align: center;">
-      <div class="drag-handle-bar"></div>
-      <div style="font-size: 48px; margin: 8px 0 12px;">🛠️</div>
-      <div class="modal-title" style="font-size: 20px; font-weight: 800; margin-bottom: 8px; color: var(--mgpu-red);">
-        Технические неполадки
-      </div>
-      <div style="font-size: 14px; color: var(--text-sub); line-height: 1.45; margin-bottom: 20px;">
-        Не удалось загрузить расписание. Возможно, ведутся технические работы на сервере, обновляется база или отсутствует интернет-соединение.
-      </div>
-
-      <div class="hw-actions-col">
-        <button type="button" class="hw-btn-primary" onclick="location.reload(true)">
-          🔄 Попробовать снова
-        </button>
-        <button type="button" class="hw-btn-secondary" onclick="forceClearCacheAndReload()">
-          🧹 Сбросить кэш и обновить
-        </button>
-        <button type="button" class="hw-empty-add-btn" style="justify-content: center; text-align: center; padding: 12px;" onclick="closeTechErrorModal()">
-          Продолжить в офлайн-режиме
-        </button>
-      </div>
-
-      <div id="techErrorDetailsWrap" style="margin-top: 16px; text-align: left; display: none;">
-        <div style="font-size: 11px; font-weight: 700; color: var(--text-sub); margin-bottom: 4px; text-transform: uppercase;">
-          Информация для разработчика:
-        </div>
-        <pre id="techErrorDetailsText" style="font-size: 11px; background: var(--input-bg); padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); color: var(--mgpu-red); overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 100px;"></pre>
-      </div>
-    </div>
-  </div>
-
-  <!-- ШТОРКА ДЗ С ДВУМЯ ВКЛАДКАМИ -->
+  <!-- Шторка ДЗ -->
   <div class="modal-overlay" id="hwModal">
     <div class="modal-sheet" style="padding-bottom: 25px;">
       <div class="drag-handle-bar"></div>
@@ -1173,31 +1212,15 @@
         <button type="button" class="modal-close-btn" onclick="closeHwModal()">&times;</button>
       </div>
 
-      <div class="role-segmented-control" style="margin: 8px 0 12px;">
-        <button type="button" class="role-btn active" id="hwTabBtnCurrent" onclick="switchHwModalTab('current')">📌 К этой паре</button>
-        <button type="button" class="role-btn" id="hwTabBtnNext" onclick="switchHwModalTab('next')">➡️ На следующую пару</button>
-      </div>
+      <div id="hwModalSubtitle" style="font-size: 13px; color: var(--text-sub); margin-bottom: 8px;"></div>
+      <div id="hwAuthorInfo" style="display: none; margin-bottom: 8px; font-size: 11px; color: var(--text-sub);"></div>
 
-      <!-- Вкладка: К этой паре -->
-      <div id="hwCurrentSection">
-        <div id="hwModalSubtitle" style="font-size: 13px; color: var(--text-sub); margin-bottom: 8px;"></div>
-        <div id="hwAuthorInfo" style="display: none; margin-bottom: 8px; font-size: 11px; color: var(--text-sub);"></div>
-        <textarea id="hwInputText" class="hw-textarea" maxlength="1000" placeholder="Напишите задание к этой паре..."></textarea>
-        <div class="hw-actions-col">
-          <button type="button" class="hw-btn-primary" onclick="saveHomeworkCurrent()">💾 Сохранить к этой паре</button>
-          <button type="button" id="hwDeleteBtn" class="hw-btn-delete" style="display: none;" onclick="deleteHomework()">🗑️ Удалить задание</button>
-        </div>
-      </div>
+      <textarea id="hwInputText" class="hw-textarea" maxlength="1000" placeholder="Напишите задание (номера страниц, упражнения, темы к сдаче)..."></textarea>
 
-      <!-- Вкладка: На следующую пару -->
-      <div id="hwNextSection" style="display: none;">
-        <div id="hwNextSubtitle" style="font-size: 13px; color: var(--text-sub); margin-bottom: 8px;"></div>
-        <div id="hwNextAuthorInfo" style="display: none; margin-bottom: 8px; font-size: 11px; color: var(--text-sub);"></div>
-        <textarea id="hwNextInputText" class="hw-textarea" maxlength="1000" placeholder="Напишите задание на следующую пару..."></textarea>
-        <div class="hw-actions-col">
-          <button type="button" class="hw-btn-primary" onclick="saveHomeworkNext()">💾 Сохранить на следующую пару</button>
-          <button type="button" id="hwNextDeleteBtn" class="hw-btn-delete" style="display: none;" onclick="deleteNextHomework()">🗑️ Удалить со следующей пары</button>
-        </div>
+      <div class="hw-actions-col">
+        <button type="button" class="hw-btn-primary" onclick="saveHomeworkCurrent()">💾 Сохранить к этой паре</button>
+        <button type="button" class="hw-btn-secondary" onclick="saveHomeworkNext()">➡️ Задать на следующую пару</button>
+        <button type="button" id="hwDeleteBtn" class="hw-btn-delete" style="display: none;" onclick="deleteHomework()">🗑️ Удалить задание</button>
       </div>
     </div>
   </div>
@@ -1247,19 +1270,13 @@
       </div>
       
       <div id="studentFields">
-        <div class="search-input-wrapper" id="groupSearchWrapper">
-          <input 
-            type="text" 
-            id="modalGroupSearchInput" 
-            class="modal-filter-input" 
-            placeholder="🔍 Начните вводить группу (например: ВЦК, ПОЕ 252)..." 
-            oninput="onModalGroupSearch(this.value)"
-            onfocus="onModalGroupSearch(this.value)"
-            autocomplete="off"
-          >
-          <div id="groupSearchSuggestions" class="search-suggestions-box"></div>
-        </div>
-        <div id="groupSelectedBadge" class="selected-target-indicator"></div>
+        <input 
+          type="text" 
+          id="modalGroupSearchInput" 
+          class="modal-filter-input" 
+          placeholder="🔍 Быстрый поиск группы (например: ВЦК, ПОЕ 252)..." 
+          oninput="onModalGroupSearch(this.value)"
+        >
 
         <div class="form-group" id="directionFormGroup">
           <label>Направление подготовки</label>
@@ -1273,19 +1290,13 @@
       </div>
 
       <div id="teacherFields" style="display: none;">
-        <div class="search-input-wrapper" id="teacherSearchWrapper">
-          <input 
-            type="text" 
-            id="modalTeacherSearchInput" 
-            class="modal-filter-input" 
-            placeholder="🔍 Начните вводить фамилию преподавателя..." 
-            oninput="onModalTeacherSearch(this.value)"
-            onfocus="onModalTeacherSearch(this.value)"
-            autocomplete="off"
-          >
-          <div id="teacherSearchSuggestions" class="search-suggestions-box"></div>
-        </div>
-        <div id="teacherSelectedBadge" class="selected-target-indicator"></div>
+        <input 
+          type="text" 
+          id="modalTeacherSearchInput" 
+          class="modal-filter-input" 
+          placeholder="🔍 Быстрый поиск ФИО преподавателя..." 
+          oninput="onModalTeacherSearch(this.value)"
+        >
 
         <div class="form-group">
           <label>ФИО преподавателя</label>
@@ -1314,55 +1325,6 @@
     }
 
     try { localStorage.removeItem('mgpu_schedule_db_cache'); } catch (e) {}
-
-    /* ========== УМНАЯ СИСТЕМА ДИАГНОСТИКИ И WATCHDOG ========== */
-    let isAppInitializedSuccessfully = false;
-    let techErrorWatchdogTimer = null;
-
-    function showTechErrorModal(errDetails = "") {
-      if (isAppInitializedSuccessfully) return;
-      const modal = document.getElementById("techErrorModal");
-      if (!modal) return;
-      if (errDetails) {
-        const wrap = document.getElementById("techErrorDetailsWrap");
-        const txt = document.getElementById("techErrorDetailsText");
-        if (wrap && txt) {
-          txt.textContent = String(errDetails);
-          wrap.style.display = "block";
-        }
-      }
-      modal.style.display = "flex";
-      const sheet = modal.querySelector(".modal-sheet");
-      if (sheet) sheet.style.transform = "translateY(0)";
-    }
-
-    function closeTechErrorModal() {
-      const modal = document.getElementById("techErrorModal");
-      if (!modal) return;
-      const sheet = modal.querySelector(".modal-sheet");
-      if (sheet) sheet.style.transform = "translateY(100%)";
-      setTimeout(() => { modal.style.display = "none"; }, 200);
-    }
-
-    window.addEventListener('error', (e) => {
-      console.error("Window error:", e);
-      if (!isAppInitializedSuccessfully) {
-        showTechErrorModal(`Сбой JS: ${e.message || e}\nФайл: ${e.filename || ''}:${e.lineno || ''}`);
-      }
-    });
-
-    window.addEventListener('unhandledrejection', (e) => {
-      console.error("Unhandled promise rejection:", e);
-      if (!isAppInitializedSuccessfully) {
-        showTechErrorModal(`Сбой промиса: ${e.reason?.message || e.reason || 'Ошибка сети/парсинга'}`);
-      }
-    });
-
-    techErrorWatchdogTimer = setTimeout(() => {
-      if (!isAppInitializedSuccessfully) {
-        showTechErrorModal("Превышено время ожидания загрузки расписания (6 сек). Проверьте интернет-соединение или обновите страницу.");
-      }
-    }, 6000);
 
     /* ========== ТОЧНОЕ ОТСЛЕЖИВАНИЕ ОФЛАЙН-РЕЖИМА ========== */
     let isAppOffline = !navigator.onLine;
@@ -1459,23 +1421,7 @@
     }
     initTheme();
 
-    /* PWA Install Handler */
-    let deferredInstallPrompt = null;
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredInstallPrompt = e;
-      const btn = document.getElementById("installHomeBtn");
-      if (btn) btn.style.display = "flex";
-    });
-
     function triggerSmartInstall() {
-      if (deferredInstallPrompt) {
-        deferredInstallPrompt.prompt();
-        deferredInstallPrompt.userChoice.then(() => {
-          deferredInstallPrompt = null;
-        });
-        return;
-      }
       const targetUrl = "https://rom41g.github.io/mcu-schedule/";
       if (tg && typeof tg.openLink === 'function') {
         tg.openLink(targetUrl);
@@ -1487,7 +1433,7 @@
         });
         return;
       }
-      showAppAlert("Чтобы установить расписание на экран: откройте меню браузера (три точки) и выберите «Добавить на главный экран».");
+      window.location.href = targetUrl;
     }
 
     function checkIosBanner() {
@@ -1517,7 +1463,7 @@
         if (isInsideTelegram && window.Telegram?.WebApp?.CloudStorage && window.Telegram.WebApp.isVersionAtLeast?.('6.9')) {
           try {
             const cloudVal = await new Promise((resolve) => {
-              const timer = setTimeout(() => resolve(null), 1500);
+              const timer = setTimeout(() => resolve(null), 200);
               window.Telegram.WebApp.CloudStorage.getItem(key, (err, res) => {
                 clearTimeout(timer);
                 resolve(err ? null : res);
@@ -1534,7 +1480,7 @@
           try {
             const vkRes = await Promise.race([
               vkBridge.send('VKWebAppStorageGet', { keys: [key] }),
-              new Promise((_, reject) => setTimeout(() => reject('timeout'), 1500))
+              new Promise((_, reject) => setTimeout(() => reject('timeout'), 200))
             ]);
             if (vkRes?.keys?.[0]?.value) {
               const val = vkRes.keys[0].value;
@@ -1603,7 +1549,7 @@
 
     function sanitizeName(str) {
       return (str || '')
-        .replace(/[  ᠎ -​   ﻿]/g, ' ')
+        .replace(/[  ᠎ -​  　﻿]/g, ' ')
         .replace(/[–—−]/g, '-')
         .trim()
         .toLowerCase();
@@ -1739,7 +1685,6 @@
     let activeSearchQuery = "";
     let currentWeekHw = {};
     let teacherWeekHw = {};
-    let companionWeekHw = {};
     let activeLessonContext = null;
 
     const todayIndex = new Date().getDay();
@@ -1808,44 +1753,6 @@
       return dates;
     }
 
-    function getLessonExactDate(weekNum, dayName) {
-      if (!weekNum || !dayName) return "";
-      const list = getActiveLessonsList();
-      const wMeta = db.weeks ? (db.weeks[weekNum] || db.weeks[String(weekNum)]) : null;
-      let mondayDate = null;
-
-      if (wMeta && typeof wMeta === 'object' && wMeta.start) {
-        if (typeof wMeta.start === 'string' && wMeta.start.includes('-')) {
-          const p = wMeta.start.split('-');
-          mondayDate = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10), 12, 0, 0);
-        } else {
-          mondayDate = new Date(wMeta.start);
-        }
-      } else {
-        const str = (typeof wMeta === 'string') ? wMeta : (list.find(x => x.week === weekNum)?.date_range || "");
-        const match = str.match(/(\d{2})\.(\d{2})\.(\d{2,4})/);
-        if (match) {
-          const y = match[3].length === 2 ? 2000 + parseInt(match[3], 10) : parseInt(match[3], 10);
-          const mon = parseInt(match[2], 10) - 1;
-          const d = parseInt(match[1], 10);
-          mondayDate = new Date(y, mon, d, 12, 0, 0);
-        }
-      }
-
-      if (!mondayDate || isNaN(mondayDate.getTime())) return "";
-
-      const dayOfWeek = (mondayDate.getDay() + 6) % 7;
-      const actualMon = new Date(mondayDate.getTime() - dayOfWeek * 86400000);
-      const dayIdx = DAYS.indexOf(dayName);
-      if (dayIdx === -1) return "";
-
-      const d = new Date(actualMon.getTime() + dayIdx * 86400000);
-      const dayStr = String(d.getDate()).padStart(2, '0');
-      const monthStr = String(d.getMonth() + 1).padStart(2, '0');
-      const yearStr = String(d.getFullYear()).slice(-2);
-      return `${dayStr}.${monthStr}.${yearStr}`;
-    }
-
     /* ========== УПРАВЛЕНИЕ НАВИГАЦИОННЫМИ ВКЛАДКАМИ ========== */
     let currentActiveTab = 'schedule';
 
@@ -1874,9 +1781,10 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
+    /* Проверка активности сессионного режима (1 дек - 10 фев И 1 мая - 10 июля) */
     function checkSessionTabAvailability() {
       const now = new Date();
-      const month = now.getMonth();
+      const month = now.getMonth(); // 0 = Jan, 1 = Feb ... 11 = Dec
       const day = now.getDate();
 
       const isWinterSession = (month === 11) || (month === 0) || (month === 1 && day <= 10);
@@ -1894,6 +1802,7 @@
       if (titleEl) titleEl.textContent = periodTitle;
     }
 
+    /* Отрисовка вкладки Сессия */
     function renderSessionTab() {
       const container = document.getElementById('sessionExamsList');
       const targetName = currentRole === 'teacher' ? currentTeacher : currentGroup;
@@ -1930,9 +1839,11 @@
       `).join('');
     }
 
+    /* Отрисовка ленты ДЗ */
     function renderHomeworkFeed() {
       const container = document.getElementById('hwFeedList');
       const query = (document.getElementById('hwFeedSearchInput')?.value || '').trim().toLowerCase();
+      const currentWeekNum = parseInt(document.getElementById("weekSelect")?.value, 10);
       const allLessons = getActiveLessonsList();
 
       const items = [];
@@ -2041,6 +1952,7 @@
       if (card) card.classList.toggle('is-completed', isChecked);
     }
 
+    /* Обновление данных экрана Профиль */
     function updateProfileTabInfo() {
       const roleBadge = document.getElementById('profileRoleBadge');
       const targetName = document.getElementById('profileTargetName');
@@ -2053,7 +1965,9 @@
       }
     }
 
+    /* Принудительная очистка кэша */
     async function forceClearCacheAndReload() {
+      if (!confirm('Очистить локальный кэш расписания и принудительно обновить приложение?')) return;
       try {
         if ('caches' in window) {
           const keys = await caches.keys();
@@ -2088,141 +2002,43 @@
       return data;
     }
 
-    function isIgnoredForJoint(sub, teach, room) {
+        function isIgnoredForJoint(sub, teach, room) {
       const s = (sub || '').toLowerCase();
-      const stopWords = [
-        'самостоятельн', 'видеолекци', 'день для', 'библиотечн', 
-        'каникул', 'выходн', 'празднич', 'дежурств', 'окно', 'самоподготовк'
-      ];
-      if (stopWords.some(w => s.includes(w))) return true;
-      if (!teach && !room) return true;
-      return false;
+      const t = (teach || '').trim();
+      const r = (room || '').trim();
+      if (!t && !r) return true;
+      const stopWords = ['самостоят', 'видеолекц', 'день для', 'библиот', 'каникул', 'выходн', 'празднич', 'дежурств', 'окно', 'самоподг'];
+      return stopWords.some(w => s.includes(w));
     }
 
-    function normalizeSubjectForJoint(sub) {
-      return (sub || '')
-        .toLowerCase()
-        .replace(/[  ᠎ -​   ﻿]/g, ' ')
-        .replace(/[–—−_]/g, '-')
-        .replace(/^[фf]\s*[\.\-_]?\s*\d+\s*/i, '') // убираем "Ф.4", "Ф.1" и т.д.
-        .replace(/^(лек|лекция|пр|практ|практика|лаб|семинар)[\.\s]+/i, '')
-        .replace(/\((?:лек|лекция|пр|практ|практика|лаб|семинар|порог[^\)]*)\)/gi, '')
-        .replace(/[^a-zа-я0-9]/gi, '')
-        .trim();
+    function getTeacherLastName(teachStr) {
+      if (!teachStr) return '';
+      const words = String(teachStr).match(/[А-Яа-яA-Za-z]+/g) || [];
+      const titles = new Set(['проф', 'профессор', 'доц', 'доцент', 'ст', 'преп', 'преподаватель', 'ас', 'асс', 'ассистент', 'каф', 'кафедра']);
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i].toLowerCase();
+        if (titles.has(w)) continue;
+        if (w.length > 1) return w;
+      }
+      return '';
     }
 
-    function normalizeTeacherForJoint(teach) {
-      return (teach || '')
-        .toLowerCase()
-        .replace(/[  ᠎ -​   ﻿]/g, ' ')
-        .replace(/\b(проф|профессор|доц|доцент|ст|преп|преподаватель|ас|асс|ассистент)\b[\.\s]*/gi, '')
-        .replace(/[^a-zа-я]/gi, '')
-        .trim();
-    }
-
-    function normalizeRoomForJoint(room) {
-      return (room || '')
-        .toLowerCase()
-        .replace(/ауд[\.\s]*/gi, '')
-        .replace(/[^a-zа-я0-9]/gi, '')
-        .trim();
-    }
-
-    function isIgnoredForJoint(sub, teach, room) {
-      const s = (sub || '').toLowerCase();
-      const stopWords = [
-        'самостоятельн', 'видеолекци', 'день для', 'библиотечн', 
-        'каникул', 'выходн', 'празднич', 'дежурств', 'окно', 'самоподготовк'
-      ];
-      if (stopWords.some(w => s.includes(w))) return true;
-      if (!teach && !room) return true;
-      return false;
-    }
-
-    function normalizeSubjectForJoint(sub) {
-      return (sub || '')
-        .toLowerCase()
-        .replace(/[  ᠎ -​   ﻿]/g, ' ')
-        .replace(/[–—−_]/g, '-')
-        .replace(/^[фf]\s*[\.\-_]?\s*\d+\s*/i, '') // убираем "Ф.4", "Ф.1"
-        .replace(/^(лек|лекция|пр|практ|практика|лаб|семинар)[\.\s]+/i, '')
-        .replace(/\((?:лек|лекция|пр|практ|практика|лаб|семинар|порог[^\)]*)\)/gi, '')
-        .replace(/[^a-zа-я0-9]/gi, '')
-        .trim();
-    }
-
-    function normalizeTeacherForJoint(teach) {
-      return (teach || '')
-        .toLowerCase()
-        .replace(/[  ᠎ -​   ﻿]/g, ' ')
-        .replace(/\b(проф|профессор|доц|доцент|ст|преп|преподаватель|ас|асс|ассистент)\b[\.\s]*/gi, '')
-        .replace(/[^a-zа-я]/gi, '')
-        .trim();
-    }
-
-    function normalizeRoomForJoint(room) {
-      return (room || '')
-        .toLowerCase()
-        .replace(/ауд[\.\s]*/gi, '')
-        .replace(/[^a-zа-я0-9]/gi, '')
-        .trim();
-    }
-
-    function normalizeSubjectForJoint(sub) {
-      return (sub || '')
-        .toLowerCase()
-        .replace(/[  ᠎ -​   ﻿]/g, ' ')
-        .replace(/[–—−_]/g, '-')
-        .replace(/^[фf]\s*[\.\-_]?\s*\d+\s*/i, '') // убираем префиксы Ф.1 - Ф.5
-        .replace(/^(лек|лекция|пр|практ|практика|лаб|семинар)[\.\s]+/i, '')
-        .replace(/\((?:лек|лекция|пр|практ|практика|лаб|семинар|порог[^\)]*)\)/gi, '')
-        .replace(/[^a-zа-я0-9]/gi, '')
-        .trim();
-    }
-
-    function normalizeTeacherForJoint(teach) {
-      return (teach || '')
-        .toLowerCase()
-        .replace(/[  ᠎ -​   ﻿]/g, ' ')
-        .replace(/\b(проф|профессор|доц|доцент|ст|преп|преподаватель|ас|асс|ассистент)\b[\.\s]*/gi, '')
-        .replace(/[^a-zа-я]/gi, '')
-        .trim();
-    }
-
-    function normalizeRoomForJoint(room) {
-      return (room || '')
-        .toLowerCase()
-        .replace(/ауд[\.\s]*/gi, '')
-        .replace(/[^a-zа-я0-9]/gi, '')
-        .trim();
-    }
-
-    function isIgnoredForJoint(sub, teach, room) {
-      const s = (sub || '').toLowerCase();
-      const stopWords = [
-        'самостоятельн', 'видеолекци', 'день для', 'библиотечн', 
-        'каникул', 'выходн', 'празднич', 'дежурств', 'окно', 'самоподготовк'
-      ];
-      if (stopWords.some(w => s.includes(w))) return true;
-      if (!teach && !room) return true;
-      return false;
+    function getCleanRoom(roomStr) {
+      if (!roomStr) return '';
+      const m = String(roomStr).match(/\d+[а-яa-z]?/i);
+      return m ? m[0].toLowerCase() : String(roomStr).toLowerCase().replace(/ауд[\.\s]*/gi, '').replace(/[^а-яa-z0-9]/gi, '');
     }
 
     function getJointSlotKey(w, d, p, subject, teacher, room) {
-      const normSub = normalizeSubjectForJoint(subject);
-      const normTeach = normalizeTeacherForJoint(teacher);
-      const normRoom = normalizeRoomForJoint(room);
-
-      if (!normSub && !normTeach) return '';
-      // Если у пар в одно время совпадает преподаватель и основа предмета — это гарантированно совместная пара
-      if (normTeach && normSub) {
-        return `${w}_${d}_${p}_ts_${normTeach}_${normSub}`;
-      } else if (normTeach) {
-        return `${w}_${d}_${p}_t_${normTeach}`;
-      } else if (normRoom && normSub) {
-        return `${w}_${d}_${p}_rs_${normRoom}_${normSub}`;
-      } else if (normSub) {
-        return `${w}_${d}_${p}_s_${normSub}`;
+      const teachKey = getTeacherLastName(teacher);
+      const roomKey = getCleanRoom(room);
+      if (teachKey) {
+        return `${w}_${d}_${p}_t_${teachKey}`;
+      } else if (roomKey) {
+        return `${w}_${d}_${p}_r_${roomKey}`;
+      } else if (subject) {
+        const sKey = String(subject).toLowerCase().replace(/^[фf]\s*[\.\-_]?\s*\d+\s*/i, '').replace(/[^а-яa-z0-9]/gi, '');
+        if (sKey) return `${w}_${d}_${p}_s_${sKey}`;
       }
       return '';
     }
@@ -2230,7 +2046,7 @@
     function enrichJointLessons(groupsDict) {
       const slotMap = new Map();
 
-      // Шаг 1: построение карты совместных слотов
+      // 1. Построение карты совместных слотов (для всех предметов института)
       for (const [grpName, lessons] of Object.entries(groupsDict || {})) {
         for (let i = 0; i < lessons.length; i++) {
           const item = lessons[i];
@@ -2244,7 +2060,7 @@
         }
       }
 
-      // Шаг 2: привязка групп к каждой паре расписания
+      // 2. Назначение списка совместных групп в карточки
       for (const [grpName, lessons] of Object.entries(groupsDict || {})) {
         for (let i = 0; i < lessons.length; i++) {
           const item = lessons[i];
@@ -2255,12 +2071,11 @@
           }
 
           const key = getJointSlotKey(item.week, item.day, item.pair, item.subject, item.teacher, item.room);
-          const allGrps = (key && slotMap.has(key)) 
-            ? Array.from(slotMap.get(key)).sort((a,b) => a.localeCompare(b, 'ru'))
+          const allGrps = (key && slotMap.has(key))
+            ? Array.from(slotMap.get(key)).sort((a, b) => a.localeCompare(b, 'ru'))
             : [grpName];
 
-          // Поддерживаем любые потоковые пары до 30 групп включительно
-          if (allGrps.length > 1 && allGrps.length <= 30) {
+          if (allGrps.length > 1) {
             item.all_joint_groups = allGrps;
             item.joint_groups = allGrps.filter(g => g !== grpName);
           } else {
@@ -2301,10 +2116,10 @@
       directionsList = buildDirectionsList();
     }
 
- async function resolveUserProfile() {
-      let savedRole = localStorage.getItem('mgpu_current_role') || "student";
-      let savedGroup = localStorage.getItem('mgpu_current_group') || "";
-      let savedTeacher = localStorage.getItem('mgpu_current_teacher') || "";
+    async function resolveUserProfile() {
+      let savedRole = Storage.getSync('mgpu_current_role');
+      let savedGroup = Storage.getSync('mgpu_current_group');
+      let savedTeacher = Storage.getSync('mgpu_current_teacher');
 
       if (!savedGroup && !savedTeacher) {
         const [cRole, cGroup, cTeacher] = await Promise.all([
@@ -2312,35 +2127,36 @@
           Storage.getCloud('mgpu_current_group'),
           Storage.getCloud('mgpu_current_teacher')
         ]);
-        if (cGroup) savedGroup = cGroup;
-        if (cTeacher) savedTeacher = cTeacher;
-        if (cRole) savedRole = cRole;
+        savedRole = cRole || "student";
+        savedGroup = cGroup;
+        savedTeacher = cTeacher;
       }
 
-      currentRole = savedRole;
+      const normSavedGroup = sanitizeName(savedGroup);
+      const normSavedTeacher = sanitizeName(savedTeacher);
 
-      if (currentRole === "teacher") {
-        if (savedTeacher && allTeachers.includes(savedTeacher)) {
-          currentTeacher = savedTeacher;
-        } else if (allTeachers.length > 0) {
-          const matched = allTeachers.find(t => sanitizeName(t) === sanitizeName(savedTeacher));
-          currentTeacher = matched || savedTeacher || allTeachers[0];
-        }
+      const matchedGroup = allGroups.find(g => sanitizeName(g) === normSavedGroup);
+      const matchedTeacher = allTeachers.find(t => sanitizeName(t) === normSavedTeacher);
+
+      let isFirstTime = false;
+      currentRole = savedRole || "student";
+
+      if (currentRole === "teacher" && matchedTeacher) {
+        currentTeacher = matchedTeacher;
+      } else if (matchedGroup) {
+        currentRole = "student";
+        currentGroup = matchedGroup;
       } else {
-        if (savedGroup && allGroups.includes(savedGroup)) {
-          currentGroup = savedGroup;
-        } else if (allGroups.length > 0) {
-          const matched = allGroups.find(g => sanitizeName(g) === sanitizeName(savedGroup));
-          currentGroup = matched || savedGroup || allGroups[0];
-        }
+        currentGroup = allGroups[0] || "";
+        currentTeacher = allTeachers[0] || "";
+        isFirstTime = true;
       }
 
-      return !savedGroup && !savedTeacher;
+      return isFirstTime;
     }
+
     async function init() {
-      if (!navigator.onLine && !localStorage.getItem('mgpu_current_group')) {
-        setOfflineState(true);
-      }
+      setOfflineState(!navigator.onLine);
       try {
         const cachedData = await getCachedSchedule();
 
@@ -2356,9 +2172,6 @@
           render();
           checkSessionTabAvailability();
           checkIosBanner();
-
-          isAppInitializedSuccessfully = true;
-          if (techErrorWatchdogTimer) clearTimeout(techErrorWatchdogTimer);
 
           if (isFirstTime) openProfileModal();
           else sendSmartTelemetry();
@@ -2391,16 +2204,14 @@
         checkSessionTabAvailability();
         checkIosBanner();
 
-        isAppInitializedSuccessfully = true;
-        if (techErrorWatchdogTimer) clearTimeout(techErrorWatchdogTimer);
-
         if (isFirstTime) openProfileModal();
         else sendSmartTelemetry();
 
         loadWeekHomework();
       } catch (err) {
         setOfflineState(true);
-        showTechErrorModal(`Не удалось загрузить расписание: ${err.message || err}`);
+        document.getElementById("scheduleList").innerHTML = 
+          `<div class="empty-state">Расписание пока не загружено в кэш.<br>Подключитесь к интернету для первого открытия.</div>`;
       }
     }
 
@@ -2498,55 +2309,9 @@
 
       if (matchedWeek) weekSelect.value = matchedWeek;
       else if (uniqueWeeks.length > 0) weekSelect.value = uniqueWeeks[0];
-
-      renderWeeksBar();
-    }
-
-    function renderWeeksBar() {
-      const container = document.getElementById("weeksBar");
-      if (!container) return;
-      const list = getActiveLessonsList();
-      const uniqueWeeks = [...new Set(list.map(x => x.week))].sort((a,b) => a - b);
-      const currentSelected = parseInt(document.getElementById("weekSelect").value, 10);
-
-      container.innerHTML = uniqueWeeks.map(w => {
-        let dateRange = "";
-        const wMeta = db.weeks ? (db.weeks[w] || db.weeks[String(w)]) : null;
-        if (wMeta && typeof wMeta === 'object' && wMeta.label) {
-          dateRange = wMeta.label.replace(/^\d+\s*неделя\s*/i, '');
-        } else {
-          const sample = list.find(x => x.week === w && x.date_range);
-          if (sample?.date_range) {
-            dateRange = sample.date_range.replace(/^\d+\s*неделя\s*/i, '');
-          }
-        }
-
-        const isActive = w === currentSelected;
-        return `
-          <div class="week-chip ${isActive ? 'active' : ''}" id="weekChip_${w}" onclick="selectWeek(${w})">
-            <span class="week-chip-title">${w} нед.</span>
-            ${dateRange ? `<span class="week-chip-dates">${dateRange}</span>` : ''}
-          </div>
-        `;
-      }).join("");
-
-      setTimeout(() => {
-        const activeChip = document.getElementById(`weekChip_${currentSelected}`);
-        if (activeChip && typeof activeChip.scrollIntoView === 'function') {
-          activeChip.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-        }
-      }, 50);
-    }
-
-    function selectWeek(weekNum) {
-      const weekSelect = document.getElementById("weekSelect");
-      if (weekSelect) weekSelect.value = weekNum;
-      renderWeeksBar();
-      onWeekChange();
     }
 
     function onWeekChange() {
-      renderWeeksBar();
       renderDaysBar();
       preloadHomeworkFromLocalSync();
       render();
@@ -2630,7 +2395,7 @@
     function copyCalendarUrl() {
       const icsUrl = getCalendarUrl();
       navigator.clipboard.writeText(icsUrl).then(() => {
-        showAppAlert("✅ Ссылка подписки скопирована!\n\nВставьте её в настройках Google или Apple Календаря (раздел «Добавить по URL»).");
+        alert("✅ Ссылка подписки скопирована!\n\nВставьте её в настройках Google или Apple Календаря (раздел «Добавить по URL»).");
       }).catch(() => {
         prompt("Скопируйте ссылку на подписку вручную:", icsUrl);
       });
@@ -2640,7 +2405,7 @@
       window.open(getCalendarUrl(), '_blank');
     }
 
-    /* ========== НЕБЛОКИРУЮЩАЯ ЗАГРУЗКА ДЗ ========== */
+    /* ========== НЕБЛОКИРУЮЩАЯ ЗАГРУЗКА ДЗ С МЕТКОЙ АДМИНА ========== */
     function getFallbackAuthorIdentity() {
       if (isInsideVK) {
         const vkName = window.currentVkUserName || (currentRole === "teacher" ? `Преподаватель ${currentTeacher}` : "Студент ВКонтакте");
@@ -2665,6 +2430,8 @@
         name: defaultName
       };
     }
+
+    let companionWeekHw = {};
 
     function getLessonHomework(targetGroup, lessonKey, jointGroups = []) {
       const gKey = (targetGroup || '').trim().toLowerCase();
@@ -2695,7 +2462,7 @@
       return `${day}_${pair}_${cleanSub}${cleanSubgrp ? '_' + cleanSubgrp : ''}`;
     }
 
-    async function fetchWithTimeout(url, timeoutMs = 8000) {
+    async function fetchWithTimeout(url, timeoutMs = 3000) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
@@ -2744,24 +2511,24 @@
         }
 
         try {
-          const res = await fetchWithTimeout(`${WORKER_URL}/api/hw?group=${encodeURIComponent(currentGroup)}&week=${weekNum}`, 8000);
-          if (res.ok) {
-            const freshData = await res.json();
-            currentWeekHw = freshData;
-            await HwCache.set(cacheKey, freshData);
-            setOfflineState(false);
-            render();
-            if (currentActiveTab === 'homework') renderHomeworkFeed();
-          }
+          const res = await fetchWithTimeout(`${WORKER_URL}/api/hw?group=${encodeURIComponent(currentGroup)}&week=${weekNum}`);
+          if (!res.ok) throw new Error("Offline");
+          const freshData = await res.json();
+          currentWeekHw = freshData;
+          await HwCache.set(cacheKey, freshData);
+          setOfflineState(false);
+          render();
+          if (currentActiveTab === 'homework') renderHomeworkFeed();
         } catch (e) {
-          // Задержка ответа базы ДЗ больше НЕ переключает всё приложение в офлайн
-          console.warn("Синхронизация ДЗ выполняется в фоне...");
+          setOfflineState(true);
         }
       } else if (currentRole === "teacher") {
         if (!currentTeacher || !db.teachers[currentTeacher]) return;
 
         const teacherLessons = (db.teachers[currentTeacher] || []).filter(l => String(l.week) === String(weekNum));
         const groups = [...new Set(teacherLessons.map(l => (l.group || '').trim()).filter(Boolean))];
+
+        let anyNetworkFailed = false;
 
         await Promise.all(groups.map(async (grp) => {
           const gKey = grp.toLowerCase();
@@ -2771,15 +2538,17 @@
           }
 
           try {
-            const res = await fetchWithTimeout(`${WORKER_URL}/api/hw?group=${encodeURIComponent(grp)}&week=${weekNum}`, 8000);
-            if (res.ok) {
-              const data = await res.json();
-              teacherWeekHw[gKey] = data;
-              await HwCache.set(cacheKey, data);
-            }
-          } catch (e) {}
+            const res = await fetchWithTimeout(`${WORKER_URL}/api/hw?group=${encodeURIComponent(grp)}&week=${weekNum}`);
+            if (!res.ok) throw new Error("Offline");
+            const data = await res.json();
+            teacherWeekHw[gKey] = data;
+            await HwCache.set(cacheKey, data);
+          } catch (e) {
+            anyNetworkFailed = true;
+          }
         }));
 
+        setOfflineState(anyNetworkFailed || !navigator.onLine);
         render();
         if (currentActiveTab === 'homework') renderHomeworkFeed();
       }
@@ -2831,31 +2600,6 @@
       }, 10);
     }
 
-    function switchHwModalTab(tab) {
-      const btnCur = document.getElementById("hwTabBtnCurrent");
-      const btnNxt = document.getElementById("hwTabBtnNext");
-      const secCur = document.getElementById("hwCurrentSection");
-      const secNxt = document.getElementById("hwNextSection");
-
-      if (tab === "next") {
-        if (!activeLessonContext || !activeLessonContext.nextLesson) {
-          showAppAlert("Следующая пара по этому предмету не найдена в расписании");
-          return;
-        }
-        btnNxt.classList.add("active");
-        btnCur.classList.remove("active");
-        secCur.style.display = "none";
-        secNxt.style.display = "block";
-        document.getElementById("hwNextInputText").focus();
-      } else {
-        btnCur.classList.add("active");
-        btnNxt.classList.remove("active");
-        secCur.style.display = "block";
-        secNxt.style.display = "none";
-        document.getElementById("hwInputText").focus();
-      }
-    }
-
     function openHwEditor(item) {
       if (hwModalHideTimer) {
         clearTimeout(hwModalHideTimer);
@@ -2866,20 +2610,16 @@
       const lessonKey = getLessonKey(item.day, item.pair, item.subject, item.subgroup);
       const targetGroup = (currentRole === "teacher" ? item.group : currentGroup) || "";
 
-      const nextLesson = findNextOccurrence(item, weekNum, targetGroup);
-
       activeLessonContext = {
         item: item,
         group: targetGroup,
         week: weekNum,
         lessonKey: lessonKey,
-        nextLesson: nextLesson,
         jointGroups: item.all_joint_groups || (item.joint_groups ? [targetGroup, ...item.joint_groups] : [targetGroup])
       };
 
       const hwItem = getLessonHomework(targetGroup, lessonKey, item.joint_groups);
 
-      // Вкладка "К этой паре"
       const authorInfo = document.getElementById("hwAuthorInfo");
       const delBtn = document.getElementById("hwDeleteBtn");
       const textInput = document.getElementById("hwInputText");
@@ -2888,12 +2628,9 @@
       textInput.readOnly = false;
       textInput.style.pointerEvents = "auto";
 
-      const curDate = getLessonExactDate(weekNum, item.day);
-      const curDateStr = curDate ? ` (${curDate})` : '';
-
       document.getElementById("hwModalTitle").textContent = item.subject;
       document.getElementById("hwModalSubtitle").textContent = 
-        `${item.day}${curDateStr} • ${item.pair} пара (${item.time}) • ${targetGroup}${item.subgroup ? ' • ' + item.subgroup : ''}`;
+        `${item.day} • ${item.pair} пара (${item.time}) • ${targetGroup}${item.subgroup ? ' • ' + item.subgroup : ''}`;
 
       if (hwItem && hwItem.text) {
         textInput.value = hwItem.text;
@@ -2912,46 +2649,6 @@
         delBtn.style.display = "none";
       }
 
-      // Вкладка "На следующую пару"
-      const nextInput = document.getElementById("hwNextInputText");
-      const nextSubtitle = document.getElementById("hwNextSubtitle");
-      const nextAuthorInfo = document.getElementById("hwNextAuthorInfo");
-      const nextDelBtn = document.getElementById("hwNextDeleteBtn");
-
-      if (nextLesson) {
-        const nextKey = getLessonKey(nextLesson.day, nextLesson.pair, nextLesson.subject, nextLesson.subgroup);
-        const nextHwItem = getLessonHomework(targetGroup, nextKey, nextLesson.joint_groups || nextLesson.all_joint_groups);
-
-        const nextDate = getLessonExactDate(nextLesson.week, nextLesson.day);
-        const nextDateStr = nextDate ? `${nextDate}, ` : '';
-
-        nextSubtitle.textContent = `Следующая пара: ${nextLesson.day} (${nextDateStr}${nextLesson.week} нед, ${nextLesson.pair} пара, ${nextLesson.time})`;
-
-        if (nextHwItem && nextHwItem.text) {
-          nextInput.value = nextHwItem.text;
-          if (!isAppOffline && nextHwItem.author?.badge) {
-            const icon = nextHwItem.author?.platform === 'tg' ? '📱' : (nextHwItem.author?.platform === 'vk' ? '🔵' : '🌐');
-            const adminTag = isAdminHwAuthor(nextHwItem.author) ? ' <span class="hw-admin-tag">админ</span>' : '';
-            nextAuthorInfo.style.display = "block";
-            nextAuthorInfo.innerHTML = `Записал(а): <b>${icon} ${nextHwItem.author.badge}</b>${adminTag}${nextHwItem.updated_at ? ' • ' + nextHwItem.updated_at : ''}`;
-          } else {
-            nextAuthorInfo.style.display = "none";
-          }
-          nextDelBtn.style.display = isAppOffline ? "none" : "block";
-        } else {
-          nextInput.value = "";
-          nextAuthorInfo.style.display = "none";
-          nextDelBtn.style.display = "none";
-        }
-      } else {
-        nextSubtitle.textContent = "Следующая пара не найдена в текущем семестре";
-        nextInput.value = "";
-        nextAuthorInfo.style.display = "none";
-        nextDelBtn.style.display = "none";
-      }
-
-      switchHwModalTab('current');
-
       const modal = document.getElementById("hwModal");
       const sheetEl = modal.querySelector(".modal-sheet");
       modal.style.display = "flex";
@@ -2960,9 +2657,7 @@
 
     function closeHwModal() {
       const textInput = document.getElementById("hwInputText");
-      const nextInput = document.getElementById("hwNextInputText");
       if (textInput) textInput.blur();
-      if (nextInput) nextInput.blur();
 
       const modal = document.getElementById("hwModal");
       modal.querySelector(".modal-sheet").style.transform = "translateY(100%)";
@@ -3052,13 +2747,7 @@
 
     async function saveHomeworkNext() {
       if (!activeLessonContext) return;
-      const nextLesson = activeLessonContext.nextLesson;
-      if (!nextLesson) {
-        showAppAlert("Следующая пара по этому предмету не найдена в расписании");
-        return;
-      }
-
-      const textInput = document.getElementById("hwNextInputText");
+      const textInput = document.getElementById("hwInputText");
       const text = textInput.value.trim();
       if (!text) {
         showAppAlert("Пожалуйста, введите текст задания");
@@ -3066,6 +2755,12 @@
       }
 
       const targetGroup = activeLessonContext.group;
+      const nextLesson = findNextOccurrence(activeLessonContext.item, activeLessonContext.week, targetGroup);
+      if (!nextLesson) {
+        showAppAlert("Следующая пара по этому предмету не найдена в расписании");
+        return;
+      }
+
       const nextKey = getLessonKey(nextLesson.day, nextLesson.pair, nextLesson.subject, nextLesson.subgroup);
 
       try {
@@ -3099,53 +2794,6 @@
           week: ctx.week,
           lessonKey: ctx.lessonKey,
           jointGroups: ctx.jointGroups || [ctx.group],
-          author: getFallbackAuthorIdentity(),
-          isDelete: true
-        };
-
-        const headers = { "Content-Type": "application/json" };
-        if (tg && tg.initData) {
-          headers["Authorization"] = `tma ${tg.initData}`;
-        }
-
-        try {
-          const res = await fetch(`${WORKER_URL}/api/hw`, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(payload)
-          });
-          const ans = await res.json();
-          if (ans.error) {
-            showAppAlert(ans.error);
-            return;
-          }
-          closeHwModal();
-          await loadWeekHomework();
-        } catch (e) {
-          showAppAlert("Не удалось удалить задание");
-        }
-      });
-    }
-
-    async function deleteNextHomework() {
-      if (!activeLessonContext || !activeLessonContext.nextLesson) return;
-      const nextLesson = activeLessonContext.nextLesson;
-      const targetGroup = activeLessonContext.group;
-      const nextKey = getLessonKey(nextLesson.day, nextLesson.pair, nextLesson.subject, nextLesson.subgroup);
-
-      showAppConfirm(`Удалить домашнее задание со следующей пары (${nextLesson.day})?`, async (confirmed) => {
-        if (!confirmed) return;
-
-        if (isAppOffline || !navigator.onLine) {
-          showAppAlert("Для удаления ДЗ требуется интернет-соединение");
-          return;
-        }
-
-        const payload = {
-          group: targetGroup,
-          week: nextLesson.week,
-          lessonKey: nextKey,
-          jointGroups: nextLesson.all_joint_groups || [targetGroup],
           author: getFallbackAuthorIdentity(),
           isDelete: true
         };
@@ -3321,10 +2969,6 @@
 
       document.getElementById("modalGroupSearchInput").value = "";
       document.getElementById("modalTeacherSearchInput").value = "";
-      document.getElementById("groupSearchSuggestions").style.display = "none";
-      document.getElementById("teacherSearchSuggestions").style.display = "none";
-      document.getElementById("groupSelectedBadge").style.display = "none";
-      document.getElementById("teacherSelectedBadge").style.display = "none";
       document.getElementById("directionFormGroup").style.display = "block";
 
       const dirSelect = document.getElementById("modalDirectionSelect");
@@ -3390,125 +3034,43 @@
       }
     }
 
-    function onModalTeacherSearch(query) {
-      const q = (query || "").trim();
-      const suggestionsBox = document.getElementById("teacherSearchSuggestions");
-
-      const filtered = q ? allTeachers.filter(t => smartMatch(t, q)) : allTeachers;
-      renderModalTeachers(filtered);
-
-      if (!q) {
-        if (suggestionsBox) suggestionsBox.style.display = "none";
-        return;
-      }
-
-      if (suggestionsBox) {
-        if (filtered.length === 0) {
-          suggestionsBox.innerHTML = `<div class="suggestion-empty">Ничего не найдено</div>`;
-        } else {
-          suggestionsBox.innerHTML = filtered.slice(0, 8).map(t => {
-            const escaped = t.replace(/'/g, "\\'");
-            return `
-              <div class="suggestion-item" onclick="selectTeacherSuggestion('${escaped}')">
-                <span>👨‍🏫</span>
-                <span>${t}</span>
-              </div>
-            `;
-          }).join("");
-        }
-        suggestionsBox.style.display = "block";
-      }
-    }
-
-    function selectTeacherSuggestion(teacherName) {
-      document.getElementById("modalTeacherSearchInput").value = teacherName;
-      const select = document.getElementById("modalTeacherSelect");
-      document.getElementById("teacherSearchSuggestions").style.display = "none";
-
-      renderModalTeachers(allTeachers);
-      select.value = teacherName;
-
-      const badge = document.getElementById("teacherSelectedBadge");
-      if (badge) {
-        badge.style.display = "flex";
-        badge.innerHTML = `<span>✅ Выбран: <b>${teacherName}</b></span><span style="font-size:10px; opacity:0.8;">нажмите «Сохранить»</span>`;
-      }
-    }
-
     function onModalGroupSearch(query) {
       const q = (query || "").trim();
-      const suggestionsBox = document.getElementById("groupSearchSuggestions");
       const dirGroup = document.getElementById("directionFormGroup");
       const grpSelect = document.getElementById("modalGroupSelect");
 
-      if (!q) {
-        if (suggestionsBox) suggestionsBox.style.display = "none";
+      if (q) {
+        dirGroup.style.display = "none";
+        const filtered = allGroups.filter(g => smartMatch(g, q));
+        grpSelect.innerHTML = "";
+
+        if (filtered.length > 0) {
+          filtered.forEach(g => {
+            const opt = document.createElement("option");
+            opt.value = g;
+            opt.textContent = formatGroupWithCourse(g);
+            grpSelect.appendChild(opt);
+          });
+          grpSelect.value = filtered[0];
+        } else {
+          const opt = document.createElement("option");
+          opt.value = "";
+          opt.textContent = "Ничего не найдено";
+          opt.disabled = true;
+          opt.selected = true;
+          grpSelect.appendChild(opt);
+        }
+      } else {
         dirGroup.style.display = "block";
         onModalDirectionChange();
-        return;
-      }
-
-      const filtered = allGroups.filter(g => smartMatch(g, q));
-
-      if (suggestionsBox) {
-        if (filtered.length === 0) {
-          suggestionsBox.innerHTML = `<div class="suggestion-empty">Ничего не найдено</div>`;
-        } else {
-          suggestionsBox.innerHTML = filtered.slice(0, 8).map(g => {
-            const escaped = g.replace(/'/g, "\\'");
-            return `
-              <div class="suggestion-item" onclick="selectGroupSuggestion('${escaped}')">
-                <span>🎓</span>
-                <span>${formatGroupWithCourse(g)}</span>
-              </div>
-            `;
-          }).join("");
-        }
-        suggestionsBox.style.display = "block";
-      }
-
-      grpSelect.innerHTML = "";
-      if (filtered.length > 0) {
-        filtered.forEach(g => {
-          const opt = document.createElement("option");
-          opt.value = g;
-          opt.textContent = formatGroupWithCourse(g);
-          grpSelect.appendChild(opt);
-        });
-        grpSelect.value = filtered[0];
       }
     }
 
-    function selectGroupSuggestion(groupName) {
-      document.getElementById("modalGroupSearchInput").value = groupName;
-      document.getElementById("groupSearchSuggestions").style.display = "none";
-
-      let matchedDirIdx = 0;
-      directionsList.forEach((d, idx) => {
-        if (idx !== 0 && d.groups.includes(groupName)) matchedDirIdx = idx;
-      });
-      const dirSelect = document.getElementById("modalDirectionSelect");
-      if (dirSelect) dirSelect.value = matchedDirIdx;
-      onModalDirectionChange();
-      document.getElementById("modalGroupSelect").value = groupName;
-
-      const badge = document.getElementById("groupSelectedBadge");
-      if (badge) {
-        badge.style.display = "flex";
-        badge.innerHTML = `<span>✅ Выбрана: <b>${formatGroupWithCourse(groupName)}</b></span><span style="font-size:10px; opacity:0.8;">нажмите «Сохранить»</span>`;
-      }
+    function onModalTeacherSearch(query) {
+      const q = (query || "").trim();
+      const filtered = q ? allTeachers.filter(t => smartMatch(t, q)) : allTeachers;
+      renderModalTeachers(filtered);
     }
-
-    document.addEventListener("click", (e) => {
-      if (!e.target.closest("#groupSearchWrapper")) {
-        const box = document.getElementById("groupSearchSuggestions");
-        if (box) box.style.display = "none";
-      }
-      if (!e.target.closest("#teacherSearchWrapper")) {
-        const box = document.getElementById("teacherSearchSuggestions");
-        if (box) box.style.display = "none";
-      }
-    });
 
     function onModalDirectionChange() {
       const dirSelect = document.getElementById("modalDirectionSelect");
@@ -3569,14 +3131,11 @@
     document.getElementById("calendarModal").addEventListener("click", (e) => {
       if (e.target.id === "calendarModal") closeCalendarModal();
     });
-    document.getElementById("techErrorModal").addEventListener("click", (e) => {
-      if (e.target.id === "techErrorModal") closeTechErrorModal();
-    });
 
     let touchStartY = 0, touchCurrentY = 0, isSwiping = false;
     const sheet = document.getElementById("modalSheet");
     sheet.addEventListener("touchstart", (e) => {
-      if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
       touchStartY = e.touches[0].clientY;
       isSwiping = true;
       sheet.style.transition = "none";
