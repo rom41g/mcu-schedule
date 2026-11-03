@@ -1459,7 +1459,7 @@
     }
     initTheme();
 
-    /* PWA Install Handler для Android / Samsung Fold */
+    /* PWA Install Handler */
     let deferredInstallPrompt = null;
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
@@ -1517,7 +1517,6 @@
         if (isInsideTelegram && window.Telegram?.WebApp?.CloudStorage && window.Telegram.WebApp.isVersionAtLeast?.('6.9')) {
           try {
             const cloudVal = await new Promise((resolve) => {
-              // Даем облаку Telegram 1500 мс на ответ вместо 200 мс
               const timer = setTimeout(() => resolve(null), 1500);
               window.Telegram.WebApp.CloudStorage.getItem(key, (err, res) => {
                 clearTimeout(timer);
@@ -1530,6 +1529,21 @@
             }
           } catch (e) {}
         }
+
+        if (isInsideVK && window.vkBridge) {
+          try {
+            const vkRes = await Promise.race([
+              vkBridge.send('VKWebAppStorageGet', { keys: [key] }),
+              new Promise((_, reject) => setTimeout(() => reject('timeout'), 1500))
+            ]);
+            if (vkRes?.keys?.[0]?.value) {
+              const val = vkRes.keys[0].value;
+              try { localStorage.setItem(key, val); } catch (e) {}
+              return val;
+            }
+          } catch (e) {}
+        }
+
         return null;
       },
 
@@ -2085,7 +2099,7 @@
       return false;
     }
 
-   function enrichJointLessons(groupsDict) {
+    function enrichJointLessons(groupsDict) {
       const slotMap = new Map();
       for (const [grpName, lessons] of Object.entries(groupsDict || {})) {
         for (let i = 0; i < lessons.length; i++) {
@@ -2098,7 +2112,6 @@
           const room = sanitizeName(item.room);
           if (!sub || isIgnoredForJoint(sub, teach, room)) continue;
 
-          // Объединяем поток по преподавателю или аудитории
           const key = teach ? `${w}_${d}_${p}_${sub}_${teach}` : `${w}_${d}_${p}_${sub}_${room}`;
           if (!slotMap.has(key)) slotMap.set(key, new Set());
           slotMap.get(key).add(grpName);
@@ -2122,7 +2135,6 @@
 
           const key = teach ? `${w}_${d}_${p}_${sub}_${teach}` : `${w}_${d}_${p}_${sub}_${room}`;
           const allGrps = Array.from(slotMap.get(key) || []).sort();
-          // Разрешаем потоковые лекции всего курса до 16 групп
           if (allGrps.length > 1 && allGrps.length <= 16) {
             item.all_joint_groups = allGrps;
             item.joint_groups = allGrps.filter(g => g !== grpName);
@@ -2150,7 +2162,7 @@
           const w = lesson.week;
           const d = lesson.day;
           const p = lesson.pair;
-          const sub = sanitizeName(lesson.subject);
+          const sub = sanitizeName(lesson.subject).replace(/^ф\.\d+\s*/i, '');
           const teach = sanitizeName(cleanName);
           const room = sanitizeName(lesson.room);
           const key = teach ? `${w}_${d}_${p}_${sub}_${teach}` : `${w}_${d}_${p}_${sub}_${room}`;
@@ -2195,13 +2207,12 @@
       let isFirstTime = false;
       currentRole = savedRole || "student";
 
-     if (currentRole === "teacher" && matchedTeacher) {
+      if (currentRole === "teacher" && matchedTeacher) {
         currentTeacher = matchedTeacher;
       } else if (matchedGroup) {
         currentRole = "student";
         currentGroup = matchedGroup;
       } else if (savedGroup) {
-        // Если группа была сохранена, используем её напрямую, даже если база еще обновляется
         currentRole = "student";
         currentGroup = savedGroup;
       } else {
@@ -2213,8 +2224,7 @@
       return isFirstTime;
     }
 
-   async function init() {
-      // Не блокируем интерфейс, если браузер Telegram еще не обновил статус сети
+    async function init() {
       if (!navigator.onLine && !localStorage.getItem('mgpu_current_group')) {
         setOfflineState(true);
       }
@@ -2517,7 +2527,7 @@
       window.open(getCalendarUrl(), '_blank');
     }
 
-    /* ========== НЕБЛОКИРУЮЩАЯ ЗАГРУЗКА ДЗ С МЕТКОЙ АДМИНА ========== */
+    /* ========== НЕБЛОКИРУЮЩАЯ ЗАГРУЗКА ДЗ ========== */
     function getFallbackAuthorIdentity() {
       if (isInsideVK) {
         const vkName = window.currentVkUserName || (currentRole === "teacher" ? `Преподаватель ${currentTeacher}` : "Студент ВКонтакте");
@@ -2572,7 +2582,7 @@
       return `${day}_${pair}_${cleanSub}${cleanSubgrp ? '_' + cleanSubgrp : ''}`;
     }
 
-    async function fetchWithTimeout(url, timeoutMs = 3000) {
+    async function fetchWithTimeout(url, timeoutMs = 8000) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
@@ -2604,7 +2614,7 @@
       }
     }
 
-  async function loadWeekHomework() {
+    async function loadWeekHomework() {
       const weekNum = document.getElementById("weekSelect")?.value;
       if (!weekNum) return;
 
@@ -2621,7 +2631,6 @@
         }
 
         try {
-          // Увеличен таймаут с 3 до 8 секунд для мобильного интернета
           const res = await fetchWithTimeout(`${WORKER_URL}/api/hw?group=${encodeURIComponent(currentGroup)}&week=${weekNum}`, 8000);
           if (res.ok) {
             const freshData = await res.json();
@@ -2632,16 +2641,13 @@
             if (currentActiveTab === 'homework') renderHomeworkFeed();
           }
         } catch (e) {
-          // Ошибка подгрузки ДЗ больше не переводит всё расписание в статус "Офлайн"
-          console.warn("Синхронизация ДЗ отложена (сеть занята или сервер отвечает с задержкой)");
+          console.warn("Синхронизация ДЗ отложена");
         }
       } else if (currentRole === "teacher") {
         if (!currentTeacher || !db.teachers[currentTeacher]) return;
 
         const teacherLessons = (db.teachers[currentTeacher] || []).filter(l => String(l.week) === String(weekNum));
         const groups = [...new Set(teacherLessons.map(l => (l.group || '').trim()).filter(Boolean))];
-
-        let anyNetworkFailed = false;
 
         await Promise.all(groups.map(async (grp) => {
           const gKey = grp.toLowerCase();
@@ -2651,17 +2657,15 @@
           }
 
           try {
-            const res = await fetchWithTimeout(`${WORKER_URL}/api/hw?group=${encodeURIComponent(grp)}&week=${weekNum}`);
-            if (!res.ok) throw new Error("Offline");
-            const data = await res.json();
-            teacherWeekHw[gKey] = data;
-            await HwCache.set(cacheKey, data);
-          } catch (e) {
-            anyNetworkFailed = true;
-          }
+            const res = await fetchWithTimeout(`${WORKER_URL}/api/hw?group=${encodeURIComponent(grp)}&week=${weekNum}`, 8000);
+            if (res.ok) {
+              const data = await res.json();
+              teacherWeekHw[gKey] = data;
+              await HwCache.set(cacheKey, data);
+            }
+          } catch (e) {}
         }));
 
-        setOfflineState(anyNetworkFailed || !navigator.onLine);
         render();
         if (currentActiveTab === 'homework') renderHomeworkFeed();
       }
@@ -2761,7 +2765,6 @@
 
       const hwItem = getLessonHomework(targetGroup, lessonKey, item.joint_groups);
 
-      // Вкладка "К этой паре"
       const authorInfo = document.getElementById("hwAuthorInfo");
       const delBtn = document.getElementById("hwDeleteBtn");
       const textInput = document.getElementById("hwInputText");
@@ -2794,7 +2797,6 @@
         delBtn.style.display = "none";
       }
 
-      // Вкладка "На следующую пару"
       const nextInput = document.getElementById("hwNextInputText");
       const nextSubtitle = document.getElementById("hwNextSubtitle");
       const nextAuthorInfo = document.getElementById("hwNextAuthorInfo");
