@@ -1517,7 +1517,8 @@
         if (isInsideTelegram && window.Telegram?.WebApp?.CloudStorage && window.Telegram.WebApp.isVersionAtLeast?.('6.9')) {
           try {
             const cloudVal = await new Promise((resolve) => {
-              const timer = setTimeout(() => resolve(null), 200);
+              // Даем облаку Telegram 1500 мс на ответ вместо 200 мс
+              const timer = setTimeout(() => resolve(null), 1500);
               window.Telegram.WebApp.CloudStorage.getItem(key, (err, res) => {
                 clearTimeout(timer);
                 resolve(err ? null : res);
@@ -1529,21 +1530,6 @@
             }
           } catch (e) {}
         }
-
-        if (isInsideVK && window.vkBridge) {
-          try {
-            const vkRes = await Promise.race([
-              vkBridge.send('VKWebAppStorageGet', { keys: [key] }),
-              new Promise((_, reject) => setTimeout(() => reject('timeout'), 200))
-            ]);
-            if (vkRes?.keys?.[0]?.value) {
-              const val = vkRes.keys[0].value;
-              try { localStorage.setItem(key, val); } catch (e) {}
-              return val;
-            }
-          } catch (e) {}
-        }
-
         return null;
       },
 
@@ -2099,7 +2085,7 @@
       return false;
     }
 
-    function enrichJointLessons(groupsDict) {
+   function enrichJointLessons(groupsDict) {
       const slotMap = new Map();
       for (const [grpName, lessons] of Object.entries(groupsDict || {})) {
         for (let i = 0; i < lessons.length; i++) {
@@ -2107,11 +2093,12 @@
           const w = item.week;
           const d = item.day;
           const p = item.pair;
-          const sub = sanitizeName(item.subject);
+          const sub = sanitizeName(item.subject).replace(/^ф\.\d+\s*/i, '');
           const teach = sanitizeName(item.teacher);
           const room = sanitizeName(item.room);
           if (!sub || isIgnoredForJoint(sub, teach, room)) continue;
 
+          // Объединяем поток по преподавателю или аудитории
           const key = teach ? `${w}_${d}_${p}_${sub}_${teach}` : `${w}_${d}_${p}_${sub}_${room}`;
           if (!slotMap.has(key)) slotMap.set(key, new Set());
           slotMap.get(key).add(grpName);
@@ -2124,7 +2111,7 @@
           const w = item.week;
           const d = item.day;
           const p = item.pair;
-          const sub = sanitizeName(item.subject);
+          const sub = sanitizeName(item.subject).replace(/^ф\.\d+\s*/i, '');
           const teach = sanitizeName(item.teacher);
           const room = sanitizeName(item.room);
           if (!sub || isIgnoredForJoint(sub, teach, room)) {
@@ -2135,8 +2122,8 @@
 
           const key = teach ? `${w}_${d}_${p}_${sub}_${teach}` : `${w}_${d}_${p}_${sub}_${room}`;
           const allGrps = Array.from(slotMap.get(key) || []).sort();
-          // Потоковые лекции курса объединяют до 15 групп (отсекаются только общевузовские заглушки на 40+ групп)
-          if (allGrps.length > 1 && allGrps.length <= 15) {
+          // Разрешаем потоковые лекции всего курса до 16 групп
+          if (allGrps.length > 1 && allGrps.length <= 16) {
             item.all_joint_groups = allGrps;
             item.joint_groups = allGrps.filter(g => g !== grpName);
           } else {
@@ -2208,11 +2195,15 @@
       let isFirstTime = false;
       currentRole = savedRole || "student";
 
-      if (currentRole === "teacher" && matchedTeacher) {
+     if (currentRole === "teacher" && matchedTeacher) {
         currentTeacher = matchedTeacher;
       } else if (matchedGroup) {
         currentRole = "student";
         currentGroup = matchedGroup;
+      } else if (savedGroup) {
+        // Если группа была сохранена, используем её напрямую, даже если база еще обновляется
+        currentRole = "student";
+        currentGroup = savedGroup;
       } else {
         currentGroup = allGroups[0] || "";
         currentTeacher = allTeachers[0] || "";
@@ -2222,8 +2213,11 @@
       return isFirstTime;
     }
 
-    async function init() {
-      setOfflineState(!navigator.onLine);
+   async function init() {
+      // Не блокируем интерфейс, если браузер Telegram еще не обновил статус сети
+      if (!navigator.onLine && !localStorage.getItem('mgpu_current_group')) {
+        setOfflineState(true);
+      }
       try {
         const cachedData = await getCachedSchedule();
 
@@ -2610,7 +2604,7 @@
       }
     }
 
-    async function loadWeekHomework() {
+  async function loadWeekHomework() {
       const weekNum = document.getElementById("weekSelect")?.value;
       if (!weekNum) return;
 
@@ -2627,16 +2621,19 @@
         }
 
         try {
-          const res = await fetchWithTimeout(`${WORKER_URL}/api/hw?group=${encodeURIComponent(currentGroup)}&week=${weekNum}`);
-          if (!res.ok) throw new Error("Offline");
-          const freshData = await res.json();
-          currentWeekHw = freshData;
-          await HwCache.set(cacheKey, freshData);
-          setOfflineState(false);
-          render();
-          if (currentActiveTab === 'homework') renderHomeworkFeed();
+          // Увеличен таймаут с 3 до 8 секунд для мобильного интернета
+          const res = await fetchWithTimeout(`${WORKER_URL}/api/hw?group=${encodeURIComponent(currentGroup)}&week=${weekNum}`, 8000);
+          if (res.ok) {
+            const freshData = await res.json();
+            currentWeekHw = freshData;
+            await HwCache.set(cacheKey, freshData);
+            setOfflineState(false);
+            render();
+            if (currentActiveTab === 'homework') renderHomeworkFeed();
+          }
         } catch (e) {
-          setOfflineState(true);
+          // Ошибка подгрузки ДЗ больше не переводит всё расписание в статус "Офлайн"
+          console.warn("Синхронизация ДЗ отложена (сеть занята или сервер отвечает с задержкой)");
         }
       } else if (currentRole === "teacher") {
         if (!currentTeacher || !db.teachers[currentTeacher]) return;
