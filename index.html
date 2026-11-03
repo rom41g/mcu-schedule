@@ -2533,7 +2533,7 @@
     function copyCalendarUrl() {
       const icsUrl = getCalendarUrl();
       navigator.clipboard.writeText(icsUrl).then(() => {
-        showAppAlert("✅ Ссылка подписки скопирована!\n\nВставьте её в настройках Google или Apple Календаря (раздел «Добавить по URL»).");
+        showAppAlert("✅ Ссылка подписки скопирована!\n\nВставьте её в настройках Google или Apple Календаря (раздел «Добавить по URL»)");
       }).catch(() => {
         prompt("Скопируйте ссылку на подписку вручную:", icsUrl);
       });
