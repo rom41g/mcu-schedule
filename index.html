@@ -1058,6 +1058,15 @@
       </div>
 
       <div class="settings-group">
+        <!-- КНОПКА ТЕХПОДДЕРЖКИ -->
+        <div class="settings-row" onclick="openTechSupport()">
+          <div class="settings-row-left">
+            <span class="settings-row-icon">💬</span>
+            <span>Техническая поддержка</span>
+          </div>
+          <span class="settings-row-arrow">Написать ➔</span>
+        </div>
+
         <div class="settings-row" onclick="openCalendarModal()">
           <div class="settings-row-left">
             <span class="settings-row-icon">🗓️</span>
@@ -1312,7 +1321,19 @@
         navigator.serviceWorker.register('sw.js').catch(() => {});
       });
     }
+    function openTechSupport() {
+      // Замените 'kommunalkamus' на ваш актуальный юзернейм в Telegram (без @)
+      const supportUsername = "mcu_schedule_support"; 
+      const tgUrl = `https://t.me/${mcu_schedule_support}`;
 
+      if (tg && typeof tg.openTelegramLink === 'function') {
+        tg.openTelegramLink(tgUrl);
+      } else if (tg && typeof tg.openLink === 'function') {
+        tg.openLink(tgUrl);
+      } else {
+        window.open(tgUrl, '_blank');
+      }
+    }
     try { localStorage.removeItem('mgpu_schedule_db_cache'); } catch (e) {}
 
     /* ========== УМНАЯ СИСТЕМА ДИАГНОСТИКИ И WATCHDOG ========== */
