@@ -2139,10 +2139,50 @@
       return false;
     }
 
+    function normalizeSubjectForJoint(sub) {
+      return (sub || '')
+        .toLowerCase()
+        .replace(/[  ᠎ -​   ﻿]/g, ' ')
+        .replace(/[–—−_]/g, '-')
+        .replace(/^[фf]\s*[\.\-_]?\s*\d+\s*/i, '') // убираем "Ф.4", "Ф.1"
+        .replace(/^(лек|лекция|пр|практ|практика|лаб|семинар)[\.\s]+/i, '')
+        .replace(/\((?:лек|лекция|пр|практ|практика|лаб|семинар|порог[^\)]*)\)/gi, '')
+        .replace(/[^a-zа-я0-9]/gi, '')
+        .trim();
+    }
+
+    function normalizeTeacherForJoint(teach) {
+      return (teach || '')
+        .toLowerCase()
+        .replace(/[  ᠎ -​   ﻿]/g, ' ')
+        .replace(/\b(проф|профессор|доц|доцент|ст|преп|преподаватель|ас|асс|ассистент)\b[\.\s]*/gi, '')
+        .replace(/[^a-zа-я]/gi, '')
+        .trim();
+    }
+
+    function normalizeRoomForJoint(room) {
+      return (room || '')
+        .toLowerCase()
+        .replace(/ауд[\.\s]*/gi, '')
+        .replace(/[^a-zа-я0-9]/gi, '')
+        .trim();
+    }
+
+    function isIgnoredForJoint(sub, teach, room) {
+      const s = (sub || '').toLowerCase();
+      const stopWords = [
+        'самостоятельн', 'видеолекци', 'день для', 'библиотечн', 
+        'каникул', 'выходн', 'празднич', 'дежурств', 'окно', 'самоподготовк'
+      ];
+      if (stopWords.some(w => s.includes(w))) return true;
+      if (!teach && !room) return true;
+      return false;
+    }
+
     function enrichJointLessons(groupsDict) {
       const slotMap = new Map();
 
-      // Шаг 1: группируем по одинаковому преподавателю или аудитории в одно и то же время
+      // 1. Группируем по преподавателю или аудитории в одно время
       for (const [grpName, lessons] of Object.entries(groupsDict || {})) {
         for (let i = 0; i < lessons.length; i++) {
           const item = lessons[i];
@@ -2158,12 +2198,13 @@
 
           if (!normSub && !normTeach) continue;
 
-          // Если у пар в одно время совпадает преподаватель — это точно совместная лекция
           let slotKey = '';
-          if (normTeach) {
+          if (normTeach && normSub) {
+            slotKey = `${w}_${d}_${p}_ts_${normTeach}_${normSub}`;
+          } else if (normTeach) {
             slotKey = `${w}_${d}_${p}_t_${normTeach}`;
           } else if (normRoom && normSub) {
-            slotKey = `${w}_${d}_${p}_r_${normRoom}_${normSub}`;
+            slotKey = `${w}_${d}_${p}_rs_${normRoom}_${normSub}`;
           } else if (normSub) {
             slotKey = `${w}_${d}_${p}_s_${normSub}`;
           }
@@ -2174,7 +2215,7 @@
         }
       }
 
-      // Шаг 2: проставляем список совместных групп в карточки
+      // 2. Назначаем список групп в карточки для ВСЕХ предметов
       for (const [grpName, lessons] of Object.entries(groupsDict || {})) {
         for (let i = 0; i < lessons.length; i++) {
           const item = lessons[i];
@@ -2193,19 +2234,21 @@
           const normRoom = normalizeRoomForJoint(item.room);
 
           let slotKey = '';
-          if (normTeach) {
+          if (normTeach && normSub) {
+            slotKey = `${w}_${d}_${p}_ts_${normTeach}_${normSub}`;
+          } else if (normTeach) {
             slotKey = `${w}_${d}_${p}_t_${normTeach}`;
           } else if (normRoom && normSub) {
-            slotKey = `${w}_${d}_${p}_r_${normRoom}_${normSub}`;
+            slotKey = `${w}_${d}_${p}_rs_${normRoom}_${normSub}`;
           } else if (normSub) {
             slotKey = `${w}_${d}_${p}_s_${normSub}`;
           }
 
-          const allGrps = slotKey && slotMap.has(slotKey) 
+          const allGrps = (slotKey && slotMap.has(slotKey)) 
             ? Array.from(slotMap.get(slotKey)).sort((a,b) => a.localeCompare(b, 'ru'))
             : [grpName];
 
-          // Поддерживаем лекционные потоки до 25 групп включительно
+          // Поддерживаем лекционные потоки любых предметов до 25 групп
           if (allGrps.length > 1 && allGrps.length <= 25) {
             item.all_joint_groups = allGrps;
             item.joint_groups = allGrps.filter(g => g !== grpName);
