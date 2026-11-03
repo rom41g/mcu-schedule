@@ -3,6 +3,7 @@
   Copyright (c) 2026 Окороков Роман Александрович. Все права защищены.
 */
 
+// ВЕРСИЯ КЭША ОБНОВЛЕНА ДЛЯ СБРОСА ВСЕХ СТАРЫХ ФАЙЛОВ
 const CACHE_NAME = 'mgpu-schedule-v6';
 
 const ASSETS_TO_CACHE = [
@@ -29,6 +30,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
+          // Удаляем старые кэши (включая mgpu-schedule-v5)
           if (key !== CACHE_NAME && key !== 'mgpu-hw-cache') {
             return caches.delete(key);
           }
@@ -38,13 +40,15 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// NETWORK-FIRST ДЛЯ HTML И РАСПИСАНИЯ:
-// Всегда берём свежий файл из сети, а кэш используем только в офлайне
+// СТРАТЕГИЯ: NETWORK-FIRST ДЛЯ СТРАНИЦЫ И РАСПИСАНИЯ
+// Всегда берём свежий index.html и schedule.json с GitHub, если есть интернет.
+// И только если сеть недоступна (офлайн) — отдаём сохранённую копию.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = event.request.url;
 
+  // Игнорируем запросы к API воркера и внешним библиотекам
   if (url.includes('/api/') || 
       url.includes('telegram.org') || 
       url.includes('vk.com') ||
@@ -86,14 +90,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Для картинок и статики используем кэш с обновлением в фоне
   event.respondWith(
     caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
       const fetchPromise = fetch(event.request)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
-            const responseClone = networkResponse.clone();
+            const clone = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseClone);
+              cache.put(event.request, clone);
             });
           }
           return networkResponse;
