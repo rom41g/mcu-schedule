@@ -1325,13 +1325,21 @@
       const supportUsername = "mcu_schedule_support"; 
       const tgUrl = `https://t.me/${supportUsername}`;
 
-      if (tg && typeof tg.openTelegramLink === 'function') {
-        tg.openTelegramLink(tgUrl);
-      } else if (tg && typeof tg.openLink === 'function') {
-        tg.openLink(tgUrl);
-      } else {
-        window.open(tgUrl, '_blank');
+      // Сначала пробуем вызвать родной метод Telegram для открытия ссылок в мессенджере
+      if (window.Telegram && window.Telegram.WebApp) {
+        const webApp = window.Telegram.WebApp;
+        if (typeof webApp.openTelegramLink === 'function') {
+          webApp.openTelegramLink(tgUrl);
+          return;
+        }
+        if (typeof webApp.openLink === 'function') {
+          webApp.openLink(tgUrl);
+          return;
+        }
       }
+
+      // Запасной вариант для обычного браузера
+      window.open(tgUrl, '_blank');
     }
     try { localStorage.removeItem('mgpu_schedule_db_cache'); } catch (e) {}
 
