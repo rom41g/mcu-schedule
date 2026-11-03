@@ -2135,8 +2135,8 @@
 
           const key = teach ? `${w}_${d}_${p}_${sub}_${teach}` : `${w}_${d}_${p}_${sub}_${room}`;
           const allGrps = Array.from(slotMap.get(key) || []).sort();
-          // Потоковые совместные пары объединяют от 2 до 6 групп. Более 6 — общевузовские события
-          if (allGrps.length > 1 && allGrps.length <= 4) {
+          // Потоковые лекции курса объединяют до 15 групп (отсекаются только общевузовские заглушки на 40+ групп)
+          if (allGrps.length > 1 && allGrps.length <= 15) {
             item.all_joint_groups = allGrps;
             item.joint_groups = allGrps.filter(g => g !== grpName);
           } else {
