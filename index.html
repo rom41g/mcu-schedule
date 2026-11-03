@@ -2099,43 +2099,114 @@
       return false;
     }
 
+    function normalizeSubjectForJoint(sub) {
+      return (sub || '')
+        .toLowerCase()
+        .replace(/[  ᠎ -​   ﻿]/g, ' ')
+        .replace(/[–—−_]/g, '-')
+        .replace(/^[фf]\s*[\.\-_]?\s*\d+\s*/i, '') // убираем "Ф.4", "Ф.1" и т.д.
+        .replace(/^(лек|лекция|пр|практ|практика|лаб|семинар)[\.\s]+/i, '')
+        .replace(/\((?:лек|лекция|пр|практ|практика|лаб|семинар|порог[^\)]*)\)/gi, '')
+        .replace(/[^a-zа-я0-9]/gi, '')
+        .trim();
+    }
+
+    function normalizeTeacherForJoint(teach) {
+      return (teach || '')
+        .toLowerCase()
+        .replace(/[  ᠎ -​   ﻿]/g, ' ')
+        .replace(/\b(проф|профессор|доц|доцент|ст|преп|преподаватель|ас|асс|ассистент)\b[\.\s]*/gi, '')
+        .replace(/[^a-zа-я]/gi, '')
+        .trim();
+    }
+
+    function normalizeRoomForJoint(room) {
+      return (room || '')
+        .toLowerCase()
+        .replace(/ауд[\.\s]*/gi, '')
+        .replace(/[^a-zа-я0-9]/gi, '')
+        .trim();
+    }
+
+    function isIgnoredForJoint(sub, teach, room) {
+      const s = (sub || '').toLowerCase();
+      const stopWords = [
+        'самостоятельн', 'видеолекци', 'день для', 'библиотечн', 
+        'каникул', 'выходн', 'празднич', 'дежурств', 'окно', 'самоподготовк'
+      ];
+      if (stopWords.some(w => s.includes(w))) return true;
+      if (!teach && !room) return true;
+      return false;
+    }
+
     function enrichJointLessons(groupsDict) {
       const slotMap = new Map();
+
+      // Шаг 1: группируем по одинаковому преподавателю или аудитории в одно и то же время
       for (const [grpName, lessons] of Object.entries(groupsDict || {})) {
         for (let i = 0; i < lessons.length; i++) {
           const item = lessons[i];
           const w = item.week;
           const d = item.day;
           const p = item.pair;
-          const sub = sanitizeName(item.subject).replace(/^ф\.\d+\s*/i, '');
-          const teach = sanitizeName(item.teacher);
-          const room = sanitizeName(item.room);
-          if (!sub || isIgnoredForJoint(sub, teach, room)) continue;
 
-          const key = teach ? `${w}_${d}_${p}_${sub}_${teach}` : `${w}_${d}_${p}_${sub}_${room}`;
-          if (!slotMap.has(key)) slotMap.set(key, new Set());
-          slotMap.get(key).add(grpName);
+          if (isIgnoredForJoint(item.subject, item.teacher, item.room)) continue;
+
+          const normSub = normalizeSubjectForJoint(item.subject);
+          const normTeach = normalizeTeacherForJoint(item.teacher);
+          const normRoom = normalizeRoomForJoint(item.room);
+
+          if (!normSub && !normTeach) continue;
+
+          // Если у пар в одно время совпадает преподаватель — это точно совместная лекция
+          let slotKey = '';
+          if (normTeach) {
+            slotKey = `${w}_${d}_${p}_t_${normTeach}`;
+          } else if (normRoom && normSub) {
+            slotKey = `${w}_${d}_${p}_r_${normRoom}_${normSub}`;
+          } else if (normSub) {
+            slotKey = `${w}_${d}_${p}_s_${normSub}`;
+          }
+
+          if (!slotKey) continue;
+          if (!slotMap.has(slotKey)) slotMap.set(slotKey, new Set());
+          slotMap.get(slotKey).add(grpName);
         }
       }
 
+      // Шаг 2: проставляем список совместных групп в карточки
       for (const [grpName, lessons] of Object.entries(groupsDict || {})) {
         for (let i = 0; i < lessons.length; i++) {
           const item = lessons[i];
           const w = item.week;
           const d = item.day;
           const p = item.pair;
-          const sub = sanitizeName(item.subject).replace(/^ф\.\d+\s*/i, '');
-          const teach = sanitizeName(item.teacher);
-          const room = sanitizeName(item.room);
-          if (!sub || isIgnoredForJoint(sub, teach, room)) {
+
+          if (isIgnoredForJoint(item.subject, item.teacher, item.room)) {
             item.all_joint_groups = [grpName];
             item.joint_groups = [];
             continue;
           }
 
-          const key = teach ? `${w}_${d}_${p}_${sub}_${teach}` : `${w}_${d}_${p}_${sub}_${room}`;
-          const allGrps = Array.from(slotMap.get(key) || []).sort();
-          if (allGrps.length > 1 && allGrps.length <= 16) {
+          const normSub = normalizeSubjectForJoint(item.subject);
+          const normTeach = normalizeTeacherForJoint(item.teacher);
+          const normRoom = normalizeRoomForJoint(item.room);
+
+          let slotKey = '';
+          if (normTeach) {
+            slotKey = `${w}_${d}_${p}_t_${normTeach}`;
+          } else if (normRoom && normSub) {
+            slotKey = `${w}_${d}_${p}_r_${normRoom}_${normSub}`;
+          } else if (normSub) {
+            slotKey = `${w}_${d}_${p}_s_${normSub}`;
+          }
+
+          const allGrps = slotKey && slotMap.has(slotKey) 
+            ? Array.from(slotMap.get(slotKey)).sort((a,b) => a.localeCompare(b, 'ru'))
+            : [grpName];
+
+          // Поддерживаем лекционные потоки до 25 групп включительно
+          if (allGrps.length > 1 && allGrps.length <= 25) {
             item.all_joint_groups = allGrps;
             item.joint_groups = allGrps.filter(g => g !== grpName);
           } else {
@@ -2182,10 +2253,10 @@
       directionsList = buildDirectionsList();
     }
 
-    async function resolveUserProfile() {
-      let savedRole = Storage.getSync('mgpu_current_role');
-      let savedGroup = Storage.getSync('mgpu_current_group');
-      let savedTeacher = Storage.getSync('mgpu_current_teacher');
+ async function resolveUserProfile() {
+      let savedRole = localStorage.getItem('mgpu_current_role') || "student";
+      let savedGroup = localStorage.getItem('mgpu_current_group') || "";
+      let savedTeacher = localStorage.getItem('mgpu_current_teacher') || "";
 
       if (!savedGroup && !savedTeacher) {
         const [cRole, cGroup, cTeacher] = await Promise.all([
@@ -2193,37 +2264,31 @@
           Storage.getCloud('mgpu_current_group'),
           Storage.getCloud('mgpu_current_teacher')
         ]);
-        savedRole = cRole || "student";
-        savedGroup = cGroup;
-        savedTeacher = cTeacher;
+        if (cGroup) savedGroup = cGroup;
+        if (cTeacher) savedTeacher = cTeacher;
+        if (cRole) savedRole = cRole;
       }
 
-      const normSavedGroup = sanitizeName(savedGroup);
-      const normSavedTeacher = sanitizeName(savedTeacher);
+      currentRole = savedRole;
 
-      const matchedGroup = allGroups.find(g => sanitizeName(g) === normSavedGroup);
-      const matchedTeacher = allTeachers.find(t => sanitizeName(t) === normSavedTeacher);
-
-      let isFirstTime = false;
-      currentRole = savedRole || "student";
-
-      if (currentRole === "teacher" && matchedTeacher) {
-        currentTeacher = matchedTeacher;
-      } else if (matchedGroup) {
-        currentRole = "student";
-        currentGroup = matchedGroup;
-      } else if (savedGroup) {
-        currentRole = "student";
-        currentGroup = savedGroup;
+      if (currentRole === "teacher") {
+        if (savedTeacher && allTeachers.includes(savedTeacher)) {
+          currentTeacher = savedTeacher;
+        } else if (allTeachers.length > 0) {
+          const matched = allTeachers.find(t => sanitizeName(t) === sanitizeName(savedTeacher));
+          currentTeacher = matched || savedTeacher || allTeachers[0];
+        }
       } else {
-        currentGroup = allGroups[0] || "";
-        currentTeacher = allTeachers[0] || "";
-        isFirstTime = true;
+        if (savedGroup && allGroups.includes(savedGroup)) {
+          currentGroup = savedGroup;
+        } else if (allGroups.length > 0) {
+          const matched = allGroups.find(g => sanitizeName(g) === sanitizeName(savedGroup));
+          currentGroup = matched || savedGroup || allGroups[0];
+        }
       }
 
-      return isFirstTime;
+      return !savedGroup && !savedTeacher;
     }
-
     async function init() {
       if (!navigator.onLine && !localStorage.getItem('mgpu_current_group')) {
         setOfflineState(true);
@@ -2641,7 +2706,8 @@
             if (currentActiveTab === 'homework') renderHomeworkFeed();
           }
         } catch (e) {
-          console.warn("Синхронизация ДЗ отложена");
+          // Задержка ответа базы ДЗ больше НЕ переключает всё приложение в офлайн
+          console.warn("Синхронизация ДЗ выполняется в фоне...");
         }
       } else if (currentRole === "teacher") {
         if (!currentTeacher || !db.teachers[currentTeacher]) return;
