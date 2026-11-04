@@ -2140,20 +2140,45 @@
       return '';
     }
 
+    function normalizeSubjectForJoint(sub) {
+      if (!sub) return '';
+      return String(sub)
+        .toLowerCase()
+        .replace(/^[фf]\s*[\.\-_]?\s*\d+\s*/i, '') // убираем префиксы Ф.1 – Ф.5
+        .replace(/^(лек|лекция|пр|практ|практика|лаб|семинар)[\.\s]+/i, '')
+        .replace(/\((?:лек|лекция|пр|практ|практика|лаб|семинар|порог[^\)]*)\)/gi, '')
+        .replace(/[^a-zа-я0-9]/gi, '')
+        .trim();
+    }
+
+    function getTeacherLastName(teachStr) {
+      if (!teachStr) return '';
+      const words = String(teachStr).match(/[А-Яа-яA-Za-z]+/g) || [];
+      const titles = new Set(['проф', 'профессор', 'доц', 'доцент', 'ст', 'пр', 'преп', 'преподаватель', 'ас', 'асс', 'ассистент', 'каф', 'кафедра', 'зав']);
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i].toLowerCase();
+        if (titles.has(w)) continue;
+        if (w.length > 2) return w;
+      }
+      return '';
+    }
+
+    function getCleanRoom(roomStr) {
+      if (!roomStr) return '';
+      const m = String(roomStr).match(/\d+[а-яa-z]?/i);
+      return m ? m[0].toLowerCase() : String(roomStr).toLowerCase().replace(/ауд[\.\s]*/gi, '').replace(/[^а-яa-z0-9]/gi, '');
+    }
+
     function getJointSlotKey(w, d, p, subject, teacher, room) {
       const normSub = normalizeSubjectForJoint(subject);
       const teachKey = getTeacherLastName(teacher);
       const roomKey = getCleanRoom(room);
 
-      // Без предмета объединять нельзя: разные дисциплины физически не могут быть одной парой
       if (!normSub) return '';
 
-      // 1. Совпадает предмет + реальная фамилия преподавателя
       if (teachKey) {
         return `${w}_${d}_${p}_${normSub}_t_${teachKey}`;
-      }
-      // 2. Совпадает предмет + номер аудитории
-      if (roomKey) {
+      } else if (roomKey) {
         return `${w}_${d}_${p}_${normSub}_r_${roomKey}`;
       }
       return '';
