@@ -3,7 +3,7 @@
   Copyright (c) 2026 Окороков Роман Александрович. Все права защищены.
 */
 
-const CACHE_NAME = 'mgpu-schedule-v6';
+const CACHE_NAME = 'mgpu-schedule-v7';
 
 const ASSETS_TO_CACHE = [
   './',

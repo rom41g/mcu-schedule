@@ -1,0 +1,7 @@
+requests>=2.31.0
+pandas>=2.0.0
+openpyxl>=3.1.0
+xlrd>=2.0.1
+vk_api>=11.9.0
+pyTelegramBotAPI>=4.14.0
+python-dotenv>=1.0.0

@@ -1,14 +1,22 @@
 from http.server import BaseHTTPRequestHandler
 import json
+import os
 import urllib.request
 
-BOT_TOKEN = "8615393852:AAE2YU9ZUCyiYq2F9gGnMT3IFZpMJBNKexk"
-WEB_APP_URL = "https://rom41g.github.io/mcu-schedule/"
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+WEB_APP_URL = os.getenv("WEB_APP_URL", "https://rom41g.github.io/mcu-schedule/")
 
 
 class handler(BaseHTTPRequestHandler):
 
   def do_POST(self):
+    if not BOT_TOKEN:
+      self.send_response(500)
+      self.send_header("Content-type", "text/plain; charset=utf-8")
+      self.end_headers()
+      self.wfile.write(b"BOT_TOKEN is not configured")
+      return
+
     content_length = int(self.headers["Content-Length"])
     post_data = self.rfile.read(content_length)
     update = json.loads(post_data.decode("utf-8"))
@@ -39,7 +47,7 @@ class handler(BaseHTTPRequestHandler):
             headers={"Content-Type": "application/json"},
         )
         try:
-          urllib.request.urlopen(req)
+          urllib.request.urlopen(req, timeout=5)
         except Exception:
           pass
 

@@ -1321,7 +1321,7 @@
         navigator.serviceWorker.register('sw.js').catch(() => {});
       });
     }
- function openTechSupport() {
+  function openTechSupport() {
       const supportUsername = "mcu_schedule_support"; 
       const tgUrl = `https://t.me/${supportUsername}`;
 
@@ -1340,6 +1340,21 @@
 
       // Запасной вариант для обычного браузера
       window.open(tgUrl, '_blank');
+    }
+
+    /* ========== УТИЛИТЫ БЕЗОПАСНОСТИ (ЗАЩИТА ОТ XSS) ========== */
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function escapeHtmlWithBreaks(str) {
+      return escapeHtml(str).replace(/\r?\n/g, '<br>');
     }
     try { localStorage.removeItem('mgpu_schedule_db_cache'); } catch (e) {}
 
@@ -1943,16 +1958,16 @@
       container.innerHTML = examsData.map(item => `
         <div class="lesson-card" style="border-left-color: ${item.type === 'Экзамен' ? 'var(--mgpu-red)' : '#FF9F0A'};">
           <div class="lesson-header">
-            <span class="lesson-time">🗓️ ${item.date || 'Дата уточняется'} • ${item.time || ''}</span>
+            <span class="lesson-time">🗓️ ${escapeHtml(item.date || 'Дата уточняется')} • ${escapeHtml(item.time || '')}</span>
             <span class="badge" style="background:${item.type === 'Экзамен' ? 'var(--mgpu-red-light)' : 'var(--accent-orange)'}; color:${item.type === 'Экзамен' ? 'var(--mgpu-red)' : 'var(--accent-orange-text)'};">
-              ${item.type || 'Зачёт'}
+              ${escapeHtml(item.type || 'Зачёт')}
             </span>
           </div>
-          <div class="lesson-name">${item.subject || 'Предмет'}</div>
+          <div class="lesson-name">${escapeHtml(item.subject || 'Предмет')}</div>
           <div class="lesson-info">
-            ${item.teacher ? `<div>👨‍🏫 Преподаватель: ${item.teacher}</div>` : ''}
-            ${item.room ? `<div class="lesson-room">📍 Аудитория: ${item.room}</div>` : ''}
-            ${item.consultation ? `<div style="font-size:11px; color:var(--text-sub); margin-top:4px;">💬 Консультация: ${item.consultation}</div>` : ''}
+            ${item.teacher ? `<div>👨‍🏫 Преподаватель: ${escapeHtml(item.teacher)}</div>` : ''}
+            ${item.room ? `<div class="lesson-room">📍 Аудитория: ${escapeHtml(item.room)}</div>` : ''}
+            ${item.consultation ? `<div style="font-size:11px; color:var(--text-sub); margin-top:4px;">💬 Консультация: ${escapeHtml(item.consultation)}</div>` : ''}
           </div>
         </div>
       `).join('');
@@ -2022,37 +2037,37 @@
         return;
       }
 
+      window._renderedFeedItems = items;
       container.innerHTML = items.map((item, idx) => {
         const isAdm = isAdminHwAuthor(item.author);
         const icon = item.author?.platform === 'tg' ? '📱' : (item.author?.platform === 'vk' ? '🔵' : '🌐');
         const adminTagHtml = isAdm ? `<span class="hw-admin-tag">админ</span>` : '';
         const authorHtml = (!isAppOffline && item.author?.badge)
-          ? `<span class="hw-author-badge">${icon} ${item.author.badge}${adminTagHtml}</span>`
+          ? `<span class="hw-author-badge">${icon} ${escapeHtml(item.author.badge)}${adminTagHtml}</span>`
           : '';
-        const itemJson = JSON.stringify(item.originalLesson).replace(/"/g, '&quot;');
-        const checkKey = `mgpu_done_${item.groupTitle}_${item.lessonKey}`;
+        const checkKey = 'mgpu_done_' + encodeURIComponent(item.groupTitle) + '_' + encodeURIComponent(item.lessonKey);
         const isDone = localStorage.getItem(checkKey) === 'true';
 
         return `
           <div class="hw-card-feed ${isAdm ? 'is-admin-hw' : ''} ${isDone ? 'is-completed' : ''}" id="hwFeedCard_${idx}">
             <div class="hw-card-top-row">
               <div>
-                <div class="hw-card-subj">${item.subject}</div>
+                <div class="hw-card-subj">${escapeHtml(item.subject)}</div>
                 <div class="hw-card-meta">
-                  <span style="color:var(--mgpu-red); font-weight:700;">${item.groupTitle}</span>
+                  <span style="color:var(--mgpu-red); font-weight:700;">${escapeHtml(item.groupTitle)}</span>
                   <span>•</span>
-                  <span>${item.day}, ${item.pair} пара ${item.time ? '(' + item.time + ')' : ''}</span>
+                  <span>${escapeHtml(item.day)}, ${escapeHtml(item.pair)} пара ${item.time ? '(' + escapeHtml(item.time) + ')' : ''}</span>
                 </div>
               </div>
-              <button type="button" class="btn-action" style="padding:4px 8px; font-size:11px;" onclick="openHwEditor(${itemJson})">✏️ Изм.</button>
+              <button type="button" class="btn-action" style="padding:4px 8px; font-size:11px;" onclick="openHwEditorByFeedIndex(${idx})">✏️ Изм.</button>
             </div>
-            <div class="hw-feed-body">${item.text}</div>
+            <div class="hw-feed-body">${escapeHtmlWithBreaks(item.text)}</div>
             <div class="hw-card-footer">
               <label class="hw-done-check">
                 <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleHomeworkDone('${checkKey}', this, 'hwFeedCard_${idx}')">
                 <span>Выполнено</span>
               </label>
-              <div>${authorHtml} ${item.updated_at ? ' • ' + item.updated_at : ''}</div>
+              <div>${authorHtml} ${item.updated_at ? ' • ' + escapeHtml(item.updated_at) : ''}</div>
             </div>
           </div>
         `;
@@ -2812,6 +2827,16 @@
       }
     }
 
+    function openHwEditorByLessonIndex(idx) {
+      const item = window._renderedScheduleLessons?.[idx];
+      if (item) openHwEditor(item);
+    }
+
+    function openHwEditorByFeedIndex(idx) {
+      const item = window._renderedFeedItems?.[idx];
+      if (item && item.originalLesson) openHwEditor(item.originalLesson);
+    }
+
     function openHwEditor(item) {
       if (hwModalHideTimer) {
         clearTimeout(hwModalHideTimer);
@@ -2857,7 +2882,7 @@
           const icon = hwItem.author?.platform === 'tg' ? '📱' : (hwItem.author?.platform === 'vk' ? '🔵' : '🌐');
           const adminTag = isAdminHwAuthor(hwItem.author) ? ' <span class="hw-admin-tag">админ</span>' : '';
           authorInfo.style.display = "block";
-          authorInfo.innerHTML = `Записал(а): <b>${icon} ${hwItem.author.badge}</b>${adminTag}${hwItem.updated_at ? ' • ' + hwItem.updated_at : ''}`;
+          authorInfo.innerHTML = `Записал(а): <b>${icon} ${escapeHtml(hwItem.author.badge)}</b>${adminTag}${hwItem.updated_at ? ' • ' + escapeHtml(hwItem.updated_at) : ''}`;
         } else {
           authorInfo.style.display = "none";
         }
@@ -2889,7 +2914,7 @@
             const icon = nextHwItem.author?.platform === 'tg' ? '📱' : (nextHwItem.author?.platform === 'vk' ? '🔵' : '🌐');
             const adminTag = isAdminHwAuthor(nextHwItem.author) ? ' <span class="hw-admin-tag">админ</span>' : '';
             nextAuthorInfo.style.display = "block";
-            nextAuthorInfo.innerHTML = `Записал(а): <b>${icon} ${nextHwItem.author.badge}</b>${adminTag}${nextHwItem.updated_at ? ' • ' + nextHwItem.updated_at : ''}`;
+            nextAuthorInfo.innerHTML = `Записал(а): <b>${icon} ${escapeHtml(nextHwItem.author.badge)}</b>${adminTag}${nextHwItem.updated_at ? ' • ' + escapeHtml(nextHwItem.updated_at) : ''}`;
           } else {
             nextAuthorInfo.style.display = "none";
           }
@@ -3162,7 +3187,7 @@
 
       if (lessons.length === 0) {
         if (activeSearchQuery) {
-          container.innerHTML = `<div class="empty-state">Ничего не найдено по запросу «${activeSearchQuery}»</div>`;
+          container.innerHTML = `<div class="empty-state">Ничего не найдено по запросу «${escapeHtml(activeSearchQuery)}»</div>`;
         } else {
           container.innerHTML = `<div class="empty-state">🎉 В этот день пар нет</div>`;
         }
@@ -3170,9 +3195,10 @@
       }
 
       lessons.sort((a, b) => a.pair - b.pair);
+      window._renderedScheduleLessons = lessons;
       const teacherStats = currentRole === 'teacher' ? getTeacherStatsMap() : null;
 
-      container.innerHTML = lessons.map(item => {
+      container.innerHTML = lessons.map((item, idx) => {
         let teacherStatsHtml = "";
 
         if (currentRole === 'teacher' && teacherStats) {
@@ -3207,31 +3233,30 @@
           let hwData = null;
           hwData = getLessonHomework(targetGroup, lKey, item.joint_groups);
 
-          const itemJson = JSON.stringify(item).replace(/"/g, '&quot;');
           const groupTitle = currentRole === "teacher" 
-            ? ` (${item.group})` 
-            : (hwData?.from_joint_group ? ` (совместно с ${hwData.from_joint_group})` : '');
+            ? ` (${escapeHtml(item.group)})` 
+            : (hwData?.from_joint_group ? ` (совместно с ${escapeHtml(hwData.from_joint_group)})` : '');
 
           if (hwData && hwData.text) {
             const icon = hwData.author?.platform === 'tg' ? '📱' : (hwData.author?.platform === 'vk' ? '🔵' : '🌐');
             const isAdm = isAdminHwAuthor(hwData.author);
             const adminTagHtml = isAdm ? `<span class="hw-admin-tag">админ</span>` : '';
             const authorBadgeHtml = (!isAppOffline && hwData.author?.badge)
-              ? `<span class="hw-author-badge">${icon} ${hwData.author.badge}${adminTagHtml}</span>`
+              ? `<span class="hw-author-badge">${icon} ${escapeHtml(hwData.author.badge)}${adminTagHtml}</span>`
               : '';
 
             hwHtml = `
-              <div class="hw-preview-box" onclick="openHwEditor(${itemJson})">
+              <div class="hw-preview-box" onclick="openHwEditorByLessonIndex(${idx})">
                 <div class="hw-preview-header">
                   <span>📝 ДЗ${groupTitle}:</span>
                   ${authorBadgeHtml}
                 </div>
-                <div class="hw-preview-text">${hwData.text}</div>
+                <div class="hw-preview-text">${escapeHtmlWithBreaks(hwData.text)}</div>
               </div>
             `;
           } else {
             hwHtml = `
-              <button type="button" class="hw-empty-add-btn" onclick="openHwEditor(${itemJson})">
+              <button type="button" class="hw-empty-add-btn" onclick="openHwEditorByLessonIndex(${idx})">
                 <span>➕</span> Добавить ДЗ${groupTitle}...
               </button>
             `;
@@ -3241,20 +3266,20 @@
         return `
           <div class="lesson-card ${item.is_parallel ? 'parallel' : ''}">
             <div class="lesson-header">
-              <span class="lesson-time">${item.pair} пара • ${item.time}</span>
+              <span class="lesson-time">${escapeHtml(item.pair)} пара • ${escapeHtml(item.time)}</span>
               <div class="badges">
                 ${item.is_substitute ? `<span class="badge substitute-badge">Замена</span>` : ""}
-                ${item.subgroup ? `<span class="badge parallel-badge">${item.subgroup}</span>` : ""}
-                <span class="badge">${item.type}</span>
+                ${item.subgroup ? `<span class="badge parallel-badge">${escapeHtml(item.subgroup)}</span>` : ""}
+                <span class="badge">${escapeHtml(item.type)}</span>
               </div>
             </div>
-            <div class="lesson-name">${item.subject}</div>
-            ${item.joint_groups && item.joint_groups.length > 0 ? `<div class="lesson-joint-badge">👥 <b>Совместно с:</b> ${item.joint_groups.join(', ')}</div>` : ''}
+            <div class="lesson-name">${escapeHtml(item.subject)}</div>
+            ${item.joint_groups && item.joint_groups.length > 0 ? `<div class="lesson-joint-badge">👥 <b>Совместно с:</b> ${item.joint_groups.map(escapeHtml).join(', ')}</div>` : ''}
             <div class="lesson-info">
               ${currentRole === 'teacher' 
-                ? `<div class="lesson-target-group">👥 Группа: ${item.group}</div>` 
-                : (item.teacher ? `<div>${item.teacher}</div>` : "")}
-              ${item.room ? `<div class="lesson-room">${item.room}</div>` : ""}
+                ? `<div class="lesson-target-group">👥 Группа: ${escapeHtml(item.group)}</div>` 
+                : (item.teacher ? `<div>${escapeHtml(item.teacher)}</div>` : "")}
+              ${item.room ? `<div class="lesson-room">${escapeHtml(item.room)}</div>` : ""}
             </div>
             ${teacherStatsHtml}
             ${hwHtml}
@@ -3362,18 +3387,23 @@
         if (filtered.length === 0) {
           suggestionsBox.innerHTML = `<div class="suggestion-empty">Ничего не найдено</div>`;
         } else {
-          suggestionsBox.innerHTML = filtered.slice(0, 8).map(t => {
-            const escaped = t.replace(/'/g, "\\'");
+          window._filteredTeachersSuggestions = filtered.slice(0, 8);
+          suggestionsBox.innerHTML = window._filteredTeachersSuggestions.map((t, idx) => {
             return `
-              <div class="suggestion-item" onclick="selectTeacherSuggestion('${escaped}')">
+              <div class="suggestion-item" onclick="selectTeacherSuggestionByIndex(${idx})">
                 <span>👨‍🏫</span>
-                <span>${t}</span>
+                <span>${escapeHtml(t)}</span>
               </div>
             `;
           }).join("");
         }
         suggestionsBox.style.display = "block";
       }
+    }
+
+    function selectTeacherSuggestionByIndex(idx) {
+      const teacherName = window._filteredTeachersSuggestions?.[idx];
+      if (teacherName) selectTeacherSuggestion(teacherName);
     }
 
     function selectTeacherSuggestion(teacherName) {
@@ -3387,7 +3417,7 @@
       const badge = document.getElementById("teacherSelectedBadge");
       if (badge) {
         badge.style.display = "flex";
-        badge.innerHTML = `<span>✅ Выбран: <b>${teacherName}</b></span><span style="font-size:10px; opacity:0.8;">нажмите «Сохранить»</span>`;
+        badge.innerHTML = `<span>✅ Выбран: <b>${escapeHtml(teacherName)}</b></span><span style="font-size:10px; opacity:0.8;">нажмите «Сохранить»</span>`;
       }
     }
 
@@ -3410,12 +3440,12 @@
         if (filtered.length === 0) {
           suggestionsBox.innerHTML = `<div class="suggestion-empty">Ничего не найдено</div>`;
         } else {
-          suggestionsBox.innerHTML = filtered.slice(0, 8).map(g => {
-            const escaped = g.replace(/'/g, "\\'");
+          window._filteredGroupsSuggestions = filtered.slice(0, 8);
+          suggestionsBox.innerHTML = window._filteredGroupsSuggestions.map((g, idx) => {
             return `
-              <div class="suggestion-item" onclick="selectGroupSuggestion('${escaped}')">
+              <div class="suggestion-item" onclick="selectGroupSuggestionByIndex(${idx})">
                 <span>🎓</span>
-                <span>${formatGroupWithCourse(g)}</span>
+                <span>${escapeHtml(formatGroupWithCourse(g))}</span>
               </div>
             `;
           }).join("");
@@ -3435,6 +3465,11 @@
       }
     }
 
+    function selectGroupSuggestionByIndex(idx) {
+      const groupName = window._filteredGroupsSuggestions?.[idx];
+      if (groupName) selectGroupSuggestion(groupName);
+    }
+
     function selectGroupSuggestion(groupName) {
       document.getElementById("modalGroupSearchInput").value = groupName;
       document.getElementById("groupSearchSuggestions").style.display = "none";
@@ -3451,7 +3486,7 @@
       const badge = document.getElementById("groupSelectedBadge");
       if (badge) {
         badge.style.display = "flex";
-        badge.innerHTML = `<span>✅ Выбрана: <b>${formatGroupWithCourse(groupName)}</b></span><span style="font-size:10px; opacity:0.8;">нажмите «Сохранить»</span>`;
+        badge.innerHTML = `<span>✅ Выбрана: <b>${escapeHtml(formatGroupWithCourse(groupName))}</b></span><span style="font-size:10px; opacity:0.8;">нажмите «Сохранить»</span>`;
       }
     }
 
