@@ -333,12 +333,73 @@ def main():
       "teachers": sorted_teachers,
   }
 
+  # Без indent: файл читает машина, а лишние отступы добавляют мегабайты
   with open("schedule.json", "w", encoding="utf-8") as out:
-    json.dump(output, out, ensure_ascii=False, indent=2)
+    json.dump(output, out, ensure_ascii=False, separators=(",", ":"))
+
+  write_split_schedule(full_schedule, sorted_teachers, weeks_metadata)
 
   print(f"\n🎉 Готово! Всего групп: {len(full_schedule)}")
   print(f"👨‍🏫 Найдено преподавателей: {len(sorted_teachers)}")
   print("📁 База сохранена в schedule.json")
+
+
+def _safe_filename(name):
+  """Имя группы/преподавателя в виде, пригодном для имени файла.
+
+  Кириллица в URL допустима, но её приходится процентно кодировать, а разные
+  браузеры делают это по-разному. Поэтому оставляем только буквы, цифры,
+  дефис и подчёркивание, а всё остальное заменяем на «_».
+  """
+  safe = re.sub(r"[^\w\-]", "_", str(name).strip(), flags=re.UNICODE)
+  return safe or "_"
+
+
+def write_split_schedule(full_schedule, sorted_teachers, weeks_metadata):
+  """Раскладываем базу на маленькие файлы по группам и преподавателям.
+
+  Раньше мини-апп тянул целиком schedule.json (~25 МБ) ради расписания одной
+  группы. Теперь он сначала берёт index.json (десятки килобайт), а затем
+  только нужный файл — типичная группа весит ~60 КБ.
+  """
+  groups_dir = os.path.join("data", "groups")
+  teachers_dir = os.path.join("data", "teachers")
+  os.makedirs(groups_dir, exist_ok=True)
+  os.makedirs(teachers_dir, exist_ok=True)
+
+  groups_index = {}
+  for grp_name, lessons in full_schedule.items():
+    fname = _safe_filename(grp_name) + ".json"
+    with open(os.path.join(groups_dir, fname), "w", encoding="utf-8") as f:
+      json.dump(lessons, f, ensure_ascii=False, separators=(",", ":"))
+    groups_index[grp_name] = fname
+
+  teachers_index = {}
+  for tch_name, lessons in sorted_teachers.items():
+    fname = _safe_filename(tch_name) + ".json"
+    with open(os.path.join(teachers_dir, fname), "w", encoding="utf-8") as f:
+      json.dump(lessons, f, ensure_ascii=False, separators=(",", ":"))
+    teachers_index[tch_name] = fname
+
+  index = {
+      "version": 1,
+      "weeks": weeks_metadata,
+      "groups": groups_index,
+      "teachers": teachers_index,
+  }
+  with open("data/index.json", "w", encoding="utf-8") as f:
+    json.dump(index, f, ensure_ascii=False, separators=(",", ":"))
+
+  total = sum(
+      os.path.getsize(os.path.join(groups_dir, n)) for n in groups_index.values()
+  ) + sum(
+      os.path.getsize(os.path.join(teachers_dir, n))
+      for n in teachers_index.values()
+  )
+  print(f"🧩 Разбито на файлы: {len(groups_index)} групп,"
+        f" {len(teachers_index)} преподавателей")
+  print(f"📦 Суммарный объём data/: {total / 1024 / 1024:.1f} МБ")
+  print("📁 Индекс сохранён в data/index.json")
 
 
 if __name__ == "__main__":

@@ -3,19 +3,20 @@
   Copyright (c) 2026 Окороков Роман Александрович. Все права защищены.
 */
 
-const CACHE_NAME = 'mgpu-schedule-v8';
+const CACHE_NAME = 'mgpu-schedule-v9';
 
 const ASSETS_TO_CACHE = [
   './',
   'index.html',
   'manifest.json',
-  'logo.png'
+  'logo.png',
+  'data/index.json'
 ];
 
-/* База расписания весит ~25 МБ. Кэшировать её целиком на этапе установки
-   рискованно: на мобильном интернете cache.add() может упасть по таймауту,
-   и тогда Service Worker остаётся неактивированным. Подхватываем её
-   отдельно, без блокировки установки. */
+/* Раньше здесь лежал schedule.json весом ~25 МБ, и cache.add() на этапе
+   установки мог упасть по таймауту, оставив Service Worker неактивированным.
+   Теперь база разбита на файлы по группам: индекс весит десятки килобайт,
+   а конкретная группа подтягивается по требованию и кэшируется при запросе. */
 const SCHEDULE_URLS = [
   'schedule.json',
   'https://rom41g.github.io/mcu-schedule/schedule.json'

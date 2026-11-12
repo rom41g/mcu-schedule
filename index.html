@@ -2147,18 +2147,93 @@
     }
 
     /* ========== ЗАГРУЗКА И ИНИЦИАЛИЗАЦИЯ ========== */
+    /*
+      База разбита на файлы. Раньше приложение тянуло весь schedule.json
+      (~24 МБ) ради расписания одной группы, и на мобильном интернете это
+      почти всегда заканчивалось пустым экраном. Теперь сначала грузится
+      маленький index.json (десятки килобайт), а затем только нужный файл
+      группы или преподавателя (десятки килобайт).
+
+      schedule.json остаётся в списке источников как резерв: пока новая
+      структура не опубликована, приложение продолжает работать по-старому.
+    */
+    const BASE_DIRS = [
+      '',  // рядом с index.html — основной вариант (GitHub Pages)
+      'https://rom41g.github.io/mcu-schedule/'
+    ];
+
     const SCHEDULE_URL = "https://rom41g.github.io/mcu-schedule/schedule.json";
+
+    /* Резервный путь: полная база одним файлом. Используется, только если
+       разбитая структура недоступна — например, её ещё не успели опубликовать. */
     const SCHEDULE_URLS = [
-      // 1. Абсолютный URL на GitHub Pages — основной источник.
-      SCHEDULE_URL,
-      // 2. Относительный путь рядом с самим index.html (если мини-апп
-      //    раздаётся с того же домена, где лежит база).
       'schedule.json',
-      // 3. Зеркало через Cloudflare Worker. Включается, когда GitHub Pages
-      //    недоступен из сети пользователя (типичная ситуация при блокировке
-      //    185.199.108-111.153 у российских провайдеров).
+      SCHEDULE_URL,
       `${WORKER_URL}/api/schedule`
     ];
+
+    /* Индекс читается один раз и переиспользуется: он нужен и чтобы узнать
+       список групп, и чтобы найти имя файла для конкретной группы. */
+    let scheduleIndex = null;
+    let scheduleIndexBase = '';
+
+    function joinUrl(base, path) {
+      if (!base) return path;
+      return base.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, '');
+    }
+
+    async function fetchJsonWithFallback(paths) {
+      let lastError = null;
+      for (const url of paths) {
+        try {
+          const res = await fetch(url, { cache: 'default' });
+          if (!res || !res.ok) {
+            lastError = new Error(`HTTP ${res ? res.status : 'нет ответа'}`);
+            continue;
+          }
+          return { data: await res.json(), url };
+        } catch (e) {
+          lastError = e;
+        }
+      }
+      throw lastError || new Error('Network error');
+    }
+
+    async function loadScheduleIndex() {
+      if (scheduleIndex) return scheduleIndex;
+      const paths = BASE_DIRS.map(b => joinUrl(b, 'data/index.json'));
+      const { data, url } = await fetchJsonWithFallback(paths);
+      scheduleIndexBase = url.slice(0, url.lastIndexOf('/') + 1);
+      scheduleIndex = data;
+      return scheduleIndex;
+    }
+
+    /* Загружаем только то, что нужно текущему пользователю. */
+    async function fetchTargetLessons(kind, name) {
+      const index = await loadScheduleIndex();
+      const table = (kind === 'teacher' ? index.teachers : index.groups) || {};
+      const fileName = table[name];
+
+      if (!fileName) {
+        // Группы нет в новой структуре — падаем на полную базу.
+        return null;
+      }
+
+      const paths = [
+        scheduleIndexBase + (kind === 'teacher' ? 'teachers/' : 'groups/') + fileName,
+        joinUrl(BASE_DIRS[1], `data/${kind === 'teacher' ? 'teachers' : 'groups'}/${fileName}`)
+      ];
+      const { data } = await fetchJsonWithFallback(paths);
+      return data;
+    }
+
+    async function fetchFullSchedule() {
+      const paths = BASE_DIRS
+        .map(b => joinUrl(b, 'schedule.json'))
+        .concat([SCHEDULE_URL, `${WORKER_URL}/api/schedule`]);
+      const { data } = await fetchJsonWithFallback(paths);
+      return data;
+    }
 
     async function getCachedSchedule() {
       if (!('caches' in window)) return null;
@@ -2169,6 +2244,14 @@
         if (res) return await res.json();
       } catch (e) {}
       return null;
+    }
+
+    async function cacheSchedule(data) {
+      if (!('caches' in window)) return;
+      try {
+        const cache = await caches.open('mgpu-db-cache');
+        await cache.put(new Request(SCHEDULE_URL), new Response(JSON.stringify(data)));
+      } catch (e) {}
     }
 
     async function fetchNetworkSchedule() {
@@ -2182,12 +2265,7 @@
             continue;
           }
           const data = await res.json();
-          if ('caches' in window) {
-            try {
-              const cache = await caches.open('mgpu-db-cache');
-              await cache.put(new Request(SCHEDULE_URL), new Response(JSON.stringify(data)));
-            } catch (e) {}
-          }
+          await cacheSchedule(data);
           return data;
         } catch (e) {
           lastError = e;
@@ -2393,6 +2471,66 @@
       return !savedGroup && !savedTeacher;
     }
 
+    /*
+      Собираем базу из разбитых файлов.
+
+      Порядок важен: список групп и преподавателей берём из index.json, он же
+      даёт имя файла. Профиль пользователя нужен раньше, чем сам файл, поэтому
+      сначала определяем «кто я», и только потом грузим одну конкретную группу.
+    */
+    async function buildDatabaseFromParts() {
+      const index = await loadScheduleIndex();
+
+      // Этап 1: известны имена групп/преподавателей, но уроков ещё нет.
+      // Этого достаточно, чтобы восстановить сохранённый профиль.
+      db = { groups: {}, teachers: {}, weeks: index.weeks || {} };
+      allGroups = Object.keys(index.groups || {}).sort((a, b) => a.localeCompare(b, 'ru'));
+      allTeachers = Object.keys(index.teachers || {}).sort((a, b) => a.localeCompare(b, 'ru'));
+
+      await resolveUserProfile();
+
+      // Этап 2: грузим расписание только выбранной группы (или преподавателя).
+      const kind = currentRole === 'teacher' ? 'teacher' : 'group';
+      const name = currentRole === 'teacher' ? currentTeacher : currentGroup;
+
+      let lessons = null;
+      if (name) {
+        try {
+          lessons = await fetchTargetLessons(kind, name);
+        } catch (e) {
+          console.warn('Не удалось загрузить файл группы, беру полную базу:', e);
+        }
+      }
+
+      if (lessons) {
+        db.groups = db.groups || {};
+        db.teachers = db.teachers || {};
+
+        // Расписание текущего профиля: студент -> groups, преподаватель -> teachers.
+        db[kind === 'teacher' ? 'teachers' : 'groups'][name] = lessons;
+
+        // Парные группы всегда кладём в db.groups: по ним считается плашка
+        // «Совместно с …», и для преподавателя они тоже нужны.
+        const groupNames = new Set();
+        (lessons || []).forEach(l => { if (l.group) groupNames.add(l.group); });
+        const extra = await Promise.allSettled(
+          [...groupNames]
+            .filter(g => g !== name && (index.groups || {})[g] && !db.groups[g])
+            .map(g => fetchTargetLessons('group', g).then(d => [g, d]))
+        );
+        extra.forEach(r => {
+          if (r.status === 'fulfilled' && r.value) db.groups[r.value[0]] = r.value[1];
+        });
+
+        return { partial: true };
+      }
+
+      // Резерв: разбитой структуры нет — грузим полную базу.
+      const full = await fetchNetworkSchedule();
+      prepareDatabase(full);
+      return { partial: false };
+    }
+
     async function init() {
       if (!navigator.onLine && !localStorage.getItem('mgpu_current_group')) {
         setOfflineState(true);
@@ -2430,15 +2568,16 @@
           return;
         }
 
-        const freshData = await fetchNetworkSchedule();
-        prepareDatabase(freshData);
+        const { partial } = await buildDatabaseFromParts();
 
         if (allGroups.length === 0 && allTeachers.length === 0) {
           document.getElementById("scheduleList").innerHTML = `<div class="empty-state">Нет данных расписания.</div>`;
           return;
         }
 
-        const isFirstTime = await resolveUserProfile();
+        const isFirstTime = partial
+          ? (!localStorage.getItem('mgpu_current_group') && !localStorage.getItem('mgpu_current_teacher'))
+          : await resolveUserProfile();
 
         updateHeaderTitle();
         updateProfileTabInfo();
@@ -3615,7 +3754,7 @@
       if (!grpSelect.value && groups.length > 0) grpSelect.value = groups[0];
     }
 
-    function saveProfileSelection() {
+    async function saveProfileSelection() {
       currentRole = modalActiveRole;
       Storage.set('mgpu_current_role', currentRole);
 
@@ -3638,6 +3777,12 @@
       try { localStorage.setItem('mgpu_profile_confirmed', 'true'); } catch (e) {}
 
       updateHeaderTitle();
+
+      // Расписание выбранной группы лежит в отдельном файле, которого у нас
+      // ещё нет — подгружаем его, иначе после смены группы экран останется
+      // пустым до следующего перезапуска приложения.
+      await ensureCurrentTargetLoaded();
+
       closeProfileModal();
       initDateSelection();
       renderDaysBar();
@@ -3645,6 +3790,39 @@
       render();
       loadWeekHomework();
       sendSmartTelemetry(true);
+    }
+
+    /* Догружает расписание текущего профиля, если его ещё нет в памяти. */
+    async function ensureCurrentTargetLoaded() {
+      const kind = currentRole === 'teacher' ? 'teacher' : 'group';
+      const name = currentRole === 'teacher' ? currentTeacher : currentGroup;
+      if (!name || !scheduleIndex) return;
+
+      const key = kind === 'teacher' ? 'teachers' : 'groups';
+      if (db[key] && db[key][name] && db[key][name].length) return;
+
+      try {
+        const lessons = await fetchTargetLessons(kind, name);
+        if (!lessons) return;
+        db[key] = db[key] || {};
+        db[key][name] = lessons;
+
+        const groupNames = new Set();
+        (lessons || []).forEach(l => { if (l.group) groupNames.add(l.group); });
+        const extra = await Promise.allSettled(
+          [...groupNames]
+            .filter(g => g !== name && (scheduleIndex.groups || {})[g] && !(db.groups || {})[g])
+            .map(g => fetchTargetLessons('group', g).then(d => [g, d]))
+        );
+        extra.forEach(r => {
+          if (r.status === 'fulfilled' && r.value) {
+            db.groups = db.groups || {};
+            db.groups[r.value[0]] = r.value[1];
+          }
+        });
+      } catch (e) {
+        console.warn('Не удалось догрузить расписание профиля:', e);
+      }
     }
 
     document.getElementById("profileModal").addEventListener("click", (e) => {
