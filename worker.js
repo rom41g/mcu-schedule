@@ -1675,6 +1675,8 @@ export default {
     const ADMIN_TG_ID = String(env.ADMIN_TG_ID || "123456789");
     const ADMIN_VK_ID = String(env.ADMIN_VK_ID || "242671645");
     const ADMIN_TG_USERNAME = (env.ADMIN_TG_USERNAME || "kommunalkamus").toLowerCase().replace(/^@/, "");
+    // Адрес мини-аппа для кнопки в Telegram и ссылок VK.
+    const WEB_APP_URL = env.PUBLIC_APP_URL || DEFAULT_WEB_APP_URL;
 
     /* ============================================================
        0. ЗЕРКАЛО БАЗЫ РАСПИСАНИЯ
@@ -2330,16 +2332,24 @@ export default {
           }
         };
 
-        await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+        const tgRes = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(tgPayload)
         });
+        if (!tgRes.ok) {
+          // Telegram вернул ошибку (протухший токен, неверный chat_id и т.п.).
+          // Пробрасываем наружу, чтобы она попала в логи Worker, а не потерялась.
+          const detail = await tgRes.text();
+          console.error("sendMessage failed", tgRes.status, detail);
+          return new Response("telegram_error", { status: 502 });
+        }
       }
 
       return new Response("ok", { status: 200 });
     } catch (e) {
-      return new Response("ok", { status: 200 });
+      console.error("webhook handler error:", e && e.stack || String(e));
+      return new Response("error", { status: 500 });
     }
   }
 };
