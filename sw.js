@@ -3,14 +3,22 @@
   Copyright (c) 2026 Окороков Роман Александрович. Все права защищены.
 */
 
-const CACHE_NAME = 'mgpu-schedule-v7';
+const CACHE_NAME = 'mgpu-schedule-v8';
 
 const ASSETS_TO_CACHE = [
   './',
   'index.html',
   'manifest.json',
-  'logo.png',
-  'schedule.json'
+  'logo.png'
+];
+
+/* База расписания весит ~25 МБ. Кэшировать её целиком на этапе установки
+   рискованно: на мобильном интернете cache.add() может упасть по таймауту,
+   и тогда Service Worker остаётся неактивированным. Подхватываем её
+   отдельно, без блокировки установки. */
+const SCHEDULE_URLS = [
+  'schedule.json',
+  'https://rom41g.github.io/mcu-schedule/schedule.json'
 ];
 
 self.addEventListener('install', (event) => {
@@ -20,6 +28,10 @@ self.addEventListener('install', (event) => {
       await Promise.allSettled(
         ASSETS_TO_CACHE.map((asset) => cache.add(asset))
       );
+      // Не блокируем установку SW ожиданием 25-мегабайтной базы
+      Promise.allSettled(
+        SCHEDULE_URLS.map((asset) => cache.add(asset))
+      ).catch(() => {});
     })
   );
 });
@@ -54,10 +66,36 @@ self.addEventListener('fetch', (event) => {
 
   const isHtmlOrSchedule = event.request.mode === 'navigate' || 
                            url.endsWith('/index.html') || 
-                           url.endsWith('/schedule.json') ||
+                           url.endsWith('schedule.json') ||
                            url.endsWith('/');
 
   if (isHtmlOrSchedule) {
+    // База расписания: сначала отдаём закэшированную копию (мгновенный старт
+    // без ожидания 25 МБ по мобильной сети), а свежую версию обновляем в фоне.
+    const isSchedule = url.endsWith('schedule.json');
+    if (isSchedule) {
+      event.respondWith(
+        caches.match(event.request, { ignoreSearch: true }).then((cached) => {
+          const networkUpdate = fetch(event.request)
+            .then((networkResponse) => {
+              if (networkResponse && networkResponse.status === 200) {
+                const clone = networkResponse.clone();
+                caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+              }
+              return networkResponse;
+            })
+            .catch(() => null);
+
+          if (cached) return cached;
+          return networkUpdate.then((res) => res || new Response('Офлайн: база недоступна', {
+            status: 503,
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          }));
+        })
+      );
+      return;
+    }
+
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {

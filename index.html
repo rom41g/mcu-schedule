@@ -10,10 +10,20 @@
   <title>МГПУ • Расписание ИИЯ</title>
 
   <link rel="preconnect" href="https://steep-forest-40b2.okroma007.workers.dev" crossorigin>
-  <link rel="preload" href="schedule.json" as="fetch" crossorigin>
+  <!-- База расписания (25 МБ) грузится с GitHub Pages. Ускоряем соединение и не блокируем парсинг страницы -->
+  <link rel="preconnect" href="https://rom41g.github.io" crossorigin>
+  <link rel="dns-prefetch" href="https://rom41g.github.io">
 
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js" defer></script>
+  <!--
+    Внешние скрипты подключаем без блокировки загрузки страницы.
+    telegram-web-app.js и vk-bridge лежат на сторонних CDN (telegram.org, unpkg.com),
+    которые из России доступны нестабильно. Раньше они подключались в head как
+    обычные синхронные скрипты, поэтому при медленном или заблокированном CDN
+    страница ждала их секундами и выглядела «не грузящейся». Теперь они грузятся
+    асинхронно, а весь код, который их использует, проверяет наличие объекта.
+  -->
+  <script src="https://telegram.org/js/telegram-web-app.js" async></script>
+  <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js" async></script>
 
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="logo.png">
@@ -142,6 +152,10 @@
       text-transform: uppercase;
       letter-spacing: 0.3px;
     }
+
+    /* Плашка «офлайн» показывается только когда связь действительно пропала.
+       Текст подставляется из JS, HTML по умолчанию пуст. */
+    .offline-badge.is-visible { display: inline-block; }
 
     .target-badge-btn {
       display: inline-flex;
@@ -1403,9 +1417,9 @@
 
     techErrorWatchdogTimer = setTimeout(() => {
       if (!isAppInitializedSuccessfully) {
-        showTechErrorModal("Превышено время ожидания загрузки расписания (6 сек). Проверьте интернет-соединение или обновите страницу.");
+        showTechErrorModal("Превышено время ожидания загрузки расписания (30 сек). Проверьте интернет-соединение или обновите страницу.");
       }
-    }, 6000);
+    }, 30000);
 
     /* ========== ТОЧНОЕ ОТСЛЕЖИВАНИЕ ОФЛАЙН-РЕЖИМА ========== */
     let isAppOffline = !navigator.onLine;
@@ -1413,9 +1427,14 @@
     function setOfflineState(offline) {
       const prev = isAppOffline;
       isAppOffline = Boolean(offline);
+
+      // Наличие связи определяем по navigator.onLine. Если связи нет,
+      // но база уже лежит в кэше — приложение продолжает работать,
+      // поэтому «Офлайн» здесь означает потерю сети, а не отсутствие свежих ДЗ.
+      const reallyOffline = isAppOffline || !navigator.onLine;
       const badge = document.getElementById("offlineBadge");
       if (badge) {
-        badge.style.display = isAppOffline ? "inline-block" : "none";
+        badge.classList.toggle("is-visible", reallyOffline);
       }
       if (prev !== isAppOffline && typeof render === 'function' && allGroups.length > 0) {
         render();
@@ -1435,7 +1454,10 @@
 
     const tg = window.Telegram?.WebApp;
     const isInsideTelegram = Boolean(tg && tg.initData);
-    const isInsideVK = window.location.search.includes('vk_user_id') || window.location.search.includes('vk_app_id');
+    // Определяем VK по query-параметрам И по сигнатуре vk_app_id (в VK Mini Apps
+    // параметры могут приходить в формате vk_app_id=.../vk_platform=...)
+    const vkParams = new URLSearchParams(window.location.search);
+    const isInsideVK = vkParams.has('vk_user_id') || vkParams.has('vk_app_id') || /(?:^|[?&])vk_\d*=/.test(window.location.search);
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
@@ -1448,21 +1470,38 @@
       tg.expand();
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
-      if (isInsideVK && window.vkBridge) {
-        vkBridge.send('VKWebAppInit').catch(() => {});
-        vkBridge.subscribe((e) => {
-          if (e.detail?.type === 'VKWebAppUpdateConfig') {
-            const scheme = e.detail.data.scheme;
-            applyTheme(scheme?.includes('dark') ? 'dark' : 'light');
-          }
-        });
-        vkBridge.send('VKWebAppGetUserInfo').then(u => {
-          if (u && u.first_name) {
-            window.currentVkUserName = `${u.first_name} ${u.last_name || ''}`.trim();
-          }
-        }).catch(() => {});
+    /*
+      VK Bridge подключён через async-скрипт, поэтому на момент DOMContentLoaded
+      его может ещё не быть в window. Приложение из-за этого не должно страдать:
+      инициализация VK — необязательный шаг (тема + имя пользователя).
+      Ждём появления vkBridge максимум 8 секунд, и только потом отступаем.
+    */
+    function initVkBridgeWhenReady(attempt = 0) {
+      if (!isInsideVK) return;
+      if (window.vkBridge) {
+        try {
+          window.vkBridge.send('VKWebAppInit').catch(() => {});
+          window.vkBridge.subscribe((e) => {
+            if (e.detail?.type === 'VKWebAppUpdateConfig') {
+              const scheme = e.detail.data.scheme;
+              applyTheme(scheme?.includes('dark') ? 'dark' : 'light');
+            }
+          });
+          window.vkBridge.send('VKWebAppGetUserInfo').then(u => {
+            if (u && u.first_name) {
+              window.currentVkUserName = `${u.first_name} ${u.last_name || ''}`.trim();
+            }
+          }).catch(() => {});
+        } catch (e) {}
+        return;
       }
+      if (attempt < 40) {
+        setTimeout(() => initVkBridgeWhenReady(attempt + 1), 200);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initVkBridgeWhenReady();
     });
 
     /* ========== ТЕМА ОФОРМЛЕНИЯ ========== */
@@ -2108,30 +2147,67 @@
     }
 
     /* ========== ЗАГРУЗКА И ИНИЦИАЛИЗАЦИЯ ========== */
+    const SCHEDULE_URL = "https://rom41g.github.io/mcu-schedule/schedule.json";
+    const SCHEDULE_URLS = [
+      // 1. Абсолютный URL на GitHub Pages — основной источник.
+      SCHEDULE_URL,
+      // 2. Относительный путь рядом с самим index.html (если мини-апп
+      //    раздаётся с того же домена, где лежит база).
+      'schedule.json',
+      // 3. Зеркало через Cloudflare Worker. Включается, когда GitHub Pages
+      //    недоступен из сети пользователя (типичная ситуация при блокировке
+      //    185.199.108-111.153 у российских провайдеров).
+      `${WORKER_URL}/api/schedule`
+    ];
+
     async function getCachedSchedule() {
       if (!('caches' in window)) return null;
       try {
         const cache = await caches.open('mgpu-db-cache');
-        const res = await cache.match('schedule.json');
+        // Ищем и по абсолютному URL (новый формат), и по относительному (старые кэши)
+        const res = (await cache.match('schedule.json')) || (await cache.match(SCHEDULE_URL));
         if (res) return await res.json();
       } catch (e) {}
       return null;
     }
 
     async function fetchNetworkSchedule() {
-      const res = await fetch('schedule.json');
-      if (!res.ok) throw new Error('Network error');
-      const data = await res.json();
-      if ('caches' in window) {
+      let lastError = null;
+
+      for (const url of SCHEDULE_URLS) {
         try {
-          const cache = await caches.open('mgpu-db-cache');
-          await cache.put('schedule.json', new Response(JSON.stringify(data)));
-        } catch (e) {}
+          const res = await fetch(url, { cache: 'default' });
+          if (!res || !res.ok) {
+            lastError = new Error(`HTTP ${res ? res.status : 'unknown'} для ${url}`);
+            continue;
+          }
+          const data = await res.json();
+          if ('caches' in window) {
+            try {
+              const cache = await caches.open('mgpu-db-cache');
+              await cache.put(new Request(SCHEDULE_URL), new Response(JSON.stringify(data)));
+            } catch (e) {}
+          }
+          return data;
+        } catch (e) {
+          lastError = e;
+        }
       }
-      return data;
+
+      throw lastError || new Error('Network error');
     }
 
     /* ========== АЛГОРИТМ ОБЪЕДИНЕНИЯ СОВМЕСТНЫХ ПАР ========== */
+    /*
+      ВАЖНО: база грузится из JSON, поэтому каждый объект «пары» существует
+      в единственном экземпляре. Навешивать на него поля joint_groups нужно
+      ровно один раз — иначе повторный prepareDatabase() (после подгрузки
+      свежей базы) перезапишет массив, который прямо сейчас используется
+      в активном окне редактора ДЗ.
+    */
+    const jointEnrichedGroups = new WeakSet();
+    const jointEnrichedTeachers = new WeakSet();
+
     function isIgnoredForJoint(sub, teach, room) {
       const s = (sub || '').toLowerCase();
       const t = (teach || '').trim();
@@ -2220,6 +2296,9 @@
       for (const [grpName, lessons] of Object.entries(groupsDict || {})) {
         for (let i = 0; i < lessons.length; i++) {
           const item = lessons[i];
+          if (jointEnrichedGroups.has(item)) continue;
+          jointEnrichedGroups.add(item);
+
           if (isIgnoredForJoint(item.subject, item.teacher, item.room)) {
             item.all_joint_groups = [grpName];
             item.joint_groups = [];
@@ -2255,6 +2334,11 @@
         const isSub = /\((?:замена|зам\.?)\)/i.test(rawName);
         for (let i = 0; i < lessons.length; i++) {
           const lesson = lessons[i];
+          if (jointEnrichedTeachers.has(lesson)) {
+            unifiedTeachers[cleanName].push(lesson);
+            continue;
+          }
+          jointEnrichedTeachers.add(lesson);
           const key = getJointSlotKey(lesson.week, lesson.day, lesson.pair, lesson.subject, cleanName, lesson.room);
           const allGrps = (key && slotMap.has(key)) ? Array.from(slotMap.get(key)).sort() : [lesson.group];
 
@@ -2340,7 +2424,9 @@
             prepareDatabase(freshData);
             render();
             checkSessionTabAvailability();
-          }).catch(() => {});
+          }).catch((e) => {
+            console.warn("Фоновая подгрузка свежей базы не удалась:", e);
+          });
           return;
         }
 
@@ -2372,7 +2458,10 @@
         loadWeekHomework();
       } catch (err) {
         setOfflineState(true);
-        showTechErrorModal(`Не удалось загрузить расписание: ${err.message || err}`);
+        // Показываем, какой именно источник не отдал базу — по этой строке
+        // сразу видно, что блокируется: GitHub Pages, локальный хостинг или сеть.
+        const detail = (typeof err?.message === 'string' && err.message) ? err.message : String(err);
+        showTechErrorModal(`Не удалось загрузить расписание.\n${detail}`);
       }
     }
 
@@ -2398,6 +2487,7 @@
 
     function initDateSelection() {
       const weekSelect = document.getElementById("weekSelect");
+      const previousWeek = weekSelect.value;
       const list = getActiveLessonsList();
       const uniqueWeeks = [...new Set(list.map(x => x.week))].sort((a,b) => a - b);
 
@@ -2470,6 +2560,12 @@
 
       if (matchedWeek) weekSelect.value = matchedWeek;
       else if (uniqueWeeks.length > 0) weekSelect.value = uniqueWeeks[0];
+
+      // Фоновая догрузка свежей базы не должна перекидывать студента
+      // на другую учебную неделю — сохраняем уже выбранное значение.
+      if (previousWeek && uniqueWeeks.includes(Number(previousWeek))) {
+        weekSelect.value = previousWeek;
+      }
 
       renderWeeksBar();
     }

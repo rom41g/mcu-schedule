@@ -1,8 +1,15 @@
 /*
-  <!-- Интерактивное расписание для МГПУ (MCU Schedule) Copyright (c) 2026 Окороков Роман Александрович. Все права защищены. -->
+  Интерактивное расписание для МГПУ (MCU Schedule)
+  Copyright (c) 2026 Окороков Роман Александрович. Все права защищены.
 */
 
-const WEB_APP_URL = "https://rom41g.github.io/mcu-schedule/";
+/*
+  Базовый адрес мини-аппа. Держим его в одном месте, потому что он попадает
+  в кнопку Telegram и в ссылки VK. При переезде на свой домен достаточно
+  поменять переменную окружения PUBLIC_APP_URL на новое значение —
+  пересобирать и передеплоивать код не нужно.
+*/
+const DEFAULT_WEB_APP_URL = "https://rom41g.github.io/mcu-schedule/";
 const VK_APP_ID = 54861422;
 const VK_CONFIRMATION_CODE = "543f7ccf";
 
@@ -1668,6 +1675,39 @@ export default {
     const ADMIN_TG_ID = String(env.ADMIN_TG_ID || "123456789");
     const ADMIN_VK_ID = String(env.ADMIN_VK_ID || "242671645");
     const ADMIN_TG_USERNAME = (env.ADMIN_TG_USERNAME || "kommunalkamus").toLowerCase().replace(/^@/, "");
+
+    /* ============================================================
+       0. ЗЕРКАЛО БАЗЫ РАСПИСАНИЯ
+       Отдаём schedule.json через Cloudflare. Нужно на случай, когда
+       GitHub Pages (185.199.108-111.153) недоступен из сети
+       пользователя: домен *.workers.dev обычно резолвится и работает,
+       поэтому мини-апп может взять базу отсюда.
+    ============================================================ */
+    if (url.pathname === "/api/schedule") {
+      try {
+        const scheduleRes = await fetch("https://rom41g.github.io/mcu-schedule/schedule.json", {
+          cf: { cacheTtl: 3600, cacheEverything: true }
+        });
+        if (!scheduleRes.ok) {
+          return new Response(
+            JSON.stringify({ error: "upstream_unavailable", status: scheduleRes.status }),
+            { status: 502, headers: corsHeaders }
+          );
+        }
+
+        const body = await scheduleRes.arrayBuffer();
+        const headers = new Headers(corsHeaders);
+        headers.set("Content-Type", "application/json; charset=utf-8");
+        headers.set("Content-Length", String(body.byteLength));
+        headers.set("Cache-Control", "public, max-age=600");
+        return new Response(body, { status: 200, headers });
+      } catch (e) {
+        return new Response(
+          JSON.stringify({ error: "upstream_error", message: String(e) }),
+          { status: 502, headers: corsHeaders }
+        );
+      }
+    }
 
     /* ============================================================
        1. ГЕНЕРАТОР КАЛЕНДАРЯ ICAL (.ICS) ДЛЯ СТУДЕНТОВ И ПРЕПОДАВАТЕЛЕЙ
