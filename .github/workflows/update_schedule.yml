@@ -39,18 +39,25 @@ jobs:
 
       - name: Сохранение обновлений
         run: |
+          set -euo pipefail
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           # Безопасное добавление файлов (без ошибки 128, если файл еще не создан)
           [ -f schedule.json ] && git add schedule.json
-          [ -f .last_scraped_title ] && git add .last_scraped_title
+          # .last_scraped_title исключён в .gitignore как runtime-файл, но CI
+          # на него опирается при проверке «ничего не изменилось» — поэтому -f
+          [ -f .last_scraped_title ] && git add -f .last_scraped_title
           # Разбитая база: индекс и файлы по группам/преподавателям
           [ -d data ] && git add data
-          
+
+          echo "Изменённые файлы:"
+          git diff --staged --name-only
+
           if git diff --staged --quiet; then
             echo "Новых расписаний нет, коммит не требуется."
           else
             git commit -m "Auto-update: актуализация расписания из ВК [skip ci]"
             git push origin HEAD:${{ github.ref_name }}
+            echo "✅ Обновление закоммичено и отправлено."
           fi
