@@ -1016,6 +1016,12 @@
         <div class="skeleton-line" style="width: 45%;"></div>
       </div>
     </div>
+    <div id="initRetryBox" style="display:none; text-align:center; padding:28px 20px;">
+      <div style="font-size:30px; margin-bottom:8px;">📡</div>
+      <div style="font-weight:700; font-size:14px; margin-bottom:6px;">Не удалось загрузить расписание</div>
+      <div id="initRetryReason" style="font-size:12px; color:var(--text-sub); margin-bottom:14px;"></div>
+      <button type="button" class="modal-btn" onclick="retryInit()" style="max-width:220px; margin:0 auto;">Повторить загрузку</button>
+    </div>
   </div>
 
   <!-- ВКЛАДКА 2: ЛЕНТА ДОМАШНИХ ЗАДАНИЙ -->
@@ -1331,8 +1337,20 @@
 
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
+      /*
+        Таймаут в ASSETS_TO_CACHE упирался в сеть: если GitHub Pages в момент
+        установки недоступен (у части провайдеров это регулярно), cache.add()
+        отваливался по ошибке, и Service Worker оставался неактивированным.
+        Поэтому переустанавливаем его при следующем старте страницы, пока он
+        не встанет, и с updateViaCache: 'none' — иначе сам sw.js мог годами
+        браться из HTTP-кэша.
+      */
+      window.addEventListener('load', async () => {
+        try {
+          const reg = await navigator.serviceWorker.getRegistration();
+          if (reg && reg.active) return;
+          await navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
+        } catch (e) {}
       });
     }
   function openTechSupport() {
@@ -1404,20 +1422,25 @@
     window.addEventListener('error', (e) => {
       console.error("Window error:", e);
       if (!isAppInitializedSuccessfully) {
-        showTechErrorModal(`Сбой JS: ${e.message || e}\nФайл: ${e.filename || ''}:${e.lineno || ''}`);
+        // Модалку не показываем: она перекрывает экран и заставляет
+        // перезагружать страницу. Пользователь получает кнопку повтора.
+        showInitRetry(`Сбой JS: ${e.message || e}`);
       }
     });
 
     window.addEventListener('unhandledrejection', (e) => {
       console.error("Unhandled promise rejection:", e);
       if (!isAppInitializedSuccessfully) {
-        showTechErrorModal(`Сбой промиса: ${e.reason?.message || e.reason || 'Ошибка сети/парсинга'}`);
+        showInitRetry(`Сбой промиса: ${e.reason?.message || e.reason || 'Ошибка сети/парсинга'}`);
       }
     });
 
     techErrorWatchdogTimer = setTimeout(() => {
       if (!isAppInitializedSuccessfully) {
-        showTechErrorModal("Превышено время ожидания загрузки расписания (30 сек). Проверьте интернет-соединение или обновите страницу.");
+        // Раньше здесь была только модалка поверх бесконечных скелетонов.
+        // Детали уходят в консоль, а на экране — сообщение и кнопка повтора.
+        console.error('Загрузка расписания превысила 30 секунд.');
+        showInitRetry('Превышено время ожидания загрузки (30 сек). Проверьте интернет-соединение.');
       }
     }, 30000);
 
@@ -1465,10 +1488,34 @@
       document.body.classList.add('is-vk');
     }
 
-    if (tg && isInsideTelegram) {
-      tg.ready();
-      tg.expand();
+    /*
+      RACE: telegram-web-app.js подключён с async, поэтому в момент выполнения
+      этого скрипта window.Telegram может быть ещё undefined. Раньше ready()
+      вызывался только если объект уже был — и тогда его НЕ вызывал никто.
+      Telegram не прячет свою заглушку до полной загрузки страницы, а полная
+      загрузка зависит от async-скриптов с telegram.org и unpkg.com, которые
+      из России отдаются медленно или не отдаются вовсе. Отсюда «белый экран
+      при первом открытии»: страница уже отрисована, а заглушка Telegram
+      остаётся. Теперь ждём WebApp и вызываем ready() — сразу, как только он
+      появился, и не позже чем через несколько секунд, чтобы при полностью
+      недоступном CDN приложение всё равно показалось.
+    */
+    function callTelegramReady(attempt = 0) {
+      const webApp = window.Telegram?.WebApp;
+      if (webApp) {
+        try {
+          webApp.ready();
+          webApp.expand();
+        } catch (e) {}
+        return;
+      }
+      // ~4 с: если скрипт так и не приехал, дальше ждать бессмысленно —
+      // остальное приложение от Telegram не зависит.
+      if (attempt < 20) {
+        setTimeout(() => callTelegramReady(attempt + 1), 200);
+      }
     }
+    callTelegramReady();
 
     /*
       VK Bridge подключён через async-скрипт, поэтому на момент DOMContentLoaded
@@ -2480,7 +2527,6 @@
     */
     async function buildDatabaseFromParts() {
       const index = await loadScheduleIndex();
-
       // Этап 1: известны имена групп/преподавателей, но уроков ещё нет.
       // Этого достаточно, чтобы восстановить сохранённый профиль.
       db = { groups: {}, teachers: {}, weeks: index.weeks || {} };
@@ -2531,6 +2577,36 @@
       return { partial: false };
     }
 
+    /*
+      Ошибка загрузки раньше тихо уходила в модалку с технической строкой,
+      а если не срабатывал и рендер — пользователь видел бесконечные скелетоны
+      и был вынужден перезагружать страницу через меню Telegram. Теперь на
+      экране остаётся понятное сообщение и кнопка «Повторить» — без перезагрузки.
+    */
+    function showInitRetry(reason) {
+      const box = document.getElementById('initRetryBox');
+      const list = document.getElementById('scheduleList');
+      if (list) list.style.display = 'none';
+      const reasonEl = document.getElementById('initRetryReason');
+      if (reasonEl) reasonEl.textContent = reason || '';
+      if (box) box.style.display = 'block';
+      // Watchdog не должен вторгаться поверх экрана с кнопкой «Повторить».
+      if (techErrorWatchdogTimer) {
+        clearTimeout(techErrorWatchdogTimer);
+        techErrorWatchdogTimer = null;
+      }
+    }
+
+    function retryInit() {
+      const box = document.getElementById('initRetryBox');
+      const list = document.getElementById('scheduleList');
+      if (box) box.style.display = 'none';
+      if (list) list.style.display = '';
+      // Сбрасываем неудачную попытку целиком: индекс мог не загрузиться.
+      scheduleIndex = null;
+      scheduleIndexBase = '';
+      init();
+    }
     async function init() {
       if (!navigator.onLine && !localStorage.getItem('mgpu_current_group')) {
         setOfflineState(true);
@@ -2545,6 +2621,7 @@
           updateHeaderTitle();
           updateProfileTabInfo();
           initDateSelection();
+          selectDefaultDayOnLoad();
           renderDaysBar();
           preloadHomeworkFromLocalSync();
           render();
@@ -2553,6 +2630,7 @@
 
           isAppInitializedSuccessfully = true;
           if (techErrorWatchdogTimer) clearTimeout(techErrorWatchdogTimer);
+          techErrorWatchdogTimer = null;
 
           if (isFirstTime) openProfileModal();
           else sendSmartTelemetry();
@@ -2572,6 +2650,8 @@
 
         if (allGroups.length === 0 && allTeachers.length === 0) {
           document.getElementById("scheduleList").innerHTML = `<div class="empty-state">Нет данных расписания.</div>`;
+          // Данные не пришли — не оставляем пользователя без выхода из состояния.
+          showInitRetry('Сервер вернул пустой список групп. Проверьте интернет-соединение.');
           return;
         }
 
@@ -2582,6 +2662,7 @@
         updateHeaderTitle();
         updateProfileTabInfo();
         initDateSelection();
+        selectDefaultDayOnLoad();
         renderDaysBar();
         preloadHomeworkFromLocalSync();
         render();
@@ -2590,6 +2671,7 @@
 
         isAppInitializedSuccessfully = true;
         if (techErrorWatchdogTimer) clearTimeout(techErrorWatchdogTimer);
+        techErrorWatchdogTimer = null;
 
         if (isFirstTime) openProfileModal();
         else sendSmartTelemetry();
@@ -2600,7 +2682,12 @@
         // Показываем, какой именно источник не отдал базу — по этой строке
         // сразу видно, что блокируется: GitHub Pages, локальный хостинг или сеть.
         const detail = (typeof err?.message === 'string' && err.message) ? err.message : String(err);
-        showTechErrorModal(`Не удалось загрузить расписание.\n${detail}`);
+        console.error('Загрузка расписания не удалась:', err);
+        // Техническую модалку больше не открываем автоматически: раньше она
+        // перекрывала экран, и пользователю оставалось только перезагрузить
+        // страницу через меню Telegram. Детали уходят в консоль,
+        // а на экране остаётся понятное сообщение и кнопка «Повторить».
+        showInitRetry(detail);
       }
     }
 
@@ -2622,6 +2709,35 @@
         return db.teachers[currentTeacher] || [];
       }
       return db.groups[currentGroup] || [];
+    }
+
+    /*
+      Понедельник — привычная точка отсчёта для расписания, но в некоторых
+      неделях (например, когда все занятия заменены на «День для
+      самостоятельной подготовки») пар по понедельникам нет вовсе.
+      Тогда показываем первый день недели, в котором занятия есть,
+      чтобы пользователь не видел пустой экран по умолчанию.
+    */
+    function pickDefaultDayForWeek(weekNum) {
+      const list = getActiveLessonsList();
+      const days = list.filter(l => l.week === weekNum).map(l => l.day);
+      if (days.length === 0) return DAYS[0];
+      const present = DAYS.filter(d => days.includes(d));
+      return present[0] || DAYS[0];
+    }
+
+    /*
+      Сегодняшний день удобен только тогда, когда в текущей учебной неделе
+      в нём действительно есть занятия. В выходные и в неделях, состоящих
+      из «Дня для самостоятельной подготовки», показываем первый день
+      с занятиями — иначе стартовый экран выглядит пустым.
+    */
+    function selectDefaultDayOnLoad() {
+      const weekNum = parseInt(document.getElementById("weekSelect").value, 10);
+      if (isNaN(weekNum)) return;
+      const list = getActiveLessonsList();
+      const hasToday = list.some(l => l.week === weekNum && l.day === selectedDay);
+      if (!hasToday) selectedDay = pickDefaultDayForWeek(weekNum);
     }
 
     function initDateSelection() {
@@ -2753,6 +2869,14 @@
     }
 
     function onWeekChange() {
+      /*
+        При смене недели день сбрасывается на первый день, в котором есть
+        занятия (обычно понедельник). Раньше выбранный день «переезжал»
+        с прошлой недели — например, оставалась пятница, — и ориентироваться
+        в новой неделе приходилось вручную.
+      */
+      const weekNum = parseInt(document.getElementById("weekSelect").value, 10);
+      selectedDay = pickDefaultDayForWeek(weekNum);
       renderWeeksBar();
       renderDaysBar();
       preloadHomeworkFromLocalSync();

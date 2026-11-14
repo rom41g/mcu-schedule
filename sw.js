@@ -3,7 +3,7 @@
   Copyright (c) 2026 Окороков Роман Александрович. Все права защищены.
 */
 
-const CACHE_NAME = 'mgpu-schedule-v9';
+const CACHE_NAME = 'mgpu-schedule-v10';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -26,13 +26,21 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      await Promise.allSettled(
-        ASSETS_TO_CACHE.map((asset) => cache.add(asset))
-      );
-      // Не блокируем установку SW ожиданием 25-мегабайтной базы
-      Promise.allSettled(
-        SCHEDULE_URLS.map((asset) => cache.add(asset))
-      ).catch(() => {});
+      /*
+        cache.add() падает, если запрос не удался: например, GitHub Pages
+        в этот момент недоступен. Promise.allSettled это проглатывал, но
+        сам Service Worker после такой «пустой» установки оставался
+        неактивированным, и приложение оставалось без офлайн-кэша.
+        Скачиваем сами и кэшируем только успешные ответы.
+      */
+      const store = (asset) =>
+        fetch(asset, { cache: 'no-cache' })
+          .then((res) => (res && res.ok ? cache.put(asset, res) : null))
+          .catch(() => null);
+
+      await Promise.allSettled(ASSETS_TO_CACHE.map(store));
+      // Полную базу (25 МБ) не ждём — это больше не основной источник.
+      Promise.allSettled(SCHEDULE_URLS.map(store)).catch(() => {});
     })
   );
 });

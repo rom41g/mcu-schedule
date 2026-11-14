@@ -4,11 +4,20 @@ import json
 import os
 import re
 import ssl
+import sys
 import urllib.request
 import pandas as pd
 import vk_api
 
 ssl._create_default_https_context = ssl._create_unverified_context
+
+# Консоль Windows по умолчанию cp1251 и падает на эмодзи в print().
+# Не роняем скрипт из-за кодировки вывода.
+for _stream in (sys.stdout, sys.stderr):
+  try:
+    _stream.reconfigure(errors="replace")
+  except (AttributeError, ValueError):
+    pass
 
 GROUP_ID = 29490619
 TOPIC_ID = 68268274
@@ -264,6 +273,70 @@ def parse_single_excel(
       full_schedule[clean_name] = lessons_list
 
 
+def _doc_stem(title):
+  """Имя файла без расширения, приведённое к нижнему регистру."""
+  base = os.path.basename(str(title or "").strip())
+  root, _ext = os.path.splitext(base)
+  return root.strip().lower()
+
+
+def _is_schedule_doc(title, ext):
+  return ext in ("xls", "xlsx") or str(title or "").lower().endswith(
+      (".xls", ".xlsx")
+  )
+
+
+def download_latest_schedules(vk, folder):
+  """Скачивает самую свежую версию каждого расписания из темы ВК.
+
+  Преподаватели обновляют файлы под тем же названием (например
+  «КЗ_3_курс_.xls»), поэтому кэшировать по имени нельзя: старая версия
+  навсегда перекрывала новую. Теперь мы идём по комментариям от новых к
+  старым и берём документ только при первом появлении его названия —
+  это и есть последняя версия. Одноимённый файл предыдущей версии удаляем.
+  """
+  comments = vk.board.getComments(
+      group_id=GROUP_ID, topic_id=TOPIC_ID, count=100, sort="desc"
+  )
+
+  seen = set()
+  downloaded = 0
+  skipped = 0
+
+  for item in comments.get("items", []):
+    for att in item.get("attachments", []):
+      if att.get("type") != "doc":
+        continue
+
+      doc = att["doc"]
+      title = os.path.basename(str(doc.get("title", "")).strip())
+      ext = str(doc.get("ext", "")).lower()
+      url = doc.get("url")
+
+      if not _is_schedule_doc(title, ext) or not url:
+        continue
+
+      # Первое вхождение названия в порядке «свежие сверху» — самая новая версия.
+      stem = _doc_stem(title)
+      if stem in seen:
+        skipped += 1
+        continue
+      seen.add(stem)
+
+      file_path = os.path.join(folder, title)
+      if os.path.exists(file_path):
+        print(f"🔁 Обновляю: {title}")
+      else:
+        print(f"📥 Скачиваю: {title}")
+
+      urllib.request.urlretrieve(url, file_path)
+      downloaded += 1
+
+  if skipped:
+    print(f"⏭️ Старых версий с тем же названием пропущено: {skipped}")
+  return downloaded
+
+
 def main():
   if not os.path.exists(FOLDER_NAME):
     os.makedirs(FOLDER_NAME)
@@ -277,30 +350,8 @@ def main():
       vk_session = vk_api.VkApi(token=VK_SERVICE_TOKEN)
       vk = vk_session.get_api()
       print("🔍 Проверка обновлений в ВК...")
-      comments = vk.board.getComments(
-          group_id=GROUP_ID, topic_id=TOPIC_ID, count=25, sort="desc"
-      )
-
-      downloaded = 0
-      for item in comments.get("items", []):
-        for att in item.get("attachments", []):
-          if att.get("type") == "doc":
-            doc = att["doc"]
-            title = doc.get("title", "")
-            ext = doc.get("ext", "").lower()
-            url = doc.get("url")
-
-            if (
-                ext in ["xls", "xlsx"]
-                or title.endswith(".xls")
-                or title.endswith(".xlsx")
-            ) and url:
-              file_path = os.path.join(FOLDER_NAME, title)
-              if not os.path.exists(file_path):
-                print(f"📥 Скачиваю: {title}")
-                urllib.request.urlretrieve(url, file_path)
-                downloaded += 1
-      print(f"✔️ Скачивание завершено (новых: {downloaded})")
+      downloaded = download_latest_schedules(vk, FOLDER_NAME)
+      print(f"✔️ Скачивание завершено (файлов: {downloaded})")
     except Exception as e:
       print(
           f"⚠️ Ошибка авторизации ВК ({e}), использую уже скачанные таблицы..."
