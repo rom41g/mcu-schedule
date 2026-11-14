@@ -286,6 +286,21 @@ def _is_schedule_doc(title, ext):
   )
 
 
+def _vk_comments_to_pairs(comments):
+  """Результат board.getComments → [(title, size, date)] для документа ВК."""
+  return [
+      (title, doc.get("size"), item.get("date"))
+      for item in comments.get("items", [])
+      for att in item.get("attachments", [])
+      if att.get("type") == "doc"
+      for doc in [att.get("doc", {})]
+      for title, _ext in [
+          (" ".join(str(doc.get("title", "")).split()), str(doc.get("ext", "")).lower())
+      ]
+      if _is_schedule_doc(title, _ext)
+  ]
+
+
 def download_latest_schedules(vk, folder):
   """Скачивает самую свежую версию каждого расписания из темы ВК.
 
@@ -294,10 +309,19 @@ def download_latest_schedules(vk, folder):
   навсегда перекрывала новую. Теперь мы идём по комментариям от новых к
   старым и берём документ только при первом появлении его названия —
   это и есть последняя версия. Одноимённый файл предыдущей версии удаляем.
+
+  Возвращает (скачано, всего уникальных названий в теме).
   """
-  comments = vk.board.getComments(
-      group_id=GROUP_ID, topic_id=TOPIC_ID, count=100, sort="desc"
-  )
+  try:
+    comments = vk.board.getComments(
+        group_id=GROUP_ID, topic_id=TOPIC_ID, count=100, sort="desc"
+    )
+  except Exception as e:
+    raise RuntimeError(f"не удалось прочитать тему ВК: {e}") from e
+
+  expected = {
+      _doc_stem(title) for title, _size, _date in _vk_comments_to_pairs(comments)
+  }
 
   seen = set()
   downloaded = 0
@@ -324,23 +348,33 @@ def download_latest_schedules(vk, folder):
       seen.add(stem)
 
       file_path = os.path.join(folder, title)
-      if os.path.exists(file_path):
-        print(f"🔁 Обновляю: {title}")
-      else:
-        print(f"📥 Скачиваю: {title}")
 
-      urllib.request.urlretrieve(url, file_path)
+      # VK отдаёт временную ссылку, и она тоже умеет внятно падать.
+      # Раньше одно исключение перекрашивалось в «ошибку авторизации»,
+      # и на этом обрывалась загрузка всех остальных файлов.
+      try:
+        urllib.request.urlretrieve(url, file_path)
+      except Exception as e:
+        print(f"⚠️ Не удалось скачать {title}: {e}")
+        continue
+
+      print(f"📥 Скачано: {title} ({os.path.getsize(file_path)} б)")
       downloaded += 1
 
   if skipped:
     print(f"⏭️ Старых версий с тем же названием пропущено: {skipped}")
-  return downloaded
+
+  missing = sorted(expected - seen)
+  if missing:
+    print(f"⚠️ Не скачано файлов: {len(missing)} — {', '.join(missing)}")
+  return downloaded, len(expected)
 
 
 def main():
   if not os.path.exists(FOLDER_NAME):
     os.makedirs(FOLDER_NAME)
 
+  total_docs = 0
   if (
       VK_SERVICE_TOKEN
       and VK_SERVICE_TOKEN != "ВСТАВЬТЕ_СЮДА_ВАШ_ТОКЕН_ВК"
@@ -350,12 +384,10 @@ def main():
       vk_session = vk_api.VkApi(token=VK_SERVICE_TOKEN)
       vk = vk_session.get_api()
       print("🔍 Проверка обновлений в ВК...")
-      downloaded = download_latest_schedules(vk, FOLDER_NAME)
-      print(f"✔️ Скачивание завершено (файлов: {downloaded})")
+      downloaded, total_docs = download_latest_schedules(vk, FOLDER_NAME)
+      print(f"✔️ Скачивание завершено (файлов: {downloaded} из {total_docs})")
     except Exception as e:
-      print(
-          f"⚠️ Ошибка авторизации ВК ({e}), использую уже скачанные таблицы..."
-      )
+      print(f"⚠️ Ошибка загрузки расписаний из ВК ({e}), использую скачанные таблицы...")
   else:
     print(
         "ℹ️ Токен ВК не задан. Использую скачанные таблицы из папки"

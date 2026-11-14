@@ -1677,6 +1677,9 @@ export default {
     const ADMIN_TG_USERNAME = (env.ADMIN_TG_USERNAME || "kommunalkamus").toLowerCase().replace(/^@/, "");
     // Адрес мини-аппа для кнопки в Telegram и ссылок VK.
     const WEB_APP_URL = env.PUBLIC_APP_URL || DEFAULT_WEB_APP_URL;
+    /* Откуда воркер берёт полную базу для /api/schedule. По умолчанию —
+       GitHub Pages; если они недоступны, можно переключить на другой хост. */
+    const SCHEDULE_MIRROR_URL = env.SCHEDULE_MIRROR_URL || "";
 
     /* ============================================================
        0. ЗЕРКАЛО БАЗЫ РАСПИСАНИЯ
@@ -1687,7 +1690,8 @@ export default {
     ============================================================ */
     if (url.pathname === "/api/schedule") {
       try {
-        const scheduleRes = await fetch("https://rom41g.github.io/mcu-schedule/schedule.json", {
+        const upstream = SCHEDULE_MIRROR_URL || "https://rom41g.github.io/mcu-schedule/schedule.json";
+        const scheduleRes = await fetch(upstream, {
           cf: { cacheTtl: 3600, cacheEverything: true }
         });
         if (!scheduleRes.ok) {
