@@ -367,6 +367,113 @@ async function sendTgSimpleText(chatId, text, token, parseMode = null) {
   });
 }
 
+/* ============================================================
+   ПОДПИСЧИКИ БОТА
+
+   Telegram не отдаёт список тех, кто писал боту, поэтому адресатов
+   приходится хранить самим. Каждый /start (и любое другое сообщение)
+   кладёт chat_id в KV под ключом subs:<id>. Раньше никто не писался —
+   отсюда и невозможность что-либо разослать.
+============================================================ */
+async function saveSubscriber(env, chatId, from, source) {
+  if (!env.STATS_KV || !chatId) return;
+  try {
+    const id = String(chatId);
+    // Группы и каналы в личную рассылку не берём: у них отрицательный id.
+    if (id.startsWith("-")) return;
+
+    const existing = await env.STATS_KV.get(`subs:${id}`, "json");
+    const record = {
+      chat_id: Number(chatId),
+      username: (from && from.username) || (existing && existing.username) || "",
+      first_name: (from && from.first_name) || (existing && existing.first_name) || "",
+      last_name: (from && from.last_name) || (existing && existing.last_name) || "",
+      first_seen: (existing && existing.first_seen) || new Date().toISOString(),
+      last_seen: new Date().toISOString(),
+      /* confirmed=true — человек сам написал боту, значит Telegram разрешит
+         доставить ему сообщение. Из мини-аппа приходят и те, кто ни разу не
+         жал Start: их учитываем в охвате, но слать им нельзя. */
+      confirmed: (existing && existing.confirmed === true) || source === "message",
+      source: (existing && existing.source) || source || "message"
+    };
+    await env.STATS_KV.put(`subs:${id}`, JSON.stringify(record));
+  } catch (e) {}
+}
+
+async function listSubscribers(env) {
+  if (!env.STATS_KV) return [];
+  const out = [];
+  let cursor = null;
+  try {
+    do {
+      const page = await env.STATS_KV.list({ prefix: "subs:", cursor });
+      for (const k of page.keys || []) {
+        const rec = await env.STATS_KV.get(k.name, "json");
+        if (rec && rec.chat_id) out.push(rec);
+      }
+      cursor = page.list_complete ? null : page.cursor;
+    } while (cursor);
+  } catch (e) {}
+  return out;
+}
+
+/* Отправка с ограничением параллельности: при 30 rps Telegram начинает
+   отвечать 429, поэтому идём небольшими пачками с паузой между ними. */
+async function tgCall(token, method, payload) {
+  const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  let body = null;
+  try { body = await res.json(); } catch (e) {}
+  return { ok: res.ok && body && body.ok, status: res.status, body };
+}
+
+async function broadcastToSubscribers(env, token, text, photo) {
+  const all = await listSubscribers(env);
+  /* Пишем только тем, кто подтвердил диалог: остальным Telegram вернёт 403
+     «bot can't initiate conversation with a user», и это не наша ошибка. */
+  const subs = all.filter((s) => s.confirmed !== false);
+  const skipped = all.length - subs.length;
+  const stats = { total: all.length, reachable: subs.length, skipped, sent: 0, blocked: 0, failed: 0 };
+  const BATCH = 20;
+
+  for (let i = 0; i < subs.length; i += BATCH) {
+    const slice = subs.slice(i, i + BATCH);
+    await Promise.all(slice.map(async (sub) => {
+      const payload = { chat_id: sub.chat_id };
+      let method = "sendMessage";
+      if (photo) {
+        method = "sendPhoto";
+        payload.photo = photo;
+        payload.caption = text;
+        payload.parse_mode = "HTML";
+      } else {
+        payload.text = text;
+        payload.parse_mode = "HTML";
+      }
+
+      const { ok, body } = await tgCall(token, method, payload);
+      if (ok) {
+        stats.sent++;
+      } else if (body && body.error_code === 403) {
+        // Пользователь заблокировал бота — чистим, чтобы не тратить на него вызовы.
+        stats.blocked++;
+        try { await env.STATS_KV.delete(`subs:${sub.chat_id}`); } catch (e) {}
+      } else {
+        stats.failed++;
+      }
+    }));
+
+    if (i + BATCH < subs.length) {
+      await new Promise((r) => setTimeout(r, 1100));
+    }
+  }
+
+  return stats;
+}
+
 async function sendStatsMessage(chatId, env, url, token, adminKey) {
   const s = await getAggregatedStats(env);
   const d = s.periods.day;
@@ -826,6 +933,45 @@ function renderAdminHtml(s, adminKey) {
       margin: 10px 0;
     }
     .admin-textarea:focus { border-color: var(--red); }
+
+    .bc-grid { display: flex; flex-direction: column; gap: 10px; }
+    .bc-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .bc-input {
+      flex: 1;
+      min-width: 220px;
+      background: var(--inspector-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+    }
+    .bc-input:focus { border-color: var(--red); }
+    .bc-textarea { width: 100%; min-height: 190px; margin: 0; }
+    .bc-counter { font-size: 11px; color: var(--sub); font-weight: 700; text-align: right; }
+    .bc-counter.over { color: var(--red); }
+    .bc-send {
+      background: var(--red);
+      color: #FFF;
+      border: 1px solid var(--red);
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .bc-send:disabled { opacity: 0.5; cursor: default; }
+    .bc-result {
+      display: none;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--inspector-bg);
+      line-height: 1.7;
+    }
   </style>
 </head>
 <body>
@@ -1033,6 +1179,39 @@ function renderAdminHtml(s, adminKey) {
     </div>
   </div>
 
+    <div class="card">
+      <div class="section-head" style="margin-bottom:4px;">
+        <div>
+          <div class="metric-title" style="margin-bottom:2px;">📣 Рассылка подписчикам бота</div>
+          <div style="font-size:12px; color:var(--sub);">Сообщение уйдёт всем, кто запускал бота. Открытия мини-аппа попадают в базу, но написать им Telegram разрешит только после нажатия Start.</div>
+        </div>
+      </div>
+
+      <div class="bc-grid">
+        <div class="bc-row">
+          <button class="btn-action" onclick="loadSubsCount()">👥 Обновить счётчик</button>
+          <span id="bcSubsCount" style="font-size:13px; font-weight:800; color:var(--sub);">—</span>
+        </div>
+
+        <input type="text" class="bc-input" id="bcPhoto" placeholder="Ссылка на картинку (необязательно). С фото подпись ограничена 1024 символами.">
+
+        <textarea class="bc-textarea admin-textarea" id="bcText" oninput="updateBcCounter()" placeholder="Текст рассылки. Поддерживается HTML: &lt;b&gt;жирный&lt;/b&gt;, &lt;a href=&quot;ссылка&quot;&gt;текст&lt;/a&gt;"></textarea>
+
+        <div class="bc-counter" id="bcCounter">0 / 4096</div>
+
+        <div class="bc-row" style="justify-content:space-between;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--sub); cursor:pointer;">
+            <input type="checkbox" id="bcPreviewCheck" onchange="updateBcCounter()">
+            <span>Это тест: отправить только мне</span>
+          </label>
+          <button class="bc-send" id="bcSendBtn" onclick="sendBroadcast()">📣 Отправить</button>
+        </div>
+
+        <div class="bc-result" id="bcResult"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="admin-modal-overlay" id="adminHwModal">
     <div class="admin-modal-box">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
@@ -1214,8 +1393,96 @@ function renderAdminHtml(s, adminKey) {
       }
     }
 
-    async function deleteAdminHw(filteredIdx) {
-      const item = window._filteredAdminHw?.[filteredIdx];
+    /* ============================================================
+       РАССЫЛКА ИЗ ДАШБОРДА
+    ============================================================ */
+    function updateBcCounter() {
+      const el = document.getElementById('bcText');
+      const hasPhoto = document.getElementById('bcPhoto').value.trim().length > 0;
+      const limit = hasPhoto ? 1024 : 4096;
+      const len = el.value.length;
+      const counter = document.getElementById('bcCounter');
+      counter.textContent = len + ' / ' + limit + (hasPhoto ? ' (с картинкой — подпись)' : '');
+      counter.classList.toggle('over', len > limit);
+    }
+
+    async function loadSubsCount() {
+      const el = document.getElementById('bcSubsCount');
+      el.textContent = 'загрузка...';
+      try {
+        const res = await fetch('/admin/subs-count?key=' + encodeURIComponent(ADMIN_KEY));
+        const data = await res.json();
+        if (data.ok) {
+          const t = data.total;
+          const c = data.confirmed;
+          el.textContent = 'В базе: ' + t + ' • подтвердили Start: ' + c;
+        } else {
+          el.textContent = data.error || 'ошибка';
+        }
+      } catch (e) {
+        el.textContent = 'ошибка сети';
+      }
+    }
+
+    async function sendBroadcast() {
+      const text = document.getElementById('bcText').value.trim();
+      const photo = document.getElementById('bcPhoto').value.trim();
+      const onlyMe = document.getElementById('bcPreviewCheck').checked;
+      const btn = document.getElementById('bcSendBtn');
+      const out = document.getElementById('bcResult');
+
+      out.style.display = 'none';
+
+      if (!text) { alert('Введите текст рассылки'); return; }
+      if (photo && text.length > 1024) {
+        alert('С картинкой подпись ограничена 1024 символами — сейчас ' + text.length + '.');
+        return;
+      }
+      if (!photo && text.length > 4096) {
+        alert('Текст длиннее 4096 символов — Telegram не примет такое сообщение.');
+        return;
+      }
+      if (!onlyMe && !confirm('Отправить рассылку всем подписчикам? Отменить будет нельзя.')) return;
+
+      btn.disabled = true;
+      btn.textContent = '⏳ Отправка...';
+
+      try {
+        const res = await fetch('/admin/broadcast?key=' + encodeURIComponent(ADMIN_KEY), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text, photo: photo || null, onlyMe: onlyMe })
+        });
+        const data = await res.json();
+
+        out.style.display = 'block';
+        if (data.ok) {
+          const r = data.result;
+          if (r.test) {
+            out.innerHTML = r.delivered
+              ? '✅ Тестовое сообщение отправлено вам.'
+              : '⚠️ Тест не доставлен: ' + escapeHtml(r.error || 'неизвестная ошибка');
+          } else {
+            out.innerHTML =
+              '📣 Рассылка завершена<br>' +
+              'Всего в базе: <b>' + r.total + '</b><br>' +
+              '✅ Доставлено: <b>' + r.sent + '</b><br>' +
+              '🚫 Заблокировали бота: <b>' + r.blocked + '</b><br>' +
+              '⚠️ Ошибок: <b>' + r.failed + '</b>';
+          }
+        } else {
+          out.innerHTML = '⚠️ ' + escapeHtml(data.error || 'Ошибка отправки');
+        }
+      } catch (e) {
+        out.style.display = 'block';
+        out.textContent = '⚠️ Ошибка сети при отправке';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '📣 Отправить';
+      }
+    }
+
+    async function deleteAdminHw(filteredIdx) {      const item = window._filteredAdminHw?.[filteredIdx];
       if (!item) return;
       if (!confirm(\`Удалить домашнее задание у группы «\${item.group}» (\${item.week} нед.)?\`)) return;
 
@@ -2041,6 +2308,18 @@ export default {
       try {
         const body = await request.json();
         await recordTelemetry(env, body);
+
+        /* Кто открыл мини-апп — тоже потенциальный адресат рассылки.
+           Берём пользователя только из подписанного initData: иначе любой
+           мог бы подставить чужой chat_id и заставить нас ему написать. */
+        const authHeader = request.headers.get("Authorization") || "";
+        if (authHeader.startsWith("tma ") && TG_TOKEN) {
+          const tgUser = await verifyTelegramWebAppData(authHeader.slice(4), TG_TOKEN);
+          if (tgUser && tgUser.id) {
+            await saveSubscriber(env, tgUser.id, tgUser, "miniapp");
+          }
+        }
+
         return new Response(JSON.stringify({ ok: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
@@ -2253,6 +2532,83 @@ export default {
     }
 
     /* ============================================================
+       4b. АДМИН: РАССЫЛКА ПОДПИСЧИКАМ БОТА
+    ============================================================ */
+    if (url.pathname === "/admin/subs-count" && request.method === "GET") {
+      const authKey = request.headers.get("x-admin-key") || url.searchParams.get("key");
+      if (authKey !== ADMIN_SECRET_KEY) {
+        return new Response(JSON.stringify({ ok: false, error: "Доступ запрещен" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      const subs = await listSubscribers(env);
+      return new Response(JSON.stringify({
+        ok: true,
+        total: subs.length,
+        confirmed: subs.filter((s) => s.confirmed !== false).length
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (url.pathname === "/admin/broadcast" && request.method === "POST") {
+      const authKey = request.headers.get("x-admin-key") || url.searchParams.get("key");
+      if (authKey !== ADMIN_SECRET_KEY) {
+        return new Response(JSON.stringify({ ok: false, error: "Доступ запрещен" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+      if (!TG_TOKEN) {
+        return new Response(JSON.stringify({ ok: false, error: "TG_TOKEN не задан в Worker" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      try {
+        const { text, photo, onlyMe } = await request.json();
+        if (!text || !String(text).trim()) {
+          return new Response(JSON.stringify({ ok: false, error: "Пустой текст" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const messageText = String(text).trim();
+        const photoUrl = photo ? String(photo).trim() : null;
+
+        /* Тестовая отправка: шлём только тому, кто открыл дашборд.
+           Адресат берётся из ADMIN_TG_ID, чтобы нельзя было разослать
+           произвольному chat_id через этот эндпоинт. */
+        if (onlyMe) {
+          const payload = photoUrl
+            ? { chat_id: ADMIN_TG_ID, photo: photoUrl, caption: messageText, parse_mode: "HTML" }
+            : { chat_id: ADMIN_TG_ID, text: messageText, parse_mode: "HTML" };
+          const { ok, body } = await tgCall(TG_TOKEN, photoUrl ? "sendPhoto" : "sendMessage", payload);
+          return new Response(JSON.stringify({
+            ok: true,
+            result: {
+              test: true,
+              delivered: Boolean(ok),
+              error: ok ? null : (body && body.description) || "Telegram отклонил сообщение"
+            }
+          }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
+        const result = await broadcastToSubscribers(env, TG_TOKEN, messageText, photoUrl);
+        return new Response(JSON.stringify({ ok: true, result }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ ok: false, error: String(e) }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    /* ============================================================
        5. ПАНЕЛЬ АДМИНИСТРАТОРА (/admin)
     ============================================================ */
     if (url.pathname === "/admin") {
@@ -2310,6 +2666,8 @@ export default {
         const chatId = data.message.chat.id;
         const text = data.message.text.trim();
 
+        await saveSubscriber(env, chatId, data.message.from, "message");
+
         if (text.startsWith("/admin") || text.startsWith("/stats")) {
           const parts = text.split(/\s+/);
           if (parts.length > 1 && parts[1] === ADMIN_PASS) {
@@ -2323,6 +2681,72 @@ export default {
             TG_TOKEN,
             "Markdown"
           );
+          return new Response("ok", { status: 200 });
+        }
+
+        /* Рассылка. Формат:
+             /broadcast <пароль> <текст>
+             /broadcast <пароль> <ссылка-на-фото> | <текст>
+           Ответ приходит отдельным сообщением со счётчиком доставки. */
+        if (text.startsWith("/broadcast")) {
+          const rest = text.slice("/broadcast".length).trim();
+          const spaceIdx = rest.indexOf(" ");
+          const pass = spaceIdx === -1 ? rest : rest.slice(0, spaceIdx);
+          const body = spaceIdx === -1 ? "" : rest.slice(spaceIdx + 1).trim();
+
+          if (pass !== ADMIN_PASS) {
+            await sendTgSimpleText(chatId, "🔒 Неверный пароль.", TG_TOKEN);
+            return new Response("ok", { status: 200 });
+          }
+          if (!body) {
+            await sendTgSimpleText(
+              chatId,
+              "Формат:\n`/broadcast <пароль> <текст>`\n`/broadcast <пароль> <ссылка-на-фото> | <текст>`",
+              TG_TOKEN,
+              "Markdown"
+            );
+            return new Response("ok", { status: 200 });
+          }
+
+          // Если до «|» стоит ссылка на картинку — отправляем фото с подписью.
+          let photo = null;
+          let messageText = body;
+          const pipeIdx = body.indexOf("|");
+          if (pipeIdx > 0) {
+            const head = body.slice(0, pipeIdx).trim();
+            if (/^https?:\/\/\S+$/.test(head)) {
+              photo = head;
+              messageText = body.slice(pipeIdx + 1).trim();
+            }
+          }
+
+          const result = await broadcastToSubscribers(env, TG_TOKEN, messageText, photo);
+          await sendTgSimpleText(
+            chatId,
+            `📣 *Рассылка завершена*\n\n` +
+            `Всего в базе: ${result.total}\n` +
+            `✅ Доставлено: ${result.sent}\n` +
+            `🚫 Заблокировали: ${result.blocked}\n` +
+            `⚠️ Ошибок: ${result.failed}`,
+            TG_TOKEN,
+            "Markdown"
+          );
+          return new Response("ok", { status: 200 });
+        }
+
+        if (text.startsWith("/subs")) {
+          const parts = text.split(/\s+/);
+          if (parts.length > 1 && parts[1] === ADMIN_PASS) {
+            const subs = await listSubscribers(env);
+            await sendTgSimpleText(
+              chatId,
+              `👥 *Подписчиков в базе: ${subs.length}*`,
+              TG_TOKEN,
+              "Markdown"
+            );
+            return new Response("ok", { status: 200 });
+          }
+          await sendTgSimpleText(chatId, "🔒 Неверный пароль.", TG_TOKEN);
           return new Response("ok", { status: 200 });
         }
 

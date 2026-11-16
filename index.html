@@ -1784,9 +1784,18 @@
         const isNewWeekVisit = !localStorage.getItem(weekKey);
         const isNewMonthVisit = !localStorage.getItem(monthKey);
 
+        /* initData уходит в заголовке: воркер проверяет подпись и по ней
+           добавляет открывшего мини-апп в базу подписчиков бота. Без
+           подписи запрос всё равно уходит — просто пользователь не запишется. */
+        const statsHeaders = { 'Content-Type': 'application/json' };
+        const tgApp = window.Telegram && window.Telegram.WebApp;
+        if (isInsideTelegram && tgApp && tgApp.initData) {
+          statsHeaders['Authorization'] = `tma ${tgApp.initData}`;
+        }
+
         await fetch(`${WORKER_URL}/api/stat`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: statsHeaders,
           body: JSON.stringify({
             platform: detectedPlatform,
             role: currentRole,
