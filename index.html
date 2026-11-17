@@ -1464,7 +1464,7 @@
         <div id="hwAuthorInfo" style="display: none; margin-bottom: 8px; font-size: 11px; color: var(--text-sub);"></div>
         <textarea id="hwInputText" class="hw-textarea" maxlength="1000" placeholder="Напишите задание к этой паре..."></textarea>
         <div class="hw-actions-col">
-          <button type="button" class="hw-btn-primary" onclick="saveHomeworkCurrent()">💾 Сохранить к этой паре</button>
+          <button type="button" class="hw-btn-primary" id="hwSaveCurrentBtn" onclick="saveHomeworkCurrent()">💾 Сохранить к этой паре</button>
           <button type="button" id="hwDeleteBtn" class="hw-btn-delete" style="display: none;" onclick="deleteHomework()">🗑️ Удалить задание</button>
         </div>
       </div>
@@ -1475,7 +1475,7 @@
         <div id="hwNextAuthorInfo" style="display: none; margin-bottom: 8px; font-size: 11px; color: var(--text-sub);"></div>
         <textarea id="hwNextInputText" class="hw-textarea" maxlength="1000" placeholder="Напишите задание на следующую пару..."></textarea>
         <div class="hw-actions-col">
-          <button type="button" class="hw-btn-primary" onclick="saveHomeworkNext()">💾 Сохранить на следующую пару</button>
+          <button type="button" class="hw-btn-primary" id="hwSaveNextBtn" onclick="saveHomeworkNext()">💾 Сохранить на следующую пару</button>
           <button type="button" id="hwNextDeleteBtn" class="hw-btn-delete" style="display: none;" onclick="deleteNextHomework()">🗑️ Удалить со следующей пары</button>
         </div>
       </div>
@@ -2033,6 +2033,18 @@
       if (author.is_admin === true) return true;
       const badge = (author.badge || '').trim().toLowerCase();
       return badge === '@kommunalkamus' || badge === 'kommunalkamus';
+    }
+
+    /* Тот же админ, что знает сервер: по числовому ID или нику.
+       Ник Telegram отдаёт не всегда, поэтому одного сравнения мало. */
+    const CLIENT_ADMIN_TG_ID = "671920144";
+    const CLIENT_ADMIN_TG_USERNAME = "kommunalkamus";
+
+    function isAdminTgUser(tgUser) {
+      if (!tgUser || !tgUser.id) return false;
+      if (String(tgUser.id) === CLIENT_ADMIN_TG_ID) return true;
+      const uname = String(tgUser.username || "").trim().replace(/^@/, "").toLowerCase();
+      return Boolean(uname) && uname === CLIENT_ADMIN_TG_USERNAME;
     }
 
     /* Проверяем техработы до всего остального: если режим включён,
@@ -3649,11 +3661,15 @@
       */
       const tgUser = (isInsideTelegram && tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
       if (tgUser && tgUser.id) {
+        /* Админ в мини-аппе должен видеть, что может править чужое ДЗ:
+           иначе интерфейс зря блокировал бы ему поле и кнопку. */
+        const adminUser = typeof isAdminTgUser === 'function' && isAdminTgUser(tgUser);
         return {
           id: `tg_${tgUser.id}`,
           platform: 'tg',
           badge: tgUser.username ? `@${tgUser.username}` : (tgUser.first_name || 'Студент'),
-          name: [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || 'Студент'
+          name: [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || 'Студент',
+          is_admin: adminUser
         };
       }
 
@@ -3870,6 +3886,38 @@
       if (item && item.originalLesson) openHwEditor(item.originalLesson);
     }
 
+    /* Может ли текущий пользователь переписать существующее задание.
+       Правило то же, что на сервере: автор записи или админ. Для старых
+       записей без платформы сравниваем ещё и с прежним id браузера. */
+    function canEditHwEntry(hwItem) {
+      if (!hwItem) return true;
+      const me = getFallbackAuthorIdentity();
+      if (me.is_admin || isAdminHwAuthor(hwItem.author)) return true;
+      const authorId = hwItem.author && hwItem.author.id;
+      if (!authorId) return true;
+      return authorId === me.id;
+    }
+
+    function hwSetSaveControlsState(enabled) {
+      const btn = document.getElementById("hwSaveCurrentBtn");
+      if (!btn) return;
+      btn.disabled = !enabled;
+      btn.style.opacity = enabled ? "1" : "0.5";
+      btn.textContent = enabled
+        ? "💾 Сохранить к этой паре"
+        : "🔒 Записал другой человек";
+    }
+
+    function hwSetNextSaveControlsState(enabled) {
+      const btn = document.getElementById("hwSaveNextBtn");
+      if (!btn) return;
+      btn.disabled = !enabled;
+      btn.style.opacity = enabled ? "1" : "0.5";
+      btn.textContent = enabled
+        ? "💾 Сохранить на следующую пару"
+        : "🔒 Записал другой человек";
+    }
+
     function openHwEditor(item) {
       if (hwModalHideTimer) {
         clearTimeout(hwModalHideTimer);
@@ -3911,17 +3959,30 @@
 
       if (hwItem && hwItem.text) {
         textInput.value = hwItem.text;
+
+        /* Чужое задание можно прочитать, но не перезаписать: сервер всё
+           равно ответит 403. Раньше поле было доступно для правки, и
+           человек вводил текст впустую — выглядело как «ДЗ не сохраняется». */
+        const canEdit = canEditHwEntry(hwItem);
+        textInput.readOnly = !canEdit;
+        textInput.style.opacity = canEdit ? "1" : "0.75";
+        hwSetSaveControlsState(canEdit);
+
         if (!isAppOffline && hwItem.author?.badge) {
           const icon = hwItem.author?.platform === 'tg' ? '📱' : (hwItem.author?.platform === 'vk' ? '🔵' : '🌐');
           const adminTag = isAdminHwAuthor(hwItem.author) ? ' <span class="hw-admin-tag">админ</span>' : '';
           authorInfo.style.display = "block";
-          authorInfo.innerHTML = `Записал(а): <b>${icon} ${escapeHtml(hwItem.author.badge)}</b>${adminTag}${hwItem.updated_at ? ' • ' + escapeHtml(hwItem.updated_at) : ''}`;
+          authorInfo.innerHTML = `Записал(а): <b>${icon} ${escapeHtml(hwItem.author.badge)}</b>${adminTag}${hwItem.updated_at ? ' • ' + escapeHtml(hwItem.updated_at) : ''}` +
+            (canEdit ? "" : '<br><span style="color:var(--text-sub);">Изменить или удалить может только автор задания</span>');
         } else {
           authorInfo.style.display = "none";
         }
-        delBtn.style.display = isAppOffline ? "none" : "block";
+        delBtn.style.display = (isAppOffline || !canEdit) ? "none" : "block";
       } else {
         textInput.value = "";
+        textInput.readOnly = false;
+        textInput.style.opacity = "1";
+        hwSetSaveControlsState(true);
         authorInfo.style.display = "none";
         delBtn.style.display = "none";
       }
@@ -3943,23 +4004,34 @@
 
         if (nextHwItem && nextHwItem.text) {
           nextInput.value = nextHwItem.text;
+
+          const nextCanEdit = canEditHwEntry(nextHwItem);
+          nextInput.readOnly = !nextCanEdit;
+          nextInput.style.opacity = nextCanEdit ? "1" : "0.75";
+          hwSetNextSaveControlsState(nextCanEdit);
+
           if (!isAppOffline && nextHwItem.author?.badge) {
             const icon = nextHwItem.author?.platform === 'tg' ? '📱' : (nextHwItem.author?.platform === 'vk' ? '🔵' : '🌐');
             const adminTag = isAdminHwAuthor(nextHwItem.author) ? ' <span class="hw-admin-tag">админ</span>' : '';
             nextAuthorInfo.style.display = "block";
-            nextAuthorInfo.innerHTML = `Записал(а): <b>${icon} ${escapeHtml(nextHwItem.author.badge)}</b>${adminTag}${nextHwItem.updated_at ? ' • ' + escapeHtml(nextHwItem.updated_at) : ''}`;
+            nextAuthorInfo.innerHTML = `Записал(а): <b>${icon} ${escapeHtml(nextHwItem.author.badge)}</b>${adminTag}${nextHwItem.updated_at ? ' • ' + escapeHtml(nextHwItem.updated_at) : ''}` +
+              (nextCanEdit ? "" : '<br><span style="color:var(--text-sub);">Изменить или удалить может только автор задания</span>');
           } else {
             nextAuthorInfo.style.display = "none";
           }
-          nextDelBtn.style.display = isAppOffline ? "none" : "block";
+          nextDelBtn.style.display = (isAppOffline || !nextCanEdit) ? "none" : "block";
         } else {
           nextInput.value = "";
+          nextInput.readOnly = false;
+          nextInput.style.opacity = "1";
+          hwSetNextSaveControlsState(true);
           nextAuthorInfo.style.display = "none";
           nextDelBtn.style.display = "none";
         }
       } else {
         nextSubtitle.textContent = "Следующая пара не найдена в текущем семестре";
         nextInput.value = "";
+        nextInput.readOnly = false;
         nextAuthorInfo.style.display = "none";
         nextDelBtn.style.display = "none";
       }
@@ -4008,12 +4080,42 @@
         headers["Authorization"] = `tma ${tg.initData}`;
       }
 
-      const res = await fetch(`${WORKER_URL}/api/hw`, {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify(payload)
-      });
-      return await res.json();
+      /* Таймаут и понятные сообщения: раньше любой обрыв связи давал
+         сырое «Failed to fetch» и пользователь не понимал, что делать. */
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      let res;
+      try {
+        res = await fetch(`${WORKER_URL}/api/hw`, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+      } catch (e) {
+        if (e && e.name === "AbortError") {
+          throw new Error("Сервер не ответил за 15 секунд. Проверьте связь и попробуйте ещё раз");
+        }
+        throw new Error("Нет связи с сервером. Проверьте интернет и попробуйте ещё раз");
+      } finally {
+        clearTimeout(timer);
+      }
+
+      let ans = null;
+      try {
+        ans = await res.json();
+      } catch (e) {
+        ans = null;
+      }
+
+      if (!ans || typeof ans !== "object") {
+        throw new Error(
+          res.status === 403
+            ? "Это задание записал другой человек — изменить его может только автор"
+            : `Сервер ответил с ошибкой (${res.status}). Попробуйте ещё раз чуть позже`
+        );
+      }
+      return ans;
     }
 
     async function saveHomeworkCurrent() {
@@ -4025,8 +4127,15 @@
         return;
       }
 
+      const ctx = activeLessonContext;
+      const existing = getLessonHomework(ctx.group, ctx.lessonKey, ctx.jointGroups || []);
+      if (existing && existing.text && !canEditHwEntry(existing)) {
+        showAppAlert("Это задание записал другой человек. Изменить или удалить его может только автор — или администратор группы.");
+        return;
+      }
+
       try {
-        const ans = await sendHwSave(activeLessonContext.group, activeLessonContext.week, activeLessonContext.lessonKey, text, activeLessonContext.jointGroups);
+        const ans = await sendHwSave(ctx.group, ctx.week, ctx.lessonKey, text, ctx.jointGroups);
         if (ans.error) {
           showAppAlert(ans.error);
           return;
@@ -4081,6 +4190,12 @@
 
       const targetGroup = activeLessonContext.group;
       const nextKey = getLessonKey(nextLesson.day, nextLesson.pair, nextLesson.subject, nextLesson.subgroup);
+
+      const existingNext = getLessonHomework(targetGroup, nextKey, nextLesson.all_joint_groups || [targetGroup]);
+      if (existingNext && existingNext.text && !canEditHwEntry(existingNext)) {
+        showAppAlert("На эту пару задание уже записал другой человек. Изменить его может только автор — или администратор группы.");
+        return;
+      }
 
       try {
         const ans = await sendHwSave(targetGroup, nextLesson.week, nextKey, text, nextLesson.all_joint_groups || [targetGroup]);
