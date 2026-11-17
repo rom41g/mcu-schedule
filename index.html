@@ -290,11 +290,13 @@
       scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
       padding: 2px 0 4px;
+      scroll-snap-type: x proximity;
     }
     .weeks-bar::-webkit-scrollbar { display: none; }
     .week-chip {
       flex: 0 0 auto;
       min-width: 86px;
+      scroll-snap-align: center;
       padding: 7px 12px;
       background: var(--card-bg);
       border: 1px solid var(--border);
@@ -373,14 +375,42 @@
     .days-bar {
       display: flex;
       gap: 6px;
-      padding: 6px 16px 12px;
+      padding: 6px 0 12px;
       overflow-x: auto;
       scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x proximity;
+      touch-action: pan-x;
     }
     .days-bar::-webkit-scrollbar { display: none; }
+
+    .days-strip-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 16px;
+    }
+    .days-strip-row .days-bar { flex: 1; min-width: 0; }
+    .cal-open-btn {
+      flex: 0 0 auto;
+      width: 42px;
+      height: 42px;
+      border-radius: 11px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      margin-bottom: 12px;
+    }
+    .cal-open-btn:active { background: var(--border); }
+    .cal-open-icon { font-size: 18px; line-height: 1; }
     .day-chip {
       flex: 1;
       min-width: 48px;
+      scroll-snap-align: center;
       text-align: center;
       padding: 7px 2px 6px;
       background: var(--card-bg);
@@ -401,6 +431,217 @@
     }
     .day-chip.active .day-name,
     .day-chip.active .day-num { color: #FFFFFF !important; }
+
+    /* ===== Календарь на месяц ===== */
+    .cal-month-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .cal-month-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--mgpu-dark);
+      text-transform: capitalize;
+    }
+    .cal-nav-btn {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      color: var(--mgpu-dark);
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+    .cal-nav-btn:disabled { opacity: 0.35; cursor: default; }
+    .cal-nav-btn:active:not(:disabled) { background: var(--border); }
+
+    .cal-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+    .cal-weekday {
+      text-align: center;
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      padding: 2px 0;
+    }
+    .cal-weekday.weekend { color: var(--mgpu-red); opacity: 0.7; }
+
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+    .cal-cell {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      background: var(--input-bg);
+      color: var(--text-sub);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: default;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      padding: 0;
+      line-height: 1;
+    }
+    /* День без пар (выходной или «день самостоятельной подготовки») */
+    .cal-cell.empty-day { opacity: 0.45; }
+    /* Учебный день — по нему можно нажать */
+    .cal-cell.has-lessons {
+      background: var(--card-bg);
+      border-color: var(--border);
+      color: var(--mgpu-dark);
+      cursor: pointer;
+    }
+    .cal-cell.has-lessons:active { background: var(--border); }
+    .cal-cell.today { box-shadow: inset 0 0 0 2px var(--mgpu-dark); }
+    .cal-cell.today .cal-day-num { font-weight: 800; }
+    .cal-cell.selected {
+      background: var(--mgpu-red) !important;
+      border-color: var(--mgpu-red) !important;
+      color: #FFFFFF !important;
+    }
+    .cal-cell.selected .cal-lesson-count { color: rgba(255,255,255,0.9) !important; }
+    .cal-cell .cal-lesson-count {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--mgpu-red);
+      line-height: 1;
+    }
+    .cal-cell.other-month { visibility: hidden; }
+
+    /* ===== Заглушка «технические работы» ===== */
+    .maintenance-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 3000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: var(--bg);
+      animation: maintFadeIn 0.25s ease-out;
+    }
+    @keyframes maintFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .maintenance-card {
+      width: 100%;
+      max-width: 340px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px 22px;
+      text-align: center;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.10);
+    }
+    .maintenance-icon { font-size: 46px; line-height: 1; margin-bottom: 12px; }
+    .maintenance-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--mgpu-dark);
+      margin-bottom: 8px;
+    }
+    .maintenance-text {
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text-sub);
+      margin-bottom: 18px;
+    }
+    .maintenance-retry {
+      width: 100%;
+      padding: 12px 16px;
+      border: none;
+      border-radius: 12px;
+      background: var(--mgpu-red);
+      color: #FFFFFF;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .maintenance-retry:active { opacity: 0.85; }
+    .maintenance-retry:disabled { opacity: 0.6; cursor: default; }
+
+    .cal-legend {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-sub);
+    }
+    .cal-legend-item { display: flex; align-items: center; gap: 5px; }
+    .cal-legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      display: inline-block;
+    }
+    .cal-legend-dot.empty { background: var(--input-bg); opacity: 0.5; }
+    .cal-legend-dot.today-dot { box-shadow: inset 0 0 0 2px var(--mgpu-dark); }
+    .cal-legend-dot.sel { background: var(--mgpu-red); border-color: var(--mgpu-red); }
+
+    /* ===== Навигация по неделям стрелками ===== */
+    .week-nav-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+    }
+    .week-nav-row .weeks-scroll-wrapper { flex: 1; min-width: 0; }
+    .week-arrow-btn {
+      flex: 0 0 auto;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--mgpu-dark);
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      padding: 0;
+    }
+    .week-arrow-btn:disabled { opacity: 0.3; cursor: default; }
+    .week-arrow-btn:active:not(:disabled) { background: var(--border); }
+
+    .week-range-label {
+      text-align: center;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--mgpu-dark);
+      margin: 2px 0 6px;
+    }
+    .week-range-label .week-range-num { color: var(--mgpu-red); }
 
     .schedule-list { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
     .lesson-card {
@@ -977,9 +1218,14 @@
       <!-- Скрытый select для программной совместимости -->
       <select id="weekSelect" class="week-select" onchange="onWeekChange()" style="display: none;"></select>
 
-      <!-- Горизонтальная лента недель -->
-      <div class="weeks-scroll-wrapper">
-        <div class="weeks-bar" id="weeksBar"></div>
+      <!-- Навигация по неделям: стрелки + диапазон дат -->
+      <div class="week-range-label" id="weekRangeLabel"></div>
+      <div class="week-nav-row">
+        <button type="button" class="week-arrow-btn" id="weekPrevBtn" onclick="stepWeek(-1)" title="Предыдущая неделя">‹</button>
+        <div class="weeks-scroll-wrapper">
+          <div class="weeks-bar" id="weeksBar"></div>
+        </div>
+        <button type="button" class="week-arrow-btn" id="weekNextBtn" onclick="stepWeek(1)" title="Следующая неделя">›</button>
       </div>
 
       <div class="search-wrapper">
@@ -1003,7 +1249,12 @@
       </div>
     </div>
 
-    <div class="days-bar" id="daysBar"></div>
+    <div class="days-strip-row">
+      <div class="days-bar" id="daysBar"></div>
+      <button type="button" class="cal-open-btn" onclick="openMonthCalendar()" title="Выбрать день в календаре">
+        <span class="cal-open-icon">📅</span>
+      </button>
+    </div>
     <div class="schedule-list" id="scheduleList">
       <div class="skeleton-card">
         <div class="skeleton-line" style="width: 35%;"></div>
@@ -1227,6 +1478,43 @@
           <button type="button" class="hw-btn-primary" onclick="saveHomeworkNext()">💾 Сохранить на следующую пару</button>
           <button type="button" id="hwNextDeleteBtn" class="hw-btn-delete" style="display: none;" onclick="deleteNextHomework()">🗑️ Удалить со следующей пары</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Шторка календаря на месяц -->
+  <div class="modal-overlay" id="monthCalModal">
+    <div class="modal-sheet" style="padding-bottom: 26px;">
+      <div class="drag-handle-bar"></div>
+      <div class="modal-header-row">
+        <div class="modal-title">📅 Календарь занятий</div>
+        <button type="button" class="modal-close-btn" onclick="closeMonthCalendar()">&times;</button>
+      </div>
+      <div id="monthCalSubtitle" style="font-size: 12px; color: var(--text-sub); margin-bottom: 10px;"></div>
+
+      <div class="cal-month-head">
+        <button type="button" class="cal-nav-btn" id="calPrevBtn" onclick="stepCalendarMonth(-1)">‹</button>
+        <div class="cal-month-title" id="calMonthTitle"></div>
+        <button type="button" class="cal-nav-btn" id="calNextBtn" onclick="stepCalendarMonth(1)">›</button>
+      </div>
+
+      <div class="cal-weekdays">
+        <div class="cal-weekday">Пн</div>
+        <div class="cal-weekday">Вт</div>
+        <div class="cal-weekday">Ср</div>
+        <div class="cal-weekday">Чт</div>
+        <div class="cal-weekday">Пт</div>
+        <div class="cal-weekday weekend">Сб</div>
+        <div class="cal-weekday weekend">Вс</div>
+      </div>
+
+      <div class="cal-grid" id="calGrid"></div>
+
+      <div class="cal-legend">
+        <span class="cal-legend-item"><span class="cal-legend-dot"></span> есть пары</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot empty"></span> пар нет</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot today-dot"></span> сегодня</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot sel"></span> выбран</span>
       </div>
     </div>
   </div>
@@ -1747,6 +2035,53 @@
       return badge === '@kommunalkamus' || badge === 'kommunalkamus';
     }
 
+    /* Проверяем техработы до всего остального: если режим включён,
+       показываем заглушку и не грузим расписание. */
+    async function checkMaintenanceOnBoot() {
+      try {
+        const res = await fetch(`${WORKER_URL}/api/maintenance`, { cache: 'no-store' });
+        const data = await res.json();
+        if (data && data.active) {
+          showMaintenanceOverlay(data.message);
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    }
+
+    function showMaintenanceOverlay(message) {
+      const existing = document.getElementById('maintenanceOverlay');
+      if (existing) return;
+
+      const overlay = document.createElement('div');
+      overlay.id = 'maintenanceOverlay';
+      overlay.className = 'maintenance-overlay';
+      overlay.innerHTML = `
+        <div class="maintenance-card">
+          <div class="maintenance-icon">🛠️</div>
+          <div class="maintenance-title">Идут технические работы</div>
+          <div class="maintenance-text">${escapeHtml(message || 'Расписание временно недоступно. Скоро вернёмся!')}</div>
+          <button type="button" class="maintenance-retry" onclick="retryMaintenanceCheck(this)">🔄 Проверить снова</button>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    }
+
+    async function retryMaintenanceCheck(btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ Проверяем...';
+      try {
+        const res = await fetch(`${WORKER_URL}/api/maintenance`, { cache: 'no-store' });
+        const data = await res.json();
+        if (!data.active) {
+          location.reload();
+          return;
+        }
+      } catch (e) {}
+      btn.disabled = false;
+      btn.textContent = '🔄 Проверить снова';
+    }
+
     /* ========== ТЕЛЕМЕТРИЯ С ЦИКЛОМ 02:59 МСК ========== */
     async function sendSmartTelemetry(force = false) {
       if (isAppOffline) return;
@@ -1984,6 +2319,51 @@
       const monthStr = String(d.getMonth() + 1).padStart(2, '0');
       const yearStr = String(d.getFullYear()).slice(-2);
       return `${dayStr}.${monthStr}.${yearStr}`;
+    }
+
+    /* ========== УЧЕБНАЯ НЕДЕЛЯ ПО КОНКРЕТНОЙ ДАТЕ ==========
+       Календарь работает с настоящими датами, а расписание — с номерами
+       недель. Эта функция переводит одно в другое: для любой даты находит
+       неделю, в которую она попадает, и день внутри неё. */
+    function dateToYmd(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    /* Возвращает { week, day, hasLessons } либо null, если дата вне учебного года. */
+    function resolveDateToLesson(date) {
+      const ymd = dateToYmd(date);
+      let matchedWeek = null;
+
+      for (const w of availableWeeks()) {
+        const meta = db.weeks ? (db.weeks[w] || db.weeks[String(w)]) : null;
+        if (!meta) continue;
+        const start = (typeof meta === 'object' && meta.start) ? String(meta.start).slice(0, 10) : null;
+        const end = (typeof meta === 'object' && meta.end) ? String(meta.end).slice(0, 10) : null;
+        if (!start || !end) continue;
+        if (ymd >= start && ymd <= end) { matchedWeek = w; break; }
+      }
+      if (matchedWeek === null) return null;
+
+      const dayIdx = (date.getDay() + 6) % 7;
+      if (dayIdx > 5) {
+        return { week: matchedWeek, day: null, hasLessons: false };
+      }
+
+      const dayName = DAYS[dayIdx];
+      /* У пар внутри db.groups[<группа>] поля group может не быть — оно
+         подразумевается ключом. Поэтому по группе фильтруем только
+         в режиме преподавателя, где пары собираются из разных групп. */
+      const hasLessons = getActiveLessonsList().some(
+        (l) => String(l.week) === String(matchedWeek) && l.day === dayName
+      );
+      return { week: matchedWeek, day: dayName, hasLessons };
+    }
+
+    function availableWeeks() {
+      return [...new Set(getActiveLessonsList().map((x) => x.week))].sort((a, b) => a - b);
     }
 
     /* ========== УПРАВЛЕНИЕ НАВИГАЦИОННЫМИ ВКЛАДКАМИ ========== */
@@ -2619,6 +2999,10 @@
       init();
     }
     async function init() {
+      // Техработы проверяем раньше расписания: иначе пользователь увидит
+      // скелетоны и решит, что приложение зависло.
+      if (await checkMaintenanceOnBoot()) return;
+
       if (!navigator.onLine && !localStorage.getItem('mgpu_current_group')) {
         setOfflineState(true);
       }
@@ -2634,6 +3018,9 @@
           initDateSelection();
           selectDefaultDayOnLoad();
           renderDaysBar();
+          renderWeekRangeLabel();
+          updateWeekArrows();
+          initDaySwipe();
           preloadHomeworkFromLocalSync();
           render();
           checkSessionTabAvailability();
@@ -2675,6 +3062,9 @@
         initDateSelection();
         selectDefaultDayOnLoad();
         renderDaysBar();
+        renderWeekRangeLabel();
+        updateWeekArrows();
+        initDaySwipe();
         preloadHomeworkFromLocalSync();
         render();
         checkSessionTabAvailability();
@@ -2834,6 +3224,8 @@
       }
 
       renderWeeksBar();
+      renderWeekRangeLabel();
+      updateWeekArrows();
     }
 
     function renderWeeksBar() {
@@ -2889,6 +3281,8 @@
       const weekNum = parseInt(document.getElementById("weekSelect").value, 10);
       selectedDay = pickDefaultDayForWeek(weekNum);
       renderWeeksBar();
+      renderWeekRangeLabel();
+      updateWeekArrows();
       renderDaysBar();
       preloadHomeworkFromLocalSync();
       render();
@@ -2901,20 +3295,270 @@
       const weekDates = getWeekDates(weekNum);
 
       bar.innerHTML = DAYS.map((d, i) => {
-        const dateStr = weekDates[d] || "";
+        const isWeekend = (i === 5);
         return `
-          <div class="day-chip ${d === selectedDay ? 'active' : ''}" onclick="selectDay('${d}')">
+          <div class="day-chip ${d === selectedDay ? 'active' : ''} ${isWeekend ? 'weekend' : ''}" onclick="selectDay('${d}')">
             <span class="day-name">${SHORT_DAYS[i]}</span>
-            <span class="day-num">${dateStr || "—"}</span>
+            <span class="day-num">${weekDates[d] || "—"}</span>
           </div>
         `;
       }).join("");
+
+      // Подсвеченный день должен быть виден без ручного скролла.
+      const activeIdx = DAYS.indexOf(selectedDay);
+      const chip = bar.children[activeIdx];
+      if (chip && typeof chip.scrollIntoView === "function") {
+        chip.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      }
     }
 
     function selectDay(day) {
       selectedDay = day;
       renderDaysBar();
       render();
+    }
+
+    /* ========== СВАЙП ДНЕЙ: СМЕНА НЕДЕЛИ ЖЕСТОМ ==========
+       Как в календаре iOS: сдвиг по полосе дней влево открывает
+       следующую неделю, вправо — предыдущую. Работает только на
+       устройствах с поддержкой касаний и не мешает обычной прокрутке. */
+    function initDaySwipe() {
+      const bar = document.getElementById("daysBar");
+      if (!bar) return;
+
+      let startX = 0;
+      let startY = 0;
+      let tracking = false;
+
+      bar.addEventListener("touchstart", (e) => {
+        if (e.touches.length !== 1) return;
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        tracking = true;
+      }, { passive: true });
+
+      bar.addEventListener("touchend", (e) => {
+        if (!tracking) return;
+        tracking = false;
+
+        const touch = e.changedTouches[0];
+        if (!touch) return;
+
+        const dx = touch.clientX - startX;
+        const dy = touch.clientY - startY;
+
+        // Горизонтальный сдвиг должен быть заметным и явно «боковым»,
+        // иначе это вертикальный скролл страницы.
+        if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+
+        stepWeek(dx < 0 ? 1 : -1);
+      }, { passive: true });
+    }
+
+    /* ========== НАВИГАЦИЯ ПО НЕДЕЛЯМ СТРЕЛКАМИ ========== */
+    function stepWeek(delta) {
+      const weekSelect = document.getElementById("weekSelect");
+      const weeks = availableWeeks();
+      if (!weeks.length) return;
+
+      const current = parseInt(weekSelect.value, 10);
+      const idx = weeks.indexOf(current);
+      const nextIdx = (idx === -1 ? 0 : idx) + delta;
+      if (nextIdx < 0 || nextIdx >= weeks.length) return;
+
+      selectWeek(weeks[nextIdx]);
+    }
+
+    /* Диапазон «с какие по какие даты» для текущей недели. */
+    function renderWeekRangeLabel() {
+      const labelEl = document.getElementById("weekRangeLabel");
+      if (!labelEl) return;
+
+      const weekNum = parseInt(document.getElementById("weekSelect").value, 10);
+      const dates = getWeekDates(weekNum);
+      const keys = Object.keys(dates);
+
+      if (!keys.length) {
+        labelEl.innerHTML = weekNum ? `<span class="week-range-num">${weekNum} неделя</span>` : "";
+        return;
+      }
+
+      const months = ["января", "февраля", "марта", "апреля", "мая", "июня",
+                      "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+      const first = dates["ПОНЕДЕЛЬНИК"];
+      const last = dates["СУББОТА"] || dates["ПЯТНИЦА"];
+      const pretty = (str) => {
+        if (!str) return "";
+        const [d, m] = str.split(".");
+        return `${parseInt(d, 10)} ${months[parseInt(m, 10) - 1] || ""}`.trim();
+      };
+
+      labelEl.innerHTML =
+        `<span class="week-range-num">${weekNum} неделя</span> · ${pretty(first)} — ${pretty(last)}`;
+    }
+
+    /* Обновляет доступность стрелок (первая/последняя неделя). */
+    function updateWeekArrows() {
+      const weeks = availableWeeks();
+      const current = parseInt(document.getElementById("weekSelect").value, 10);
+      const idx = weeks.indexOf(current);
+      const prev = document.getElementById("weekPrevBtn");
+      const next = document.getElementById("weekNextBtn");
+      if (prev) prev.disabled = idx <= 0;
+      if (next) next.disabled = idx === -1 || idx >= weeks.length - 1;
+    }
+
+    /* ========== КАЛЕНДАРЬ НА МЕСЯЦ ========== */
+    let calendarCursor = null; // { year, month }
+
+    function openMonthCalendar() {
+      const weekNum = parseInt(document.getElementById("weekSelect").value, 10);
+
+      // Стартуем с месяца выбранного дня, иначе — с текущего месяца.
+      let base = null;
+      if (Number.isFinite(weekNum) && selectedDay) {
+        const dates = getWeekDates(weekNum);
+        const str = dates[selectedDay];
+        if (str) {
+          const years = db.weeks?.[weekNum]?.start ? String(db.weeks[weekNum].start).slice(0, 4) : String(new Date().getFullYear());
+          const [d, m] = str.split(".");
+          base = { year: parseInt(years, 10), month: parseInt(m, 10) - 1 };
+        }
+      }
+      if (!base) {
+        const now = new Date();
+        base = { year: now.getFullYear(), month: now.getMonth() };
+      }
+      calendarCursor = base;
+
+      const modal = document.getElementById("monthCalModal");
+      const subtitle = document.getElementById("monthCalSubtitle");
+      subtitle.textContent = currentRole === 'teacher'
+        ? `👨‍🏫 ${currentTeacher}`
+        : `🎓 ${currentGroup}`;
+
+      renderMonthCalendar();
+      modal.style.display = "flex";
+      modal.querySelector(".modal-sheet").style.transform = "translateY(0)";
+    }
+
+    function closeMonthCalendar() {
+      const modal = document.getElementById("monthCalModal");
+      modal.querySelector(".modal-sheet").style.transform = "translateY(100%)";
+      setTimeout(() => { modal.style.display = "none"; }, 200);
+    }
+
+    function stepCalendarMonth(delta) {
+      const next = new Date(calendarCursor.year, calendarCursor.month + delta, 1);
+      calendarCursor = { year: next.getFullYear(), month: next.getMonth() };
+      renderMonthCalendar();
+    }
+
+    function renderMonthCalendar() {
+      const { year, month } = calendarCursor;
+      const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+                          "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+      document.getElementById("calMonthTitle").textContent = `${monthNames[month]} ${year}`;
+
+      const weeks = availableWeeks();
+      const weekStartDates = weeks
+        .map((w) => db.weeks?.[w]?.start ? String(db.weeks[w].start).slice(0, 10) : null)
+        .filter(Boolean)
+        .sort();
+
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
+      const firstCellOffset = (monthStart.getDay() + 6) % 7; // Пн = 0
+
+      // Какая неделя выбрана сейчас — чтобы подсветить выбранный день
+      const activeWeek = parseInt(document.getElementById("weekSelect").value, 10);
+      const today = new Date();
+      const todayYmd = dateToYmd(today);
+
+      const cells = [];
+
+      // Пустые ячейки до начала месяца
+      for (let i = 0; i < firstCellOffset; i++) {
+        cells.push('<div class="cal-cell other-month"></div>');
+      }
+
+      for (let day = 1; day <= monthEnd.getDate(); day++) {
+        const date = new Date(year, month, day);
+        const ymd = dateToYmd(date);
+        const resolved = resolveDateToLesson(date);
+
+        const isToday = ymd === todayYmd;
+        const isSelected = resolved && resolved.day &&
+          String(resolved.week) === String(activeWeek) && resolved.day === selectedDay;
+        const hasLessons = Boolean(resolved && resolved.hasLessons);
+
+        const classes = ["cal-cell"];
+        if (!resolved) classes.push("empty-day");
+        else if (hasLessons) classes.push("has-lessons");
+        else classes.push("empty-day");
+        if (isToday) classes.push("today");
+        if (isSelected) classes.push("selected");
+
+        const clickable = resolved && resolved.day && hasLessons;
+        const onclick = clickable
+          ? ` onclick="pickCalendarDay(${resolved.week}, '${resolved.day}')"`
+          : "";
+        const countHtml = hasLessons
+          ? `<span class="cal-lesson-count">${countLessonsFor(resolved.week, resolved.day)}</span>`
+          : "";
+
+        cells.push(
+          `<button type="button" class="${classes.join(" ")}"${onclick}` +
+          `${clickable ? "" : " disabled"} aria-label="${day}">` +
+          `<span class="cal-day-num">${day}</span>${countHtml}</button>`
+        );
+      }
+
+      // Добиваем сетку до целых недель
+      while (cells.length % 7 !== 0) {
+        cells.push('<div class="cal-cell other-month"></div>');
+      }
+
+      document.getElementById("calGrid").innerHTML = cells.join("");
+
+      // Навигация ограничена учебным годом, чтобы не уйти в пустоту
+      const prevBtn = document.getElementById("calPrevBtn");
+      const nextBtn = document.getElementById("calNextBtn");
+      const monthYmdStart = dateToYmd(monthStart);
+      const monthYmdEnd = dateToYmd(monthEnd);
+
+      if (weekStartDates.length) {
+        const first = weekStartDates[0];
+        const last = weekStartDates[weekStartDates.length - 1];
+        prevBtn.disabled = monthYmdEnd < first;
+        nextBtn.disabled = monthYmdStart > last;
+      } else {
+        prevBtn.disabled = false;
+        nextBtn.disabled = false;
+      }
+    }
+
+    function countLessonsFor(week, day) {
+      return getActiveLessonsList().filter(
+        (l) => String(l.week) === String(week) && l.day === day
+      ).length;
+    }
+
+    function pickCalendarDay(week, day) {
+      const weekSelect = document.getElementById("weekSelect");
+      if (!weekSelect) return;
+      weekSelect.value = week;
+      selectedDay = day;
+
+      closeMonthCalendar();
+
+      renderWeeksBar();
+      renderWeekRangeLabel();
+      updateWeekArrows();
+      renderDaysBar();
+      render();
+      loadWeekHomework();
+      switchNavTab('schedule');
     }
 
     function getTeacherStatsMap() {
@@ -2994,6 +3638,25 @@
           name: vkName
         };
       }
+
+      /*
+        В Telegram личность известна по initDataUnsafe — это настоящий ID,
+        одинаковый на всех устройствах. Раньше и здесь брался случайный
+        mgpu_guest_uid: запись подписывалась «web_xxxx», и удалить её
+        с другого телефона было невозможно.
+        Сервер всё равно берёт автора из проверенного initData;
+        этот объект — запасной путь для просмотра на клиенте.
+      */
+      const tgUser = (isInsideTelegram && tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
+      if (tgUser && tgUser.id) {
+        return {
+          id: `tg_${tgUser.id}`,
+          platform: 'tg',
+          badge: tgUser.username ? `@${tgUser.username}` : (tgUser.first_name || 'Студент'),
+          name: [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || 'Студент'
+        };
+      }
+
       let guestId = localStorage.getItem('mgpu_guest_uid');
       if (!guestId) {
         guestId = 'web_' + Math.random().toString(36).substring(2, 10);
@@ -3449,7 +4112,9 @@
           group: ctx.group,
           week: ctx.week,
           lessonKey: ctx.lessonKey,
-          jointGroups: ctx.jointGroups || [ctx.group],
+          // Пишем ровно в те группы, где лежит эта запись, иначе удаление
+          // уходит в KV-ключ соседней пары и задание остаётся на месте.
+          jointGroups: ctx.item?.all_joint_groups || ctx.item?.joint_groups || ctx.jointGroups || [ctx.group],
           author: getFallbackAuthorIdentity(),
           isDelete: true
         };
@@ -3921,6 +4586,8 @@
       closeProfileModal();
       initDateSelection();
       renderDaysBar();
+      renderWeekRangeLabel();
+      updateWeekArrows();
       preloadHomeworkFromLocalSync();
       render();
       loadWeekHomework();

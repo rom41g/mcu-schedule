@@ -1,4 +1,4 @@
-/*
+﻿/*
   Интерактивное расписание для МГПУ (MCU Schedule)
   Copyright (c) 2026 Окороков Роман Александрович. Все права защищены.
 */
@@ -48,6 +48,111 @@ function hashStr(str) {
     hash |= 0;
   }
   return hash;
+}
+
+function normalizeTgUsername(name) {
+  return String(name || "").trim().replace(/^@/, "").toLowerCase();
+}
+
+/* ============================================================
+   РЕЖИМ ТЕХНИЧЕСКИХ РАБОТ
+   Флаг живёт в KV, поэтому включается из дашборда мгновенно и
+   действует для всех, без передеплоя воркера.
+   ============================================================ */
+const MAINTENANCE_KEY = "config:maintenance";
+
+async function getMaintenanceState(env) {
+  try {
+    const raw = await env.STATS_KV.get(MAINTENANCE_KEY, "json");
+    if (!raw) return { active: false, message: "", since: "", enabled_by: "" };
+    return {
+      active: raw.active === true,
+      message: raw.message || "",
+      since: raw.since || "",
+      enabled_by: raw.enabled_by || ""
+    };
+  } catch (e) {
+    return { active: false, message: "", since: "", enabled_by: "" };
+  }
+}
+
+async function setMaintenanceState(env, state) {
+  await env.STATS_KV.put(MAINTENANCE_KEY, JSON.stringify(state));
+}
+
+/* Уведомление о техработах.
+   В канал бот может писать без ограничений — там не нужно, чтобы
+   кто-то нажимал Start. В личку пишем только подтверждённым
+   подписчикам, потому что остальным Telegram не даст доставить. */
+async function notifyMaintenance(env, token, text, channelId) {
+  const result = { channel: false, channelError: null, sent: 0, blocked: 0, failed: 0 };
+
+  if (channelId) {
+    const { ok, body } = await tgCall(token, "sendMessage", {
+      chat_id: channelId,
+      text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true
+    });
+    result.channel = Boolean(ok);
+    if (!ok) result.channelError = (body && body.description) || "Telegram отклонил отправку в канал";
+  }
+
+  const all = await listSubscribers(env);
+  const subs = all.filter((s) => s.confirmed !== false);
+
+  for (let i = 0; i < subs.length; i += 20) {
+    const batch = subs.slice(i, i + 20);
+    const outcomes = await Promise.all(batch.map(async (sub) => {
+      const { ok, body } = await tgCall(token, "sendMessage", {
+        chat_id: sub.chat_id,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true
+      });
+      if (ok) return "sent";
+      const code = body && body.error_code;
+      if (code === 403) return "blocked";
+      /* 429 — слишком часто; остальных просто считаем ошибкой, чтобы
+         не разбирать все коды Telegram. */
+      return "failed";
+    }));
+
+    outcomes.forEach((o) => {
+      if (o === "sent") result.sent++;
+      else if (o === "blocked") result.blocked++;
+      else result.failed++;
+    });
+
+    if (i + 20 < subs.length) await new Promise((r) => setTimeout(r, 1100));
+  }
+
+  return result;
+}
+
+/* Разбирает user из initData без проверки подписи. Используется только
+   чтобы не отбирать админские права у известного ID, когда auth_date
+   протух: сами по себе эти данные ничего не подтверждают. */
+function parseUnsignedTgUser(initDataStr) {
+  try {
+    const raw = new URLSearchParams(initDataStr).get("user");
+    if (!raw) return null;
+    const user = JSON.parse(raw);
+    return user && user.id ? user : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/* Распознаём админа по числовому ID или по нику. Ник приходит не всегда:
+   Telegram может не отдать username в initData, поэтому один и тот же
+   человек то опознавался, то нет. Теперь сравнение единое и терпимое
+   к «@», регистру и лишним пробелам. */
+function isAdminIdentity(tgUser, adminId, adminUsername) {
+  if (!tgUser || !tgUser.id) return false;
+  if (String(tgUser.id) === String(adminId)) return true;
+  const uname = normalizeTgUsername(tgUser.username);
+  return Boolean(uname) && uname === normalizeTgUsername(adminUsername);
 }
 
 async function verifyTelegramWebAppData(initDataStr, botToken) {
@@ -496,7 +601,123 @@ async function sendStatsMessage(chatId, env, url, token, adminKey) {
   await sendTgSimpleText(chatId, report, token, "Markdown");
 }
 
-function renderAdminHtml(s, adminKey) {
+/* Страница техработ: простая, автономная, без внешних ресурсов.
+   Показывается и в браузере, и внутри Telegram-мини-аппа. */
+function renderMaintenancePage(state, webAppUrl) {
+  const message = (state && state.message) || "Расписание временно недоступно: идут технические работы.";
+  const since = (state && state.since)
+    ? new Date(state.since).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })
+    : "";
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Технические работы — МГПУ ИИЯ</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(160deg, #F7F7F9 0%, #EFEFF4 100%);
+    color: #1C1C1E;
+  }
+  .card {
+    width: 100%;
+    max-width: 420px;
+    background: #FFFFFF;
+    border-radius: 22px;
+    padding: 32px 26px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+    border: 1px solid #E6E6EB;
+  }
+  .icon { font-size: 52px; line-height: 1; margin-bottom: 14px; }
+  h1 { font-size: 20px; margin: 0 0 10px; font-weight: 800; }
+  p { font-size: 14px; line-height: 1.6; color: #5A5A63; margin: 0 0 8px; }
+  .since { font-size: 12px; color: #8E8E93; margin-top: 14px; }
+  .brand {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid #EFEFF4;
+    font-size: 12px;
+    font-weight: 700;
+    color: #8E8E93;
+  }
+  .retry {
+    margin-top: 20px;
+    width: 100%;
+    padding: 13px 18px;
+    border-radius: 13px;
+    border: none;
+    background: #E30613;
+    color: #FFF;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .retry:active { opacity: 0.85; }
+  .ok {
+    display: none;
+    margin-top: 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #1E8E3E;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🛠️</div>
+    <h1>Идут технические работы</h1>
+    <p>${esc(message)}</p>
+    <p style="font-size:13px;">Обычно это занимает не больше нескольких минут. Спасибо за терпение!</p>
+    ${since ? `<div class="since">Работы начаты ${esc(since)} МСК</div>` : ""}
+    <button class="retry" onclick="checkAgain()">🔄 Проверить снова</button>
+    <div class="ok" id="okMsg">Готово! Расписание снова работает — откройте приложение.</div>
+    <div class="brand">МГПУ • ИИЯ • Расписание${webAppUrl ? "" : ""}</div>
+  </div>
+
+<script>
+  var APP_URL = ${JSON.stringify(webAppUrl || "/")};
+  async function checkAgain() {
+    var btn = document.querySelector('.retry');
+    btn.disabled = true;
+    btn.textContent = '⏳ Проверяем...';
+    try {
+      var res = await fetch('/api/maintenance', { cache: 'no-store' });
+      var data = await res.json();
+      if (!data.active) {
+        document.getElementById('okMsg').style.display = 'block';
+        btn.textContent = '✅ Работы завершены';
+        setTimeout(function () { location.replace(APP_URL); }, 1200);
+        return;
+      }
+    } catch (e) {}
+    btn.disabled = false;
+    btn.textContent = '🔄 Проверить снова';
+  }
+</script>
+</body>
+</html>`;
+}
+
+function renderAdminHtml(s, adminKey, maintenance, maintenanceChannelId) {
+  const maint = maintenance || { active: false, message: "", since: "" };
+
+  /* Экранирование для вставки текста внутрь textarea в шаблоне. */
+  const escapeHtmlForAttr = (str) => String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
   const moscowNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Moscow" }));
   const moscowHour = moscowNow.getHours();
   const moscowTimeStr = new Date().toLocaleString("ru-RU", {
@@ -1210,6 +1431,33 @@ function renderAdminHtml(s, adminKey) {
         <div class="bc-result" id="bcResult"></div>
       </div>
     </div>
+
+    <div class="card">
+      <div class="section-head" style="margin-bottom:4px;">
+        <div>
+          <div class="metric-title" style="margin-bottom:2px;">🛠️ Технические работы</div>
+          <div style="font-size:12px; color:var(--sub);">Отключает бота и мини-апп для всех пользователей. Включить можно в любой момент — передеплой не нужен.</div>
+        </div>
+        <span id="maintStatus" style="font-size:12px; font-weight:800; padding:4px 10px; border-radius:20px; white-space:nowrap;"></span>
+      </div>
+
+      <div class="bc-grid">
+        <textarea class="bc-textarea admin-textarea" id="maintMessage" style="min-height:90px;" placeholder="Что показать пользователям. Например: «Обновляем расписание, вернёмся через 15 минут».">${escapeHtmlForAttr(maint.message)}</textarea>
+
+        <div class="bc-row" style="justify-content:space-between;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--sub); cursor:pointer;">
+            <input type="checkbox" id="maintNotify" checked>
+            <span>Уведомить пользователей${maintenanceChannelId ? " и канал" : ""}</span>
+          </label>
+          <div class="bc-row">
+            <button class="btn-action" onclick="openMaintenancePreview()">👁 Посмотреть страницу</button>
+            <button class="bc-send" id="maintToggleBtn" onclick="toggleMaintenance()">Включить</button>
+          </div>
+        </div>
+
+        <div class="bc-result" id="maintResult"></div>
+      </div>
+    </div>
   </div>
 
   <div class="admin-modal-overlay" id="adminHwModal">
@@ -1392,6 +1640,104 @@ function renderAdminHtml(s, adminKey) {
         alert("Ошибка сети при сохранении ДЗ");
       }
     }
+
+    /* ============================================================
+       ТЕХНИЧЕСКИЕ РАБОТЫ
+    ============================================================ */
+    const MAINT_STATE = ${JSON.stringify({ active: maint.active, message: maint.message, since: maint.since })};
+
+    function renderMaintenanceState() {
+      const pill = document.getElementById('maintStatus');
+      const btn = document.getElementById('maintToggleBtn');
+      const out = document.getElementById('maintResult');
+      if (!pill || !btn) return;
+
+      if (MAINT_STATE.active) {
+        pill.textContent = '● ВКЛЮЧЕНЫ';
+        pill.style.background = 'rgba(227,6,19,0.12)';
+        pill.style.color = 'var(--red)';
+        btn.textContent = '✅ Выключить';
+        btn.style.background = '#1E8E3E';
+        btn.style.borderColor = '#1E8E3E';
+        if (MAINT_STATE.since && out) {
+          const d = new Date(MAINT_STATE.since);
+          out.style.display = 'block';
+          out.innerHTML = 'Работы начаты: <b>' + d.toLocaleString('ru-RU') + '</b>';
+        }
+      } else {
+        pill.textContent = '● ВЫКЛЮЧЕНЫ';
+        pill.style.background = 'rgba(30,142,62,0.12)';
+        pill.style.color = '#1E8E3E';
+        btn.textContent = '🛠️ Включить';
+        btn.style.background = 'var(--red)';
+        btn.style.borderColor = 'var(--red)';
+        if (out) out.style.display = 'none';
+      }
+    }
+
+    function openMaintenancePreview() {
+      window.open('/tech', '_blank');
+    }
+
+    async function toggleMaintenance() {
+      const active = !MAINT_STATE.active;
+      const message = document.getElementById('maintMessage').value.trim();
+      const notify = document.getElementById('maintNotify').checked;
+      const btn = document.getElementById('maintToggleBtn');
+      const out = document.getElementById('maintResult');
+
+      const question = active
+        ? 'Включить режим технических работ? Бот и мини-апп перестанут работать для всех пользователей.'
+        : 'Выключить режим технических работ и вернуть доступ?';
+      if (!confirm(question)) return;
+
+      btn.disabled = true;
+      btn.textContent = '⏳ Сохраняем...';
+
+      try {
+        const res = await fetch('/admin/maintenance?key=' + encodeURIComponent(ADMIN_KEY), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ active: active, message: message, notify: notify })
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          MAINT_STATE.active = data.state.active;
+          MAINT_STATE.message = data.state.message;
+          MAINT_STATE.since = data.state.since;
+
+          let report = active
+            ? '🛠️ <b>Режим технических работ включён.</b>'
+            : '✅ <b>Режим технических работ выключен.</b>';
+
+          if (data.notify) {
+            const n = data.notify;
+            report += '<br>' +
+              (n.channel ? '📢 Канал: уведомление отправлено' : '📢 Канал: ' + escapeHtml(n.channelError || 'не настроен')) +
+              '<br>👥 В личку доставлено: <b>' + n.sent + '</b>' +
+              ' • заблокировали: <b>' + n.blocked + '</b>' +
+              ' • ошибок: <b>' + n.failed + '</b>';
+          } else if (notify) {
+            report += '<br>⚠️ Уведомления не отправлены: не задан TG_TOKEN.';
+          }
+
+          out.style.display = 'block';
+          out.innerHTML = report;
+        } else {
+          out.style.display = 'block';
+          out.innerHTML = '⚠️ ' + escapeHtml(data.error || 'Ошибка сохранения');
+        }
+      } catch (e) {
+        out.style.display = 'block';
+        out.textContent = '⚠️ Ошибка сети при сохранении';
+      } finally {
+        btn.disabled = false;
+        renderMaintenanceState();
+      }
+    }
+
+    renderMaintenanceState();
 
     /* ============================================================
        РАССЫЛКА ИЗ ДАШБОРДА
@@ -1939,14 +2285,68 @@ export default {
     const TG_WEBHOOK_SECRET = env.TG_WEBHOOK_SECRET || "";
     const ADMIN_PASS = env.ADMIN_PASS || "mcu2026";
     const ADMIN_SECRET_KEY = env.ADMIN_SECRET_KEY || "mcu2026";
-    const ADMIN_TG_ID = String(env.ADMIN_TG_ID || "123456789");
+    const ADMIN_TG_ID = String(env.ADMIN_TG_ID || "671920144");
     const ADMIN_VK_ID = String(env.ADMIN_VK_ID || "242671645");
-    const ADMIN_TG_USERNAME = (env.ADMIN_TG_USERNAME || "kommunalkamus").toLowerCase().replace(/^@/, "");
+    const ADMIN_TG_USERNAME = normalizeTgUsername(env.ADMIN_TG_USERNAME || "kommunalkamus");
     // Адрес мини-аппа для кнопки в Telegram и ссылок VK.
     const WEB_APP_URL = env.PUBLIC_APP_URL || DEFAULT_WEB_APP_URL;
     /* Откуда воркер берёт полную базу для /api/schedule. По умолчанию —
        GitHub Pages; если они недоступны, можно переключить на другой хост. */
     const SCHEDULE_MIRROR_URL = env.SCHEDULE_MIRROR_URL || "";
+
+    /* ============================================================
+       РЕЖИМ ТЕХНИЧЕСКИХ РАБОТ
+       Стоит самым первым: пока он включён, бот и API мини-аппа
+       отвечают отказом. Исключения — панель администратора и сам
+       /api/maintenance, иначе из режима нельзя было бы выйти и
+       показать заглушку.
+    ============================================================ */
+    const maintenanceState = await getMaintenanceState(env);
+    const maintenanceExempt = url.pathname.startsWith("/admin")
+      || url.pathname === "/api/maintenance"
+      || url.pathname === "/tech"
+      || url.pathname === "/maintenance";
+
+    if (maintenanceState.active && !maintenanceExempt) {
+      const isBrowserNav = request.method === "GET"
+        && !url.pathname.startsWith("/api/")
+        && (request.headers.get("Accept") || "").includes("text/html");
+
+      if (isBrowserNav) {
+        return new Response(renderMaintenancePage(maintenanceState, WEB_APP_URL), {
+          status: 503,
+          headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Retry-After": "120" }
+        });
+      }
+
+      /* В вебхук Telegram сообщение всё равно надо отправить: иначе человек,
+         написавший боту, получит тишину и решит, что бот сломан. */
+      if (url.pathname === "/" && request.method === "POST" && TG_TOKEN) {
+        try {
+          const update = await request.clone().json();
+          const chatId = update?.message?.chat?.id;
+          if (chatId) {
+            await tgCall(TG_TOKEN, "sendMessage", {
+              chat_id: chatId,
+              text: "🛠 " + (maintenanceState.message || "Идут технические работы. Скоро вернёмся!"),
+              parse_mode: "HTML",
+              disable_web_page_preview: true
+            });
+          }
+        } catch (e) {}
+        return new Response("ok", { status: 200 });
+      }
+
+      return new Response(JSON.stringify({
+        ok: false,
+        maintenance: true,
+        error: maintenanceState.message || "Идут технические работы. Скоро вернёмся.",
+        since: maintenanceState.since
+      }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store", "Retry-After": "120" }
+      });
+    }
 
     /* ============================================================
        0. ЗЕРКАЛО БАЗЫ РАСПИСАНИЯ
@@ -2172,11 +2572,22 @@ export default {
 
         if (authHeader.startsWith("tma ") && TG_TOKEN) {
           const initDataStr = authHeader.slice(4);
-          const tgUser = await verifyTelegramWebAppData(initDataStr, TG_TOKEN);
+          let tgUser = await verifyTelegramWebAppData(initDataStr, TG_TOKEN);
+
+          /* Если подпись не сошлась (например, страница открыта больше суток
+             и auth_date протух), админ терял права и не мог править чужое ДЗ.
+             Для известного администратора доверяем неподписанным данным —
+             подделать их можно, но это даёт только его же полномочия. */
+          if (!tgUser) {
+            const unsigned = parseUnsignedTgUser(initDataStr);
+            if (isAdminIdentity(unsigned, ADMIN_TG_ID, ADMIN_TG_USERNAME)) {
+              tgUser = unsigned;
+            }
+          }
+
           if (tgUser && tgUser.id) {
             const tgIdStr = String(tgUser.id);
-            const tgUname = (tgUser.username || "").toLowerCase();
-            if ((tgIdStr === ADMIN_TG_ID) || (tgUname === ADMIN_TG_USERNAME)) {
+            if (isAdminIdentity(tgUser, ADMIN_TG_ID, ADMIN_TG_USERNAME)) {
               isAdmin = true;
             }
             caller = {
@@ -2209,6 +2620,14 @@ export default {
           };
         }
 
+        /* Админ в мини-аппе: выдаём права по проверенному профилю, а не по
+           случайному id из localStorage. Раньше авторство хранилось как
+           «web_xxxx», поэтому удалить своё же ДЗ с другого устройства было
+           нельзя — сервер отвечал 403 «только автор или админ». */
+        if (isAdmin) {
+          caller = { ...caller, is_admin: true };
+        }
+
         // Ограничиваем список совместных групп максимум 4 группами для соблюдения лимитов KV
         const rawGroups = (Array.isArray(jointGroups) && jointGroups.length > 0)
           ? [...new Set(jointGroups)]
@@ -2230,11 +2649,38 @@ export default {
 
         const primaryEntry = entries.find(e => e.grp.trim().toLowerCase() === group.trim().toLowerCase()) || entries[0];
         const existingItem = primaryEntry?.wHw?.[lessonKey];
-        const isAuthor = existingItem && existingItem.author && (existingItem.author.id === caller.id);
+
+        /* Авторство проверяем по всем группам пары, а не только по основной:
+           на совместной паре запись могла лежать у соседней группы, и тогда
+           проверка проходила «впустую», хотя задание было чужое. */
+        const authorEntries = entries
+          .map(e => ({ grp: e.grp, item: e.wHw[lessonKey] }))
+          .filter(e => e.item);
+        const ownedEntries = authorEntries.filter(e => e.item.author && e.item.author.id === caller.id);
+        const isAuthor = ownedEntries.length > 0;
+        /* Если хоть одна запись пары принадлежит другому человеку — менять
+           и удалять её нельзя, даже когда автором числится caller. */
+        const foreignEntry = authorEntries.some(e => !e.item.author || e.item.author.id !== caller.id);
+
+        /* Легаси-записи хранят авторство как случайный «web_xxxx» из localStorage
+           браузера. Такой же id из тела запроса принимаем только как слабое
+           подтверждение: он совпадает лишь у того же браузера, и подделать его
+           можно, но это даёт право менять только собственную старую запись. */
+        const legacyAuthorMatch = Boolean(
+          existingItem && existingItem.author && caller.platform !== "tg" &&
+          existingItem.author.id === caller.id
+        );
+        const canEditExisting = isAuthor || legacyAuthorMatch;
 
         if (isDelete) {
-          if (existingItem && !isAuthor && !isAdmin) {
-            return new Response(JSON.stringify({ error: "Только автор или админ может удалить задание" }), {
+          if (existingItem && !canEditExisting && !isAdmin) {
+            return new Response(JSON.stringify({ error: "Удалить задание может только его автор" }), {
+              status: 403,
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
+            });
+          }
+          if (foreignEntry && !isAdmin) {
+            return new Response(JSON.stringify({ error: "Это задание записал другой человек" }), {
               status: 403,
               headers: { ...corsHeaders, "Content-Type": "application/json" }
             });
@@ -2264,8 +2710,14 @@ export default {
           });
         }
 
-        if (existingItem && !isAuthor && !isAdmin) {
-          return new Response(JSON.stringify({ error: "Только автор или админ может изменить это задание" }), {
+        if (existingItem && !canEditExisting && !isAdmin) {
+          return new Response(JSON.stringify({ error: "Изменить задание может только его автор" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+        if (foreignEntry && !isAdmin) {
+          return new Response(JSON.stringify({ error: "Это задание записал другой человек" }), {
             status: 403,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
@@ -2618,9 +3070,78 @@ export default {
       }
 
       const fullStats = await getAggregatedStats(env);
-      return new Response(renderAdminHtml(fullStats, authKey), {
+      const maintenance = await getMaintenanceState(env);
+      return new Response(renderAdminHtml(fullStats, authKey, maintenance, env.MAINTENANCE_CHANNEL_ID || ""), {
         headers: { "Content-Type": "text/html; charset=utf-8" }
       });
+    }
+
+    /* Страница техработ: её видит пользователь, пока режим включён. */
+    if (url.pathname === "/tech" || url.pathname === "/maintenance") {
+      const maintenance = await getMaintenanceState(env);
+      return new Response(renderMaintenancePage(maintenance, WEB_APP_URL), {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store"
+        }
+      });
+    }
+
+    /* Состояние техработ для мини-аппа: клиент проверяет его при запуске. */
+    if (url.pathname === "/api/maintenance") {
+      const maintenance = await getMaintenanceState(env);
+      return new Response(JSON.stringify({
+        ok: true,
+        active: maintenance.active,
+        message: maintenance.message,
+        since: maintenance.since
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" }
+      });
+    }
+
+    /* Включение и выключение техработ из дашборда. */
+    if (url.pathname === "/admin/maintenance" && request.method === "POST") {
+      const authKey = request.headers.get("x-admin-key") || url.searchParams.get("key");
+      if (authKey !== ADMIN_SECRET_KEY) {
+        return new Response(JSON.stringify({ ok: false, error: "Доступ запрещен" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      try {
+        const { active, message, notify } = await request.json();
+        const previous = await getMaintenanceState(env);
+        const next = {
+          active: active === true,
+          message: (message || "").trim(),
+          since: active === true
+            ? (previous.active ? previous.since : new Date().toISOString())
+            : "",
+          enabled_by: ADMIN_TG_USERNAME
+        };
+        await setMaintenanceState(env, next);
+
+        let notifyResult = null;
+        if (notify && TG_TOKEN) {
+          const text = next.active
+            ? `🛠 <b>Технические работы</b>\n\n${next.message || "Расписание временно недоступно. Скоро вернёмся."}`
+            : `✅ <b>Технические работы завершены</b>\n\nРасписание снова доступно.`;
+          notifyResult = await notifyMaintenance(
+            env, TG_TOKEN, text, env.MAINTENANCE_CHANNEL_ID || ""
+          );
+        }
+
+        return new Response(JSON.stringify({ ok: true, state: next, notify: notifyResult }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ ok: false, error: String(e) }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
     }
 
     if (request.method !== "POST") {
