@@ -3758,10 +3758,17 @@
           return;
         }
         const cacheKey = `mgpu_hw_${currentGroup.trim().toLowerCase()}_w${weekNum}`;
+        /* Кэш нужен только для мгновенной отрисовки при старте. Если сразу
+           подставить его в currentWeekHw, приложение считает данные
+           загруженными и больше никогда не перечитывает их с сервера —
+           после сохранения ДЗ на экране остаётся старая пустая неделя. */
         if (!Object.keys(currentWeekHw).length) {
-          currentWeekHw = await HwCache.get(cacheKey);
-          render();
-          if (currentActiveTab === 'homework') renderHomeworkFeed();
+          const cached = await HwCache.get(cacheKey);
+          if (cached && Object.keys(cached).length) {
+            currentWeekHw = cached;
+            render();
+            if (currentActiveTab === 'homework') renderHomeworkFeed();
+          }
         }
 
         try {
@@ -3787,7 +3794,8 @@
           const gKey = grp.toLowerCase();
           const cacheKey = `mgpu_hw_${gKey}_w${weekNum}`;
           if (!teacherWeekHw[gKey] || !Object.keys(teacherWeekHw[gKey]).length) {
-            teacherWeekHw[gKey] = await HwCache.get(cacheKey);
+            const cached = await HwCache.get(cacheKey);
+            if (cached && Object.keys(cached).length) teacherWeekHw[gKey] = cached;
           }
 
           try {
@@ -3892,30 +3900,59 @@
     function canEditHwEntry(hwItem) {
       if (!hwItem) return true;
       const me = getFallbackAuthorIdentity();
-      if (me.is_admin || isAdminHwAuthor(hwItem.author)) return true;
+      if (me.is_admin) return true;
+      /* Правило сервера: переписать запись может её автор, сам админ
+         и ник админа — но он есть не у всех старых записей. Сравниваем
+         ещё и числовой ID: иначе Mini App под ником видел «чужое». */
+      if (isAdminHwAuthor(hwItem.author)) return true;
       const authorId = hwItem.author && hwItem.author.id;
+      if (authorId && authorId === `tg_${CLIENT_ADMIN_TG_ID}`) return true;
       if (!authorId) return true;
       return authorId === me.id;
     }
 
-    function hwSetSaveControlsState(enabled) {
+    function hwSetSaveControlsState(enabled, label) {
       const btn = document.getElementById("hwSaveCurrentBtn");
       if (!btn) return;
       btn.disabled = !enabled;
       btn.style.opacity = enabled ? "1" : "0.5";
-      btn.textContent = enabled
+      btn.textContent = label || (enabled
         ? "💾 Сохранить к этой паре"
-        : "🔒 Записал другой человек";
+        : "🔒 Записал другой человек");
     }
 
-    function hwSetNextSaveControlsState(enabled) {
+    function hwSetNextSaveControlsState(enabled, label) {
       const btn = document.getElementById("hwSaveNextBtn");
       if (!btn) return;
       btn.disabled = !enabled;
       btn.style.opacity = enabled ? "1" : "0.5";
-      btn.textContent = enabled
+      btn.textContent = label || (enabled
         ? "💾 Сохранить на следующую пару"
-        : "🔒 Записал другой человек";
+        : "🔒 Записал другой человек");
+    }
+
+    /* Сервер вернул сохранённую запись — кладём её в память и в кэш сразу.
+       Иначе на медленной связи неделя перерисовывается из старого кэша,
+       и только что добавленное ДЗ исчезает с экрана. */
+    function syncHwAfterSave(group, week, lessonKey, text, savedData) {
+      const payload = savedData || {
+        text: text,
+        author: getFallbackAuthorIdentity(),
+        joint_groups: [group]
+      };
+      const gKey = (group || '').trim().toLowerCase();
+      const cacheKey = `mgpu_hw_${gKey}_w${week}`;
+
+      if (currentRole === "student") {
+        currentWeekHw = { ...(currentWeekHw || {}), [lessonKey]: payload };
+        HwCache.set(cacheKey, currentWeekHw);
+      } else if (currentRole === "teacher") {
+        teacherWeekHw[gKey] = { ...(teacherWeekHw[gKey] || {}), [lessonKey]: payload };
+        HwCache.set(cacheKey, teacherWeekHw[gKey]);
+      }
+
+      render();
+      if (currentActiveTab === 'homework') renderHomeworkFeed();
     }
 
     function openHwEditor(item) {
@@ -3960,24 +3997,24 @@
       if (hwItem && hwItem.text) {
         textInput.value = hwItem.text;
 
-        /* Чужое задание можно прочитать, но не перезаписать: сервер всё
-           равно ответит 403. Раньше поле было доступно для правки, и
-           человек вводил текст впустую — выглядело как «ДЗ не сохраняется». */
-        const canEdit = canEditHwEntry(hwItem);
-        textInput.readOnly = !canEdit;
-        textInput.style.opacity = canEdit ? "1" : "0.75";
-        hwSetSaveControlsState(canEdit);
+        /* Задание мог записать другой человек — тогда только читаем.
+           Но здесь же часть пользователей «не может добавить ДЗ»: с
+           одного устройства автором числится «web_xxxx», а с другого
+           (или из Telegram) id уже другой. Поэтому блокируем не жёстко:
+           кнопка объясняет ситуацию, а нажатие перезапишет запись. */
+        const canOverwrite = canEditHwEntry(hwItem);
+        if (!canOverwrite) hwSetSaveControlsState(true, "🔒 Заменить чужое задание");
+        else hwSetSaveControlsState(true);
 
         if (!isAppOffline && hwItem.author?.badge) {
           const icon = hwItem.author?.platform === 'tg' ? '📱' : (hwItem.author?.platform === 'vk' ? '🔵' : '🌐');
           const adminTag = isAdminHwAuthor(hwItem.author) ? ' <span class="hw-admin-tag">админ</span>' : '';
           authorInfo.style.display = "block";
-          authorInfo.innerHTML = `Записал(а): <b>${icon} ${escapeHtml(hwItem.author.badge)}</b>${adminTag}${hwItem.updated_at ? ' • ' + escapeHtml(hwItem.updated_at) : ''}` +
-            (canEdit ? "" : '<br><span style="color:var(--text-sub);">Изменить или удалить может только автор задания</span>');
+          authorInfo.innerHTML = `Записал(а): <b>${icon} ${escapeHtml(hwItem.author.badge)}</b>${adminTag}${hwItem.updated_at ? ' • ' + escapeHtml(hwItem.updated_at) : ''}`;
         } else {
           authorInfo.style.display = "none";
         }
-        delBtn.style.display = (isAppOffline || !canEdit) ? "none" : "block";
+        delBtn.style.display = (isAppOffline || !canOverwrite) ? "none" : "block";
       } else {
         textInput.value = "";
         textInput.readOnly = false;
@@ -4005,21 +4042,19 @@
         if (nextHwItem && nextHwItem.text) {
           nextInput.value = nextHwItem.text;
 
-          const nextCanEdit = canEditHwEntry(nextHwItem);
-          nextInput.readOnly = !nextCanEdit;
-          nextInput.style.opacity = nextCanEdit ? "1" : "0.75";
-          hwSetNextSaveControlsState(nextCanEdit);
+          const nextCanOverwrite = canEditHwEntry(nextHwItem);
+          if (!nextCanOverwrite) hwSetNextSaveControlsState(true, "🔒 Заменить чужое задание");
+          else hwSetNextSaveControlsState(true);
 
           if (!isAppOffline && nextHwItem.author?.badge) {
             const icon = nextHwItem.author?.platform === 'tg' ? '📱' : (nextHwItem.author?.platform === 'vk' ? '🔵' : '🌐');
             const adminTag = isAdminHwAuthor(nextHwItem.author) ? ' <span class="hw-admin-tag">админ</span>' : '';
             nextAuthorInfo.style.display = "block";
-            nextAuthorInfo.innerHTML = `Записал(а): <b>${icon} ${escapeHtml(nextHwItem.author.badge)}</b>${adminTag}${nextHwItem.updated_at ? ' • ' + escapeHtml(nextHwItem.updated_at) : ''}` +
-              (nextCanEdit ? "" : '<br><span style="color:var(--text-sub);">Изменить или удалить может только автор задания</span>');
+            nextAuthorInfo.innerHTML = `Записал(а): <b>${icon} ${escapeHtml(nextHwItem.author.badge)}</b>${adminTag}${nextHwItem.updated_at ? ' • ' + escapeHtml(nextHwItem.updated_at) : ''}`;
           } else {
             nextAuthorInfo.style.display = "none";
           }
-          nextDelBtn.style.display = (isAppOffline || !nextCanEdit) ? "none" : "block";
+          nextDelBtn.style.display = (isAppOffline || !nextCanOverwrite) ? "none" : "block";
         } else {
           nextInput.value = "";
           nextInput.readOnly = false;
@@ -4129,22 +4164,36 @@
 
       const ctx = activeLessonContext;
       const existing = getLessonHomework(ctx.group, ctx.lessonKey, ctx.jointGroups || []);
-      if (existing && existing.text && !canEditHwEntry(existing)) {
-        showAppAlert("Это задание записал другой человек. Изменить или удалить его может только автор — или администратор группы.");
+      /* Раньше здесь стоял отказ на чужую запись, и это ломало обычное
+         добавление: «своя» запись с другого устройства выглядит чужой.
+         Теперь решает сервер: админ и тот, кого админ назначил, — правят
+         всё, остальные получают 403 только на реально чужое задание. */
+      const overwritingForeign = Boolean(existing && existing.text && !canEditHwEntry(existing));
+
+      const doSave = async () => {
+        try {
+          const ans = await sendHwSave(ctx.group, ctx.week, ctx.lessonKey, text, ctx.jointGroups);
+          if (ans.error) {
+            showAppAlert(ans.error);
+            return;
+          }
+          closeHwModal();
+          await loadWeekHomework();
+          syncHwAfterSave(ctx.group, ctx.week, ctx.lessonKey, text, ans.data);
+        } catch (e) {
+          showAppAlert(e.message || "Ошибка связи с сервером при сохранении ДЗ");
+        }
+      };
+
+      if (overwritingForeign) {
+        showAppConfirm(
+          "На эту пару уже записано задание другого человека. Перезаписать его? Это получится, только если вы автор с другого устройства или админ.",
+          (ok) => { if (ok) doSave(); }
+        );
         return;
       }
 
-      try {
-        const ans = await sendHwSave(ctx.group, ctx.week, ctx.lessonKey, text, ctx.jointGroups);
-        if (ans.error) {
-          showAppAlert(ans.error);
-          return;
-        }
-        closeHwModal();
-        await loadWeekHomework();
-      } catch (e) {
-        showAppAlert(e.message || "Ошибка связи с сервером при сохранении ДЗ");
-      }
+      await doSave();
     }
 
     function findNextOccurrence(item, currentWeek, targetGroup) {
@@ -4192,23 +4241,33 @@
       const nextKey = getLessonKey(nextLesson.day, nextLesson.pair, nextLesson.subject, nextLesson.subgroup);
 
       const existingNext = getLessonHomework(targetGroup, nextKey, nextLesson.all_joint_groups || [targetGroup]);
-      if (existingNext && existingNext.text && !canEditHwEntry(existingNext)) {
-        showAppAlert("На эту пару задание уже записал другой человек. Изменить его может только автор — или администратор группы.");
+      const overwritingNext = Boolean(existingNext && existingNext.text && !canEditHwEntry(existingNext));
+
+      const doSaveNext = async () => {
+        try {
+          const ans = await sendHwSave(targetGroup, nextLesson.week, nextKey, text, nextLesson.all_joint_groups || [targetGroup]);
+          if (ans.error) {
+            showAppAlert(ans.error);
+            return;
+          }
+          closeHwModal();
+          syncHwAfterSave(targetGroup, nextLesson.week, nextKey, text, ans.data);
+          showAppAlert(`✅ Задание записано на следующую пару для группы ${targetGroup}:\n${nextLesson.day} (${nextLesson.week} неделя, ${nextLesson.pair} пара)`);
+          await loadWeekHomework();
+        } catch (e) {
+          showAppAlert(e.message || "Ошибка связи с сервером при сохранении ДЗ");
+        }
+      };
+
+      if (overwritingNext) {
+        showAppConfirm(
+          "На следующую пару уже записано задание другого человека. Перезаписать его?",
+          (ok) => { if (ok) doSaveNext(); }
+        );
         return;
       }
 
-      try {
-        const ans = await sendHwSave(targetGroup, nextLesson.week, nextKey, text, nextLesson.all_joint_groups || [targetGroup]);
-        if (ans.error) {
-          showAppAlert(ans.error);
-          return;
-        }
-        closeHwModal();
-        showAppAlert(`✅ Задание записано на следующую пару для группы ${targetGroup}:\n${nextLesson.day} (${nextLesson.week} неделя, ${nextLesson.pair} пара)`);
-        await loadWeekHomework();
-      } catch (e) {
-        showAppAlert(e.message || "Ошибка связи с сервером при сохранении ДЗ");
-      }
+      await doSaveNext();
     }
 
     async function deleteHomework() {
