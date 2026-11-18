@@ -4095,6 +4095,17 @@
       activeLessonContext = null;
     }
 
+    /* Метка сетевого сбоя: только такие ошибки можно повторять.
+       Ответ сервера (даже пустой или битый) — уже итог, повтор его
+       задвоил бы запись. */
+    class HwNetworkError extends Error {
+      constructor(message) {
+        super(message);
+        this.name = "HwNetworkError";
+        this.isNetwork = true;
+      }
+    }
+
     async function sendHwSave(group, week, lessonKey, text, jointGroups = null) {
       if (isAppOffline || !navigator.onLine) {
         throw new Error("Вы находитесь в офлайн-режиме. Подключитесь к сети для сохранения ДЗ.");
@@ -4120,6 +4131,10 @@
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 15000);
       let res;
+      let raw = "";
+      /* Сбой сети и таймаут выносим в отдельную ветку: это единственные
+         случаи, когда POST можно безопасно повторить. Повторять ответ
+         сервера нельзя — иначе одно ДЗ запишется дважды. */
       try {
         res = await fetch(`${WORKER_URL}/api/hw`, {
           method: "POST",
@@ -4129,21 +4144,35 @@
         });
       } catch (e) {
         if (e && e.name === "AbortError") {
-          throw new Error("Сервер не ответил за 15 секунд. Проверьте связь и попробуйте ещё раз");
+          throw new HwNetworkError("Сервер не ответил за 15 секунд. Проверьте связь и попробуйте ещё раз");
         }
-        throw new Error("Нет связи с сервером. Проверьте интернет и попробуйте ещё раз");
+        throw new HwNetworkError("Нет связи с сервером. Проверьте интернет и попробуйте ещё раз");
       } finally {
         clearTimeout(timer);
       }
 
-      let ans = null;
+      /* Читаем ответ текстом и разбираем сами. Раньше res.json() мог упасть
+         на пустом или обрезанном теле, и человек видел «Сервер ответил с
+         ошибкой (200)» — хотя запись при этом уже легла в базу. */
       try {
-        ans = await res.json();
+        raw = await res.text();
       } catch (e) {
-        ans = null;
+        raw = "";
+      }
+
+      let ans = null;
+      if (raw) {
+        try {
+          ans = JSON.parse(raw);
+        } catch (e) {
+          ans = null;
+        }
       }
 
       if (!ans || typeof ans !== "object") {
+        if (res.ok) {
+          throw new Error("Сервер принял задание, но ответ пришёл не целиком. Проверьте, что ДЗ появилось в расписании, — и не записывайте повторно, чтобы не перебить чужой текст.");
+        }
         throw new Error(
           res.status === 403
             ? "Это задание записал другой человек — изменить его может только автор"
@@ -4151,6 +4180,49 @@
         );
       }
       return ans;
+    }
+
+    /* POST на сохранение ДЗ повторяем при сбое сети: на мобильной связи
+       запрос часто отваливается по таймауту, и человеку приходится
+       нажимать кнопку второй раз — отсюда «добавила, но с задержкой». */
+    async function sendHwSaveWithRetry(group, week, lessonKey, text, jointGroups, onRetry) {
+      const delays = [800, 2500];
+      let lastErr = null;
+      for (let attempt = 0; attempt <= delays.length; attempt++) {
+        try {
+          return await sendHwSave(group, week, lessonKey, text, jointGroups);
+        } catch (e) {
+          lastErr = e;
+          const retryable = Boolean(e && e.isNetwork);
+          if (!retryable || attempt === delays.length) break;
+          if (typeof onRetry === 'function') onRetry(attempt + 1);
+          await new Promise((r) => setTimeout(r, delays[attempt]));
+        }
+      }
+      throw lastErr || new Error("Не удалось сохранить задание");
+    }
+
+    /* Пока запрос в пути, кнопка показывает состояние: человек нажимал
+       её второй раз, потому что не понимал, ушло ли сохранение. */
+    function setHwSavingState(saving, attempt) {
+      const cur = document.getElementById("hwSaveCurrentBtn");
+      const nxt = document.getElementById("hwSaveNextBtn");
+      if (cur) {
+        cur.disabled = Boolean(saving);
+        cur.style.opacity = saving ? "0.7" : "1";
+        if (saving) cur.dataset.saving = "1";
+        else delete cur.dataset.saving;
+        if (saving) cur.textContent = attempt ? `⏳ Связь прервалась, пробуем снова (${attempt})` : "⏳ Сохраняем…";
+      }
+      if (nxt) {
+        nxt.disabled = Boolean(saving);
+        nxt.style.opacity = saving ? "0.7" : "1";
+        if (saving) nxt.textContent = attempt ? `⏳ Связь прервалась, пробуем снова (${attempt})` : "⏳ Сохраняем…";
+      }
+      if (!saving) {
+        if (cur) cur.textContent = "💾 Сохранить к этой паре";
+        if (nxt) nxt.textContent = "💾 Сохранить на следующую пару";
+      }
     }
 
     async function saveHomeworkCurrent() {
@@ -4171,17 +4243,26 @@
       const overwritingForeign = Boolean(existing && existing.text && !canEditHwEntry(existing));
 
       const doSave = async () => {
+        setHwSavingState(true);
         try {
-          const ans = await sendHwSave(ctx.group, ctx.week, ctx.lessonKey, text, ctx.jointGroups);
+          const ans = await sendHwSaveWithRetry(
+            ctx.group, ctx.week, ctx.lessonKey, text, ctx.jointGroups,
+            (attempt) => setHwSavingState(true, attempt)
+          );
           if (ans.error) {
+            setHwSavingState(false);
             showAppAlert(ans.error);
             return;
           }
           closeHwModal();
-          await loadWeekHomework();
+          /* Сначала кладём запись в память, чтобы ДЗ было видно сразу,
+             и только потом перечитываем неделю с сервера. */
           syncHwAfterSave(ctx.group, ctx.week, ctx.lessonKey, text, ans.data);
+          await loadWeekHomework();
         } catch (e) {
           showAppAlert(e.message || "Ошибка связи с сервером при сохранении ДЗ");
+        } finally {
+          setHwSavingState(false);
         }
       };
 
@@ -4244,9 +4325,14 @@
       const overwritingNext = Boolean(existingNext && existingNext.text && !canEditHwEntry(existingNext));
 
       const doSaveNext = async () => {
+        setHwSavingState(true);
         try {
-          const ans = await sendHwSave(targetGroup, nextLesson.week, nextKey, text, nextLesson.all_joint_groups || [targetGroup]);
+          const ans = await sendHwSaveWithRetry(
+            targetGroup, nextLesson.week, nextKey, text, nextLesson.all_joint_groups || [targetGroup],
+            (attempt) => setHwSavingState(true, attempt)
+          );
           if (ans.error) {
+            setHwSavingState(false);
             showAppAlert(ans.error);
             return;
           }
@@ -4256,6 +4342,8 @@
           await loadWeekHomework();
         } catch (e) {
           showAppAlert(e.message || "Ошибка связи с сервером при сохранении ДЗ");
+        } finally {
+          setHwSavingState(false);
         }
       };
 
@@ -4268,6 +4356,57 @@
       }
 
       await doSaveNext();
+    }
+
+    /* Удаление идёт тем же путём, что и сохранение: таймаут, повтор при
+       сбое сети и понятный текст ошибки вместо «Failed to fetch». */
+    async function postHwDelete(payload) {
+      const headers = { "Content-Type": "application/json" };
+      if (tg && tg.initData) headers["Authorization"] = `tma ${tg.initData}`;
+
+      const send = async () => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+        let res;
+        try {
+          res = await fetch(`${WORKER_URL}/api/hw`, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload),
+            signal: controller.signal
+          });
+        } catch (e) {
+          throw new Error("Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.");
+        } finally {
+          clearTimeout(timer);
+        }
+
+        let raw = "";
+        try { raw = await res.text(); } catch (e) { raw = ""; }
+        let ans = null;
+        if (raw) {
+          try { ans = JSON.parse(raw); } catch (e) { ans = null; }
+        }
+
+        if (!ans || typeof ans !== "object") {
+          if (res.status === 403) {
+            throw new Error("Удалить задание может только его автор или админ");
+          }
+          if (res.ok) {
+            throw new Error("Сервер принял удаление, но ответ пришёл не целиком. Проверьте расписание — задание, скорее всего, уже удалено.");
+          }
+          throw new Error(`Сервер ответил с ошибкой (${res.status}). Попробуйте ещё раз чуть позже`);
+        }
+        return ans;
+      };
+
+      try {
+        return await send();
+      } catch (e) {
+        if (/только его автор|только автор/.test(String(e.message || ""))) throw e;
+        await new Promise((r) => setTimeout(r, 800));
+        return await send();
+      }
     }
 
     async function deleteHomework() {
@@ -4293,18 +4432,9 @@
           isDelete: true
         };
 
-        const headers = { "Content-Type": "application/json" };
-        if (tg && tg.initData) {
-          headers["Authorization"] = `tma ${tg.initData}`;
-        }
-
+        setHwSavingState(true);
         try {
-          const res = await fetch(`${WORKER_URL}/api/hw`, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(payload)
-          });
-          const ans = await res.json();
+          const ans = await postHwDelete(payload);
           if (ans.error) {
             showAppAlert(ans.error);
             return;
@@ -4312,7 +4442,9 @@
           closeHwModal();
           await loadWeekHomework();
         } catch (e) {
-          showAppAlert("Не удалось удалить задание");
+          showAppAlert(e.message || "Не удалось удалить задание");
+        } finally {
+          setHwSavingState(false);
         }
       });
     }
@@ -4340,18 +4472,9 @@
           isDelete: true
         };
 
-        const headers = { "Content-Type": "application/json" };
-        if (tg && tg.initData) {
-          headers["Authorization"] = `tma ${tg.initData}`;
-        }
-
+        setHwSavingState(true);
         try {
-          const res = await fetch(`${WORKER_URL}/api/hw`, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(payload)
-          });
-          const ans = await res.json();
+          const ans = await postHwDelete(payload);
           if (ans.error) {
             showAppAlert(ans.error);
             return;
@@ -4359,7 +4482,9 @@
           closeHwModal();
           await loadWeekHomework();
         } catch (e) {
-          showAppAlert("Не удалось удалить задание");
+          showAppAlert(e.message || "Не удалось удалить задание");
+        } finally {
+          setHwSavingState(false);
         }
       });
     }
