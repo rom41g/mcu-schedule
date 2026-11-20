@@ -2326,14 +2326,58 @@
       return normalizeSearchStr(str).replace(/[^a-zа-я0-9]/g, '');
     }
 
-    /* Опечатки в латинице, которую студенты набирают вместо кириллицы:
-       «Xjdfyjdf» -> «Хованова». Каждую букву не восстановить однозначно,
-       но частые пары (j/о, y/н, d/в) дают почти точное попадание. */
-    const FUZZY_LAT_TO_CYR = {
-      a: 'а', b: 'б', c: 'ц', d: 'в', e: 'е', f: 'ф', g: 'г', h: 'р', i: 'и',
-      j: 'о', k: 'к', l: 'л', m: 'м', n: 'т', o: 'щ', p: 'з', q: 'й', r: 'к',
-      s: 'с', t: 'е', u: 'г', v: 'м', w: 'ц', x: 'х', y: 'н', z: 'я'
-    };
+    /* Совпадение подстроки: самый надёжный случай. 0 — не найдено. */
+    function substringScore(normTarget, rawTarget, normQuery) {
+      if (normTarget.includes(normQuery)) {
+        return 100 - Math.min(20, normTarget.indexOf(normQuery));
+      }
+      const collapsedTarget = collapseSearchStr(rawTarget);
+      const collapsedQuery = collapseSearchStr(normQuery);
+      if (collapsedQuery && collapsedTarget.includes(collapsedQuery)) {
+        return 80 - Math.min(20, collapsedTarget.indexOf(collapsedQuery));
+      }
+      return 0;
+    }
+
+    /* Допуск на опечатку. На коротком слове любая перестановка букв делает
+       «похожей» половину списка, поэтому до пяти букв опечатки не прощаем. */
+    function fuzzyLimit(len) {
+      if (len < 5) return 0;
+      if (len < 8) return 1;
+      return 2;
+    }
+
+    /* Опечатка в одном слове. Сравниваем только целые слова: раньше окно
+       скользило по всей строке, и «глотова» совпадала с обрезком «готов»
+       из «подготовки» — поиск показывал пары, которых в запросе нет. */
+    function wordTypoScore(word, token, allowMismatch) {
+      const w = collapseSearchStr(word);
+      const q = collapseSearchStr(token);
+      if (!w || !q) return 0;
+
+      const limit = fuzzyLimit(q.length);
+      if (!limit) return 0;
+      if (Math.abs(w.length - q.length) > limit) return 0;
+      // Фамилии ищут по началу слова, поэтому первая буква должна совпасть.
+      if (!allowMismatch && w[0] !== q[0]) return 0;
+
+      const d = editDistance(w, q, limit);
+      if (d < 1 || d > limit) return 0;
+      return d === 1 ? 55 : 40;
+    }
+
+    /* Лучшая опечатка среди слов строки. */
+    function fuzzyQueryScore(normTarget, normQuery, allowMismatch) {
+      if (collapseSearchStr(normQuery).length < 5) return 0;
+      const words = normTarget.split(/[^a-zа-я0-9]+/).filter(Boolean);
+      let best = 0;
+      for (const w of words) {
+        const score = wordTypoScore(w, normQuery, allowMismatch);
+        if (score > best) best = score;
+        if (best >= 55) break;
+      }
+      return best;
+    }
 
     /* Оценка «насколько запрос относится к этой строке». Нужна и для
        фильтра, и для подсветки: точные совпадения должны стоять выше
@@ -2346,70 +2390,39 @@
       const normQuery = normalizeSearchStr(query);
       if (!normQuery) return 0;
 
-      if (normTarget.includes(normQuery)) return 100 - Math.min(20, normTarget.indexOf(normQuery));
+      /* Один символ — это ещё не запрос: «с» находится в половине строк и
+         превращает список в мусор. Подсветку тоже не включаем. */
+      if (collapseSearchStr(normQuery).length < 2) return 0;
 
-      const collapsedTarget = collapseSearchStr(targetText);
-      const collapsedQuery = collapseSearchStr(query);
-      if (collapsedQuery && collapsedTarget.includes(collapsedQuery)) {
-        return 80 - Math.min(20, collapsedTarget.indexOf(collapsedQuery));
+      const direct = substringScore(normTarget, targetText, normQuery);
+      if (direct) return direct;
+
+      /* Несколько слов: «Хованова С.Ю.». Односложные токены — инициалы,
+         для них нужно точное слово, иначе «с» найдётся везде. */
+      const tokens = normQuery.split(/[\s\-_.,()]+/).filter(Boolean);
+      if (tokens.length > 1) {
+        const words = normTarget.split(/[^a-zа-я0-9]+/).filter(Boolean);
+        const collapsed = collapseSearchStr(targetText);
+        const tokenExact = (t) => t.length === 1
+          ? words.includes(t)
+          : words.some(w => w.includes(t)) || collapsed.includes(t);
+
+        if (tokens.every(tokenExact)) return 70;
+        if (tokens.every(t => tokenExact(t) || words.some(w => wordTypoScore(w, t, false) > 0))) return 65;
       }
 
-      const queryTokens = normQuery.split(/[\s\-_.,()]+/).filter(tok => tok.length >= 2);
-      if (queryTokens.length > 1) {
-        const targetWords = normTarget.replace(/[-_]/g, ' ');
-        const allFound = queryTokens.every(tok =>
-          targetWords.includes(tok) || collapsedTarget.includes(tok)
-        );
-        if (allFound) return 70;
-      }
-
-      /* Запрос набран в латинской раскладке вместо кириллической. */
+      /* Запрос набран в латинской раскладке: «[jdfyjdf» вместо «Хованова».
+         Здесь первая буква могла пострадать при переводе, поэтому её не
+         проверяем, зато допускаем ровно одну опечатку. */
       const fixedQuery = fixKeyboardLayout(normQuery);
       if (fixedQuery !== normQuery) {
-        if (normTarget.includes(fixedQuery)) return 60;
-        const collapsedFixed = collapseSearchStr(fixedQuery);
-        if (collapsedFixed && collapsedFixed.length >= 3 && collapsedTarget.includes(collapsedFixed)) return 55;
+        const fixedExact = substringScore(normTarget, targetText, fixedQuery);
+        if (fixedExact) return Math.max(55, fixedExact - 40);
+        const fixedFuzzy = fuzzyQueryScore(normTarget, fixedQuery, true);
+        if (fixedFuzzy) return fixedFuzzy - 5;
       }
 
-      /* Опечатка: «Хованва» вместо «Хованова». Раньше здесь стояла проверка
-         по первым четырём буквам, и «Хованва» находила всех, у кого есть
-         «хова», — Дорохову раньше Ховановой. Теперь считаем расстояние и
-         ставим ближайшее совпадение выше. */
-      const fuzzy = normQuery.replace(/[^a-zа-я0-9]/g, '');
-      if (fuzzy.length >= 4) {
-        const byDistance = fuzzyDistanceIn(normTarget, fuzzy);
-        if (byDistance <= 1) return 50;
-        if (byDistance <= 2) return 45;
-        if (byDistance <= 3) return 25;
-
-        const asCyr = fakeLayoutLat(normQuery).replace(/[a-z]/g, (ch) => FUZZY_LAT_TO_CYR[ch] || ch);
-        if (asCyr !== fakeLayoutLat(normQuery) && fuzzyDistanceIn(normTarget, asCyr) <= 2) return 35;
-      }
-
-      return 0;
-    }
-
-    /* Минимальное расстояние редактирования между запросом и любым
-       фрагментом строки той же длины (±2). Возвращает limit+1, если
-       ничего близкого нет. */
-    function fuzzyDistanceIn(target, query) {
-      const t = collapseSearchStr(target);
-      const q = collapseSearchStr(query);
-      if (!t || !q) return 99;
-      if (q.length < 3) return 99;
-
-      let best = 99;
-      for (let start = 0; start <= t.length - q.length + 2; start++) {
-        for (let len = Math.max(1, q.length - 2); len <= q.length + 2; len++) {
-          const piece = t.slice(start, start + len);
-          if (!piece) continue;
-          if (Math.abs(piece.length - q.length) > 2) continue;
-          const d = editDistance(piece, q, Math.min(best, 3));
-          if (d < best) best = d;
-          if (best === 0) return 0;
-        }
-      }
-      return best;
+      return fuzzyQueryScore(normTarget, normQuery, false);
     }
 
     /* Полное расстояние Левенштейна с отсечением: если текущая строка
@@ -2431,17 +2444,6 @@
         const swap = prev; prev = curr; curr = swap;
       }
       return prev[b.length];
-    }
-
-    /* Латинская раскладка, набранная вместо кириллической: «rjvyfyf» ->
-       «комнана». Нужна как ещё один вариант перед нечётким сравнением. */
-    function fakeLayoutLat(query) {
-      const map = { 'й': 'q', 'ц': 'w', 'у': 'e', 'к': 'r', 'е': 't', 'н': 'y', 'г': 'u', 'ш': 'i', 'щ': 'o', 'з': 'p',
-                    'ф': 'a', 'ы': 's', 'в': 'd', 'а': 'f', 'п': 'g', 'р': 'h', 'о': 'j', 'л': 'k', 'д': 'l',
-                    'я': 'z', 'ч': 'x', 'с': 'c', 'м': 'v', 'и': 'b', 'т': 'n', 'ь': 'm' };
-      let out = '';
-      for (const ch of String(query || '').toLowerCase()) out += map[ch] || (/[a-z]/.test(ch) ? ch : '');
-      return out;
     }
 
     function smartMatch(targetText, query) {
