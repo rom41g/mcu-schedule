@@ -59,6 +59,9 @@
       --tab-active: #E30613;
       --badge-green: #E8F5E9;
       --badge-green-text: #2E7D32;
+      --search-hit-bg: #FFFBF0;
+      --search-hit-border: #E8A400;
+      --search-hit-text: #8A5A00;
     }
 
     [data-theme="dark"] {
@@ -86,6 +89,9 @@
       --tab-active: #FF3B30;
       --badge-green: #1B2E1E;
       --badge-green-text: #4ADE80;
+      --search-hit-bg: #2A2415;
+      --search-hit-border: #FF9F0A;
+      --search-hit-text: #FFD08A;
     }
 
     * { 
@@ -431,6 +437,67 @@
     }
     .day-chip.active .day-name,
     .day-chip.active .day-num { color: #FFFFFF !important; }
+
+    /* ===== Подсветка результатов поиска в расписании =====
+       Дни, где есть пары по запросу, помечаются точкой, а сами пары —
+       рамкой и жёлтым фоном, чтобы после перехода на день сразу было
+       видно, что именно нашлось. */
+    .day-chip.search-hit:not(.active) {
+      border-color: var(--mgpu-red);
+      background: var(--mgpu-red-light);
+    }
+    .day-chip.search-hit:not(.active) .day-name,
+    .day-chip.search-hit:not(.active) .day-num { color: var(--mgpu-red); }
+    .day-chip.search-hit::after {
+      content: "";
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--mgpu-red);
+      margin-top: 1px;
+    }
+    .day-chip.active.search-hit::after { background: #FFFFFF; }
+    .day-chip .day-hit-count {
+      font-size: 9px;
+      font-weight: 800;
+      line-height: 1;
+      padding: 1px 4px;
+      border-radius: 6px;
+      background: var(--mgpu-red);
+      color: #FFFFFF;
+    }
+    .day-chip.active .day-hit-count { background: #FFFFFF; color: var(--mgpu-red); }
+
+    .lesson-card.search-hit-card {
+      border-left-color: var(--search-hit-border);
+      background: var(--search-hit-bg);
+      box-shadow: 0 0 0 1.5px rgba(232, 164, 0, 0.45), 0 2px 8px rgba(0,0,0,0.05);
+    }
+    .lesson-card.search-hit-card.parallel { background: var(--search-hit-bg); }
+    .search-hit-note {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 6px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: var(--search-hit-border);
+      color: #FFFFFF;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    mark.search-hl {
+      background: #FFE08A;
+      color: inherit;
+      border-radius: 3px;
+      padding: 0 1px;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
+    .day-chip.active mark.search-hl,
+    .day-chip.active .search-hl { background: rgba(255,255,255,0.45); }
 
     /* ===== Календарь на месяц ===== */
     .cal-month-head {
@@ -1678,6 +1745,53 @@
     function escapeHtmlWithBreaks(str) {
       return escapeHtml(str).replace(/\r?\n/g, '<br>');
     }
+
+    /* Экранирует строку и оборачивает найденный фрагмент в <mark>.
+       Совпадение ищем по исходному тексту, а экранируем уже куски —
+       иначе теги вроде «<» сдвинули бы границы подсветки. */
+    function hlHtml(text, query) {
+      const raw = (text === null || text === undefined) ? '' : String(text);
+      if (!query || !raw) return escapeHtml(raw);
+
+      const normQuery = normalizeSearchStr(query);
+      if (!normQuery) return escapeHtml(raw);
+
+      const lowerRaw = raw.toLowerCase().replace(/ё/g, 'е');
+      let from = 0;
+      // Простое совпадение подстроки — самый частый случай.
+      const idx = lowerRaw.indexOf(normQuery);
+      if (idx >= 0 && raw.length === lowerRaw.length) {
+        return escapeHtml(raw.slice(0, idx)) +
+          `<mark class="search-hl">${escapeHtml(raw.slice(idx, idx + normQuery.length))}</mark>` +
+          escapeHtml(raw.slice(idx + normQuery.length));
+      }
+
+      // Иначе — по словам запроса: подсветим каждое найденное слово.
+      const tokens = normQuery.split(/[\s\-_.,()]+/).filter(t => t.length >= 2);
+      if (!tokens.length) return escapeHtml(raw);
+
+      const parts = [];
+      let cursor = 0;
+      const hits = [];
+      tokens.forEach(tok => {
+        let pos = lowerRaw.indexOf(tok, from);
+        while (pos >= 0 && raw.length === lowerRaw.length) {
+          hits.push({ start: pos, end: pos + tok.length });
+          pos = lowerRaw.indexOf(tok, pos + tok.length);
+        }
+      });
+      if (!hits.length) return escapeHtml(raw);
+
+      hits.sort((a, b) => a.start - b.start);
+      hits.forEach(h => {
+        if (h.start < cursor) return;
+        parts.push(escapeHtml(raw.slice(cursor, h.start)));
+        parts.push(`<mark class="search-hl">${escapeHtml(raw.slice(h.start, h.end))}</mark>`);
+        cursor = h.end;
+      });
+      parts.push(escapeHtml(raw.slice(cursor)));
+      return parts.join('');
+    }
     try { localStorage.removeItem('mgpu_schedule_db_cache'); } catch (e) {}
 
     /* ========== УМНАЯ СИСТЕМА ДИАГНОСТИКИ И WATCHDOG ========== */
@@ -1765,8 +1879,38 @@
 
     const WORKER_URL = "https://steep-forest-40b2.okroma007.workers.dev";
 
-    const tg = window.Telegram?.WebApp;
-    const isInsideTelegram = Boolean(tg && tg.initData);
+    /* Telegram-скрипт подключён с async: к моменту выполнения этого кода
+       window.Telegram может быть ещё undefined. Раньше tg запоминался один
+       раз, и если скрипт опаздывал, приложение навсегда считало себя
+       «вне Telegram»: не уходил Authorization с initData, и сервер
+       подписывал ДЗ как «Студент» вместо настоящего автора. Теперь
+       читаем объект каждый раз, а флаг Telegram обновляем по таймеру. */
+    function getTgApp() {
+      return (window.Telegram && window.Telegram.WebApp) || null;
+    }
+
+    const tg = new Proxy({}, {
+      get(_, prop) {
+        const app = getTgApp();
+        if (!app) return undefined;
+        const value = app[prop];
+        return typeof value === 'function' ? value.bind(app) : value;
+      },
+      set(_, prop, value) {
+        const app = getTgApp();
+        if (app) app[prop] = value;
+        return true;
+      }
+    });
+
+    let isInsideTelegram = false;
+    function refreshTelegramState() {
+      const app = getTgApp();
+      if (app && app.initData) isInsideTelegram = true;
+      return isInsideTelegram;
+    }
+    refreshTelegramState();
+    [100, 300, 800, 1500, 3000].forEach((ms) => setTimeout(refreshTelegramState, ms));
     // Определяем VK по query-параметрам И по сигнатуре vk_app_id (в VK Mini Apps
     // параметры могут приходить в формате vk_app_id=.../vk_platform=...)
     const vkParams = new URLSearchParams(window.location.search);
@@ -2178,36 +2322,151 @@
         .trim();
     }
 
-    function smartMatch(targetText, query) {
-      if (!query) return true;
-      if (!targetText) return false;
+    function collapseSearchStr(str) {
+      return normalizeSearchStr(str).replace(/[^a-zа-я0-9]/g, '');
+    }
+
+    /* Опечатки в латинице, которую студенты набирают вместо кириллицы:
+       «Xjdfyjdf» -> «Хованова». Каждую букву не восстановить однозначно,
+       но частые пары (j/о, y/н, d/в) дают почти точное попадание. */
+    const FUZZY_LAT_TO_CYR = {
+      a: 'а', b: 'б', c: 'ц', d: 'в', e: 'е', f: 'ф', g: 'г', h: 'р', i: 'и',
+      j: 'о', k: 'к', l: 'л', m: 'м', n: 'т', o: 'щ', p: 'з', q: 'й', r: 'к',
+      s: 'с', t: 'е', u: 'г', v: 'м', w: 'ц', x: 'х', y: 'н', z: 'я'
+    };
+
+    /* Оценка «насколько запрос относится к этой строке». Нужна и для
+       фильтра, и для подсветки: точные совпадения должны стоять выше
+       приблизительных. 0 — не подходит. */
+    function searchScore(targetText, query) {
+      if (!query) return 0;
+      if (!targetText) return 0;
 
       const normTarget = normalizeSearchStr(targetText);
       const normQuery = normalizeSearchStr(query);
+      if (!normQuery) return 0;
 
-      if (normTarget.includes(normQuery)) return true;
+      if (normTarget.includes(normQuery)) return 100 - Math.min(20, normTarget.indexOf(normQuery));
 
-      const collapsedTarget = normTarget.replace(/[^a-zа-я0-9]/gi, '');
-      const collapsedQuery = normQuery.replace(/[^a-zа-я0-9]/gi, '');
-      if (collapsedQuery && collapsedTarget.includes(collapsedQuery)) return true;
+      const collapsedTarget = collapseSearchStr(targetText);
+      const collapsedQuery = collapseSearchStr(query);
+      if (collapsedQuery && collapsedTarget.includes(collapsedQuery)) {
+        return 80 - Math.min(20, collapsedTarget.indexOf(collapsedQuery));
+      }
 
-      const queryTokens = normQuery.split(/[\s\-_]+/).filter(Boolean);
+      const queryTokens = normQuery.split(/[\s\-_.,()]+/).filter(tok => tok.length >= 2);
       if (queryTokens.length > 1) {
         const targetWords = normTarget.replace(/[-_]/g, ' ');
-        const allTokensFound = queryTokens.every(tok => 
+        const allFound = queryTokens.every(tok =>
           targetWords.includes(tok) || collapsedTarget.includes(tok)
         );
-        if (allTokensFound) return true;
+        if (allFound) return 70;
       }
 
+      /* Запрос набран в латинской раскладке вместо кириллической. */
       const fixedQuery = fixKeyboardLayout(normQuery);
       if (fixedQuery !== normQuery) {
-        if (normTarget.includes(fixedQuery)) return true;
-        const collapsedFixed = fixedQuery.replace(/[^a-zа-я0-9]/gi, '');
-        if (collapsedFixed && collapsedTarget.includes(collapsedFixed)) return true;
+        if (normTarget.includes(fixedQuery)) return 60;
+        const collapsedFixed = collapseSearchStr(fixedQuery);
+        if (collapsedFixed && collapsedFixed.length >= 3 && collapsedTarget.includes(collapsedFixed)) return 55;
       }
 
-      return false;
+      /* Опечатка: «Хованва» вместо «Хованова». Раньше здесь стояла проверка
+         по первым четырём буквам, и «Хованва» находила всех, у кого есть
+         «хова», — Дорохову раньше Ховановой. Теперь считаем расстояние и
+         ставим ближайшее совпадение выше. */
+      const fuzzy = normQuery.replace(/[^a-zа-я0-9]/g, '');
+      if (fuzzy.length >= 4) {
+        const byDistance = fuzzyDistanceIn(normTarget, fuzzy);
+        if (byDistance <= 1) return 50;
+        if (byDistance <= 2) return 45;
+        if (byDistance <= 3) return 25;
+
+        const asCyr = fakeLayoutLat(normQuery).replace(/[a-z]/g, (ch) => FUZZY_LAT_TO_CYR[ch] || ch);
+        if (asCyr !== fakeLayoutLat(normQuery) && fuzzyDistanceIn(normTarget, asCyr) <= 2) return 35;
+      }
+
+      return 0;
+    }
+
+    /* Минимальное расстояние редактирования между запросом и любым
+       фрагментом строки той же длины (±2). Возвращает limit+1, если
+       ничего близкого нет. */
+    function fuzzyDistanceIn(target, query) {
+      const t = collapseSearchStr(target);
+      const q = collapseSearchStr(query);
+      if (!t || !q) return 99;
+      if (q.length < 3) return 99;
+
+      let best = 99;
+      for (let start = 0; start <= t.length - q.length + 2; start++) {
+        for (let len = Math.max(1, q.length - 2); len <= q.length + 2; len++) {
+          const piece = t.slice(start, start + len);
+          if (!piece) continue;
+          if (Math.abs(piece.length - q.length) > 2) continue;
+          const d = editDistance(piece, q, Math.min(best, 3));
+          if (d < best) best = d;
+          if (best === 0) return 0;
+        }
+      }
+      return best;
+    }
+
+    /* Полное расстояние Левенштейна с отсечением: если текущая строка
+       матрицы целиком больше limit, дальше считать незачем. */
+    function editDistance(a, b, limit = 3) {
+      if (Math.abs(a.length - b.length) > limit) return limit + 1;
+      let prev = new Array(b.length + 1);
+      let curr = new Array(b.length + 1);
+      for (let j = 0; j <= b.length; j++) prev[j] = j;
+      for (let i = 1; i <= a.length; i++) {
+        curr[0] = i;
+        let rowMin = curr[0];
+        for (let j = 1; j <= b.length; j++) {
+          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+          curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+          if (curr[j] < rowMin) rowMin = curr[j];
+        }
+        if (rowMin > limit) return limit + 1;
+        const swap = prev; prev = curr; curr = swap;
+      }
+      return prev[b.length];
+    }
+
+    /* Латинская раскладка, набранная вместо кириллической: «rjvyfyf» ->
+       «комнана». Нужна как ещё один вариант перед нечётким сравнением. */
+    function fakeLayoutLat(query) {
+      const map = { 'й': 'q', 'ц': 'w', 'у': 'e', 'к': 'r', 'е': 't', 'н': 'y', 'г': 'u', 'ш': 'i', 'щ': 'o', 'з': 'p',
+                    'ф': 'a', 'ы': 's', 'в': 'd', 'а': 'f', 'п': 'g', 'р': 'h', 'о': 'j', 'л': 'k', 'д': 'l',
+                    'я': 'z', 'ч': 'x', 'с': 'c', 'м': 'v', 'и': 'b', 'т': 'n', 'ь': 'm' };
+      let out = '';
+      for (const ch of String(query || '').toLowerCase()) out += map[ch] || (/[a-z]/.test(ch) ? ch : '');
+      return out;
+    }
+
+    function smartMatch(targetText, query) {
+      if (!query) return true;
+      return searchScore(targetText, query) > 0;
+    }
+
+    /* Как искать по элементу расписания: подпись + вес самого точного
+       совпадения среди полей. */
+    function lessonSearchScore(item, query) {
+      if (!query) return 0;
+      const parts = [];
+      if (item.subject) parts.push({ text: item.subject, weight: 1 });
+      if (item.teacher) parts.push({ text: item.teacher, weight: 1 });
+      if (item.room) parts.push({ text: item.room, weight: 0.85 });
+      if (item.group) parts.push({ text: item.group, weight: 0.9 });
+      if (item.type) parts.push({ text: item.type, weight: 0.7 });
+
+      let best = 0;
+      let label = '';
+      for (const p of parts) {
+        const score = searchScore(p.text, query) * p.weight;
+        if (score > best) { best = score; label = p.text; }
+      }
+      return best > 0 ? { score: best, label } : null;
     }
 
     const DAYS = ["ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА"];
@@ -2712,6 +2971,10 @@
           const res = await fetch(url, { cache: 'default' });
           if (!res || !res.ok) {
             lastError = new Error(`HTTP ${res ? res.status : 'unknown'} для ${url}`);
+            /* Техработы включают в любой момент: если воркер ответил 503
+               «расписание обновляется», показываем заглушку сразу, а не
+               ждём перезапуска приложения. */
+            if (res && res.status === 503) notifyMaintenanceFromResponse(res);
             continue;
           }
           const data = await res.json();
@@ -2723,6 +2986,17 @@
       }
 
       throw lastError || new Error('Network error');
+    }
+
+    /* Показывает заглушку, если сервер ответил «идут техработы».
+       Проверяем тело, а не только код: 503 может прийти и от сбоя сети. */
+    async function notifyMaintenanceFromResponse(res) {
+      try {
+        const data = await res.clone().json();
+        if (data && data.maintenance) {
+          showMaintenanceOverlay(data.error || data.message);
+        }
+      } catch (e) {}
     }
 
     /* ========== АЛГОРИТМ ОБЪЕДИНЕНИЯ СОВМЕСТНЫХ ПАР ========== */
@@ -3305,13 +3579,16 @@
       const bar = document.getElementById("daysBar");
       const weekNum = parseInt(document.getElementById("weekSelect").value, 10);
       const weekDates = getWeekDates(weekNum);
+      const hitsByDay = getSearchHitsByDay(weekNum);
 
       bar.innerHTML = DAYS.map((d, i) => {
         const isWeekend = (i === 5);
+        const hits = hitsByDay[d];
         return `
-          <div class="day-chip ${d === selectedDay ? 'active' : ''} ${isWeekend ? 'weekend' : ''}" onclick="selectDay('${d}')">
+          <div class="day-chip ${d === selectedDay ? 'active' : ''} ${isWeekend ? 'weekend' : ''} ${hits ? 'search-hit' : ''}" onclick="selectDay('${d}')">
             <span class="day-name">${SHORT_DAYS[i]}</span>
             <span class="day-num">${weekDates[d] || "—"}</span>
+            ${hits ? `<span class="day-hit-count">${hits.count}</span>` : ""}
           </div>
         `;
       }).join("");
@@ -3321,6 +3598,21 @@
       const chip = bar.children[activeIdx];
       if (chip && typeof chip.scrollIntoView === "function") {
         chip.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      }
+    }
+
+    /* Переход к первому дню недели, где есть совпадения: удобно после
+       ввода запроса, когда текущий день пустой. */
+    function jumpToFirstSearchHit() {
+      if (!activeSearchQuery) return;
+      const weekNum = parseInt(document.getElementById("weekSelect").value, 10);
+      const hitsByDay = getSearchHitsByDay(weekNum);
+      const order = DAYS.filter(d => hitsByDay[d]);
+      if (!order.length) return;
+      if (!hitsByDay[selectedDay]) {
+        selectedDay = order[0];
+        renderDaysBar();
+        render();
       }
     }
 
@@ -3659,32 +3951,81 @@
         Сервер всё равно берёт автора из проверенного initData;
         этот объект — запасной путь для просмотра на клиенте.
       */
-      const tgUser = (isInsideTelegram && tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
+      const tgUser = getTelegramUser();
+      /* Запись помечается как «tg_…» только когда initData подписана:
+         иначе сервер не сможет подтвердить личность и ответит 403. */
+      const hasSignedInit = Boolean(tg && tg.initData);
+
       if (tgUser && tgUser.id) {
         /* Админ в мини-аппе должен видеть, что может править чужое ДЗ:
            иначе интерфейс зря блокировал бы ему поле и кнопку. */
         const adminUser = typeof isAdminTgUser === 'function' && isAdminTgUser(tgUser);
+        const displayName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ');
+        const badge = tgUser.username
+          ? `@${tgUser.username}`
+          : (displayName || (currentRole === 'teacher' ? `Преподаватель ${currentTeacher}` : 'Студент'));
+
+        if (hasSignedInit) {
+          return {
+            id: `tg_${tgUser.id}`,
+            platform: 'tg',
+            badge: badge,
+            name: displayName || 'Студент',
+            is_admin: adminUser
+          };
+        }
+
+        /* Telegram-объект есть, а подписи нет (открыли ссылку вне мини-аппа).
+           Автора подписать настоящим именем можно, но id остаётся
+           локальным — иначе сервер откажет в записи. */
         return {
-          id: `tg_${tgUser.id}`,
+          id: getOrCreateGuestId(),
           platform: 'tg',
-          badge: tgUser.username ? `@${tgUser.username}` : (tgUser.first_name || 'Студент'),
-          name: [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || 'Студент',
+          badge: badge,
+          name: displayName || 'Студент',
           is_admin: adminUser
         };
       }
 
+      const defaultName = currentRole === "teacher" ? `Преподаватель ${currentTeacher}` : 'Студент';
+      return {
+        id: getOrCreateGuestId(),
+        platform: 'web',
+        badge: defaultName,
+        name: defaultName
+      };
+    }
+
+    /* Пользователь Telegram: сначала из initDataUnsafe, а если его там нет —
+       разбираем initData. В части клиентов initDataUnsafe пустой, хотя
+       подписанные данные пришли, и приложение считало человека «Студентом». */
+    function getTelegramUser() {
+      const app = getTgApp();
+      if (!app) return null;
+
+      const unsafeUser = app.initDataUnsafe && app.initDataUnsafe.user;
+      if (unsafeUser && unsafeUser.id) return unsafeUser;
+
+      try {
+        const raw = app.initData;
+        if (!raw) return null;
+        const params = new URLSearchParams(raw);
+        const json = params.get('user');
+        if (!json) return null;
+        const parsed = JSON.parse(json);
+        return (parsed && parsed.id) ? parsed : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function getOrCreateGuestId() {
       let guestId = localStorage.getItem('mgpu_guest_uid');
       if (!guestId) {
         guestId = 'web_' + Math.random().toString(36).substring(2, 10);
         localStorage.setItem('mgpu_guest_uid', guestId);
       }
-      const defaultName = currentRole === "teacher" ? `Преподаватель ${currentTeacher}` : 'Студент';
-      return {
-        id: guestId,
-        platform: 'web',
-        badge: defaultName,
-        name: defaultName
-      };
+      return guestId;
     }
 
     function getLessonHomework(targetGroup, lessonKey, jointGroups = []) {
@@ -3722,6 +4063,9 @@
       try {
         const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
         clearTimeout(timer);
+        /* Техработы могут включить, пока приложение уже открыто: тогда
+           любая заглушка вместо данных превращается в понятное окно. */
+        if (response && response.status === 503) notifyMaintenanceFromResponse(response);
         return response;
       } catch (err) {
         clearTimeout(timer);
@@ -4492,6 +4836,8 @@
     function handleScheduleSearch(query) {
       activeSearchQuery = (query || "").trim();
       document.getElementById("scheduleSearchClear").style.display = activeSearchQuery ? "block" : "none";
+      renderDaysBar();
+      jumpToFirstSearchHit();
       render();
     }
 
@@ -4502,6 +4848,23 @@
       input.focus();
     }
 
+    /* Пары по запросу во всей видимой неделе: нужно, чтобы полоса дней
+       показывала, где ещё есть совпадения, а не только текущий день. */
+    function getSearchHitsByDay(weekNum) {
+      const out = {};
+      if (!activeSearchQuery) return out;
+      const list = getActiveLessonsList();
+      list.forEach(item => {
+        if (item.week !== weekNum || !item.day) return;
+        const hit = lessonSearchScore(item, activeSearchQuery);
+        if (!hit) return;
+        out[item.day] = out[item.day] || { count: 0, best: 0 };
+        out[item.day].count += 1;
+        if (hit.score > out[item.day].best) out[item.day].best = hit.score;
+      });
+      return out;
+    }
+
     function render() {
       const weekNum = parseInt(document.getElementById("weekSelect").value, 10);
       const container = document.getElementById("scheduleList");
@@ -4509,19 +4872,26 @@
       const list = getActiveLessonsList();
       let lessons = list.filter(item => item.week === weekNum && item.day === selectedDay);
 
+      /* Поиск не прячет пары, а помечает их: раньше день, где совпадение
+         было только в одной паре, выглядел пустым, и человек думал, что
+         ничего не нашлось. */
+      const hits = new Map();
       if (activeSearchQuery) {
-        lessons = lessons.filter(item => {
-          return smartMatch(item.subject, activeSearchQuery) || 
-                 smartMatch(item.teacher, activeSearchQuery) || 
-                 smartMatch(item.room, activeSearchQuery) || 
-                 smartMatch(item.group, activeSearchQuery) || 
-                 smartMatch(item.type, activeSearchQuery);
+        lessons.forEach(item => {
+          const hit = lessonSearchScore(item, activeSearchQuery);
+          if (hit) hits.set(item, hit);
         });
+        lessons = lessons.filter(item => hits.has(item));
       }
 
       if (lessons.length === 0) {
         if (activeSearchQuery) {
-          container.innerHTML = `<div class="empty-state">Ничего не найдено по запросу «${escapeHtml(activeSearchQuery)}»</div>`;
+          const weekHits = getSearchHitsByDay(weekNum);
+          const otherDays = Object.keys(weekHits).filter(d => d !== selectedDay);
+          const hint = otherDays.length
+            ? `<div style="margin-top:10px; font-size:12px; color:var(--text-sub);">Есть совпадения в другие дни: ${otherDays.map(d => SHORT_DAYS[DAYS.indexOf(d)] || d).join(', ')}</div>`
+            : "";
+          container.innerHTML = `<div class="empty-state">По запросу «${escapeHtml(activeSearchQuery)}» в вашем расписании на этой неделе ничего нет${hint}</div>`;
         } else {
           container.innerHTML = `<div class="empty-state">🎉 В этот день пар нет</div>`;
         }
@@ -4533,6 +4903,7 @@
       const teacherStats = currentRole === 'teacher' ? getTeacherStatsMap() : null;
 
       container.innerHTML = lessons.map((item, idx) => {
+        const hit = hits.get(item) || null;
         let teacherStatsHtml = "";
 
         if (currentRole === 'teacher' && teacherStats) {
@@ -4598,7 +4969,8 @@
         }
 
         return `
-          <div class="lesson-card ${item.is_parallel ? 'parallel' : ''}">
+          <div class="lesson-card ${item.is_parallel ? 'parallel' : ''} ${hit ? 'search-hit-card' : ''}">
+            ${hit ? `<div class="search-hit-note">🔍 совпадение: ${escapeHtml(hit.label)}</div>` : ""}
             <div class="lesson-header">
               <span class="lesson-time">${escapeHtml(item.pair)} пара • ${escapeHtml(item.time)}</span>
               <div class="badges">
@@ -4607,19 +4979,61 @@
                 <span class="badge">${escapeHtml(item.type)}</span>
               </div>
             </div>
-            <div class="lesson-name">${escapeHtml(item.subject)}</div>
+            <div class="lesson-name">${hlHtml(item.subject, activeSearchQuery)}</div>
             ${item.joint_groups && item.joint_groups.length > 0 ? `<div class="lesson-joint-badge">👥 <b>Совместно с:</b> ${item.joint_groups.map(escapeHtml).join(', ')}</div>` : ''}
             <div class="lesson-info">
               ${currentRole === 'teacher' 
-                ? `<div class="lesson-target-group">👥 Группа: ${escapeHtml(item.group)}</div>` 
-                : (item.teacher ? `<div>${escapeHtml(item.teacher)}</div>` : "")}
-              ${item.room ? `<div class="lesson-room">${escapeHtml(item.room)}</div>` : ""}
+                ? `<div class="lesson-target-group">👥 Группа: ${hlHtml(item.group, activeSearchQuery)}</div>` 
+                : (item.teacher ? `<div>${hlHtml(item.teacher, activeSearchQuery)}</div>` : "")}
+              ${item.room ? `<div class="lesson-room">${hlHtml(item.room, activeSearchQuery)}</div>` : ""}
             </div>
             ${teacherStatsHtml}
             ${hwHtml}
           </div>
         `;
       }).join("");
+    }
+
+    /* Списки групп и преподавателей берутся из индекса. Если приложение
+       открылось из кэша расписания, там лежит только текущий профиль:
+       в allTeachers остаётся один преподаватель, в allGroups — одна
+       группа. Поиск в профиле на любую другую фамилию отвечал «Ничего
+       не найдено», и это выглядело как поломка поиска. */
+    let searchListsComplete = false;
+    let searchListsLoading = null;
+
+    async function ensureSearchListsLoaded(force) {
+      if (searchListsComplete && !force) return true;
+      if (searchListsLoading) return searchListsLoading;
+
+      searchListsLoading = (async () => {
+        try {
+          const index = await loadScheduleIndex();
+          const teachers = Object.keys(index.teachers || {}).sort((a, b) => a.localeCompare(b, 'ru'));
+          const groups = Object.keys(index.groups || {}).sort((a, b) => a.localeCompare(b, 'ru'));
+
+          /* Объединяем, а не заменяем: в памяти могли остаться группы,
+             догруженные из файлов расписания, и терять их нельзя. */
+          if (teachers.length) {
+            allTeachers = [...new Set([...allTeachers, ...teachers])]
+              .sort((a, b) => a.localeCompare(b, 'ru'));
+          }
+          if (groups.length) {
+            allGroups = [...new Set([...allGroups, ...groups])]
+              .sort((a, b) => a.localeCompare(b, 'ru'));
+            directionsList = buildDirectionsList();
+          }
+          searchListsComplete = allTeachers.length > 0 || allGroups.length > 0;
+          return searchListsComplete;
+        } catch (e) {
+          console.warn('Не удалось догрузить список групп и преподавателей:', e);
+          return allTeachers.length > 0 || allGroups.length > 0;
+        } finally {
+          searchListsLoading = null;
+        }
+      })();
+
+      return searchListsLoading;
     }
 
     function switchModalRole(role) {
@@ -4665,10 +5079,43 @@
 
       renderModalTeachers(allTeachers);
 
+      /* Если списки пришли не полностью (старт из кэша), догружаем их и
+         перерисовываем: иначе в выпадающем списке был только текущий
+         преподаватель, и поиск по фамилии отвечал «Ничего не найдено». */
+      ensureSearchListsLoaded().then((ok) => {
+        if (!ok) return;
+        refreshProfileModalLists();
+      });
+
       const modal = document.getElementById("profileModal");
       const sheet = document.getElementById("modalSheet");
       modal.style.display = "flex";
       sheet.style.transform = "translateY(0)";
+    }
+
+    /* Перестраивает селекты профиля после догрузки списков, сохраняя
+       текущий выбор пользователя. */
+    function refreshProfileModalLists() {
+      const dirSelect = document.getElementById("modalDirectionSelect");
+      if (!dirSelect) return;
+
+      const keepDir = dirSelect.value;
+      const keepTeacher = document.getElementById("modalTeacherSelect")?.value;
+
+      dirSelect.innerHTML = "";
+      directionsList.forEach((d, idx) => {
+        const opt = document.createElement("option");
+        opt.value = idx;
+        opt.textContent = d.title;
+        dirSelect.appendChild(opt);
+      });
+      if (keepDir !== null && directionsList[parseInt(keepDir, 10)]) dirSelect.value = keepDir;
+
+      renderModalTeachers(allTeachers);
+      if (keepTeacher) {
+        const sel = document.getElementById("modalTeacherSelect");
+        if (sel && Array.from(sel.options).some(o => o.value === keepTeacher)) sel.value = keepTeacher;
+      }
     }
 
     function closeProfileModal() {
@@ -4705,11 +5152,33 @@
       }
     }
 
-    function onModalTeacherSearch(query) {
+    /* Пока список не загружен, честнее написать об этом, чем «Ничего не
+       найдено»: пользователь иначе ищет ошибку в своей фамилии. */
+    function renderSuggestionsPending(box, label) {
+      if (!box) return;
+      box.innerHTML = `<div class="suggestion-empty">Загружаем ${label}…</div>`;
+      box.style.display = "block";
+    }
+
+    async function onModalTeacherSearch(query) {
       const q = (query || "").trim();
       const suggestionsBox = document.getElementById("teacherSearchSuggestions");
 
-      const filtered = q ? allTeachers.filter(t => smartMatch(t, q)) : allTeachers;
+      const ready = await ensureSearchListsLoaded();
+      if (!ready && q) {
+        renderSuggestionsPending(suggestionsBox, "список преподавателей");
+        return;
+      }
+
+      /* Сортируем по релевантности: «Хованова» должна стоять первой, а не
+         теряться среди случайных совпадений по подстроке. */
+      const filtered = q
+        ? allTeachers
+            .map(t => ({ name: t, score: searchScore(t, q) }))
+            .filter(x => x.score > 0)
+            .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'))
+            .map(x => x.name)
+        : allTeachers;
       renderModalTeachers(filtered);
 
       if (!q) {
@@ -4726,7 +5195,7 @@
             return `
               <div class="suggestion-item" onclick="selectTeacherSuggestionByIndex(${idx})">
                 <span>👨‍🏫</span>
-                <span>${escapeHtml(t)}</span>
+                <span>${hlHtml(t, q)}</span>
               </div>
             `;
           }).join("");
@@ -4755,7 +5224,10 @@
       }
     }
 
-    function onModalGroupSearch(query) {
+    /* Поиск группы по одному номеру («255») должен находить её так же,
+       как по названию: раньше список фильтровался только по тем группам,
+       что уже были в памяти, а при старте из кэша там была одна группа. */
+    async function onModalGroupSearch(query) {
       const q = (query || "").trim();
       const suggestionsBox = document.getElementById("groupSearchSuggestions");
       const dirGroup = document.getElementById("directionFormGroup");
@@ -4768,7 +5240,17 @@
         return;
       }
 
-      const filtered = allGroups.filter(g => smartMatch(g, q));
+      const ready = await ensureSearchListsLoaded();
+      if (!ready) {
+        renderSuggestionsPending(suggestionsBox, "список групп");
+        return;
+      }
+
+      const filtered = allGroups
+        .map(g => ({ name: g, score: searchScore(g, q) }))
+        .filter(x => x.score > 0)
+        .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'))
+        .map(x => x.name);
 
       if (suggestionsBox) {
         if (filtered.length === 0) {
@@ -4779,7 +5261,7 @@
             return `
               <div class="suggestion-item" onclick="selectGroupSuggestionByIndex(${idx})">
                 <span>🎓</span>
-                <span>${escapeHtml(formatGroupWithCourse(g))}</span>
+                <span>${hlHtml(formatGroupWithCourse(g), q)}</span>
               </div>
             `;
           }).join("");

@@ -41,3 +41,8 @@ Thumbs.db
 schedules/
 schedule.xls
 
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
