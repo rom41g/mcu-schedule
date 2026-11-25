@@ -878,6 +878,8 @@
     }
     .hw-feed-search:focus { border-color: var(--mgpu-red); }
     .hw-card-feed {
+      position: relative;
+      overflow: hidden;
       background: var(--card-bg);
       border: 1px solid var(--border);
       border-left: 4px solid var(--hw-border);
@@ -887,6 +889,34 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
+    }
+    .hw-card-feed::after {
+      content: "";
+      position: absolute;
+      left: -8%;
+      right: -8%;
+      bottom: -2px;
+      height: 26px;
+      background-image: var(--drift-3);
+      background-repeat: no-repeat;
+      background-size: 100% 100%;
+      pointer-events: none;
+    }
+    .hw-card-feed:nth-child(3n+2)::after {
+      left: -12%;
+      right: -5%;
+      height: 32px;
+      background-image: var(--drift-5);
+    }
+    .hw-card-feed:nth-child(3n+3)::after {
+      height: 22px;
+      background-image: var(--drift-4);
+    }
+    .hw-card-feed:nth-child(4n+4)::after {
+      left: -6%;
+      right: -11%;
+      height: 28px;
+      background-image: var(--drift-6);
     }
     .hw-card-feed.is-admin-hw { border-left-color: var(--mgpu-red); }
     .hw-card-feed.is-completed { opacity: 0.55; }
@@ -937,6 +967,8 @@
 
     .profile-view-wrap { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
     .profile-hero-card {
+      position: relative;
+      overflow: hidden;
       background: var(--card-bg);
       border-radius: 16px;
       padding: 18px 16px;
@@ -945,6 +977,18 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+    }
+    .profile-hero-card::after {
+      content: "";
+      position: absolute;
+      left: -7%;
+      right: -7%;
+      bottom: -3px;
+      height: 34px;
+      background-image: var(--drift-2);
+      background-repeat: no-repeat;
+      background-size: 100% 100%;
+      pointer-events: none;
     }
     .profile-hero-top { display: flex; justify-content: space-between; align-items: center; }
     .profile-user-role { font-size: 11px; font-weight: 800; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -1231,19 +1275,19 @@
     /* ============================================================
        НОВОГОДНЕЕ ОФОРМЛЕНИЕ
        Снег рисуется на canvas поверх контента, но ниже меню и модалок,
-       и не перехватывает нажатия. Сугробы — псевдоэлементы на плашках.
+       и не перехватывает нажатия.
     ============================================================ */
-    :root {
-      --snow-top: #FFFFFF;
-      --snow-bottom: #DCE8F7;
-      --snow-edge: rgba(150, 180, 220, 0.45);
-      --snow-shadow: rgba(150, 180, 220, 0.35);
+    .snow-layer {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 800;
     }
-    [data-theme="dark"] {
-      --snow-top: rgba(255, 255, 255, 0.26);
-      --snow-bottom: rgba(190, 215, 255, 0.10);
-      --snow-edge: rgba(150, 190, 255, 0.28);
-      --snow-shadow: rgba(120, 160, 220, 0.20);
+
+    @media (prefers-reduced-motion: reduce) {
+      .snow-layer { display: none; }
     }
 
     .snow-layer {
@@ -1255,7 +1299,8 @@
       z-index: 800;
     }
 
-    /* Сугроб на плашке пары: снежная шапка у нижнего края. */
+    /* Сугробы на плашках пар: форма зависит от позиции карточки,
+       поэтому на одном экране они не повторяются. Край наезжает на текст. */
     .lesson-card {
       position: relative;
       overflow: hidden;
@@ -1263,50 +1308,53 @@
     .lesson-card::after {
       content: "";
       position: absolute;
-      left: -10%;
-      right: -10%;
-      bottom: -8px;
-      height: 16px;
-      background: linear-gradient(180deg, var(--snow-top) 0%, var(--snow-bottom) 100%);
-      border-radius: 50% 50% 0 0 / 100% 100% 0 0;
-      box-shadow: 0 -1px 0 var(--snow-edge);
+      left: -9%;
+      right: -9%;
+      bottom: -3px;
+      height: 44px;
+      background-image: var(--drift-1);
+      background-repeat: no-repeat;
+      background-size: 100% 100%;
       pointer-events: none;
     }
-    .lesson-card.parallel::after { opacity: 0.75; }
+    .lesson-card:nth-child(3n+2)::after {
+      height: 52px;
+      background-image: var(--drift-2);
+    }
+    .lesson-card:nth-child(3n+3)::after {
+      left: -12%;
+      right: -6%;
+      height: 36px;
+      background-image: var(--drift-3);
+    }
+    /* Изредка — наметённая ветром шапка или двойной бугор, чтобы
+       длинный список пар не выглядел однообразно. */
+    .lesson-card:nth-child(5n+4)::after {
+      left: -14%;
+      right: -4%;
+      height: 48px;
+      background-image: var(--drift-5);
+    }
+    .lesson-card:nth-child(7n+6)::after {
+      height: 50px;
+      background-image: var(--drift-6);
+    }
 
-    /* Сугроб на нижнем меню: шапка вдоль верхней кромки. */
+    /* Сугроб на нижнем меню: широкая наметённая полоса поверх кромки. */
     .bottom-tab-bar {
       overflow: visible;
     }
     .bottom-tab-bar::before {
       content: "";
       position: absolute;
-      left: -6%;
-      right: -6%;
-      top: -15px;
-      height: 16px;
-      background: linear-gradient(180deg, var(--snow-top) 0%, var(--snow-bottom) 100%);
-      border-radius: 50% 50% 0 0 / 100% 100% 0 0;
-      box-shadow: 0 -1px 0 var(--snow-edge);
-      pointer-events: none;
-    }
-
-    /* Снежная кромка под шапкой. */
-    .header {
-      overflow: visible;
-    }
-    .header::after {
-      content: "";
-      position: absolute;
       left: -4%;
       right: -4%;
-      bottom: -10px;
-      height: 11px;
-      background: linear-gradient(180deg, var(--snow-top) 0%, var(--snow-bottom) 100%);
-      border-radius: 0 0 50% 50% / 0 0 100% 100%;
-      box-shadow: 0 1px 0 var(--snow-edge);
+      top: -36px;
+      height: 42px;
+      background-image: var(--drift-2);
+      background-repeat: no-repeat;
+      background-size: 100% 100%;
       pointer-events: none;
-      z-index: 1;
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -5577,13 +5625,64 @@
         return {
           x: Math.random() * width,
           y: randomY ? Math.random() * height : -10 - Math.random() * height * 0.3,
-          r: 0.7 + depth * 2.1,               // радиус: дальние мельче
+          r: 3 + depth * 5,                    // радиус снежинки
           speed: 12 + depth * 34,             // px в секунду
           drift: (Math.random() - 0.5) * 18,  // боковое покачивание
           phase: Math.random() * Math.PI * 2,
           phaseSpeed: 0.6 + Math.random() * 1.2,
-          alpha: 0.35 + depth * 0.5
+          spin: Math.random() * Math.PI,      // начальный поворот
+          spinSpeed: (Math.random() - 0.5) * 0.9,
+          alpha: 0.5 + depth * 0.45
         };
+      }
+
+      /* Снежинка с шестью лучами и короткими ответвлениями —
+         силуэт как у ❄️, но рисуется без эмодзи-шрифта. */
+      function drawFlake(f) {
+        const arm = f.r;
+        const branch = arm * 0.42;
+
+        /* Один и тот же контур рисуем дважды: сначала жирным чёрным,
+           сверху — белым потоньше. Так снежинка читается и на белой
+           карточке, и на тёмном фоне. */
+        const trace = () => {
+          for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i;
+            const dx = Math.cos(angle);
+            const dy = Math.sin(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(dx * arm, dy * arm);
+            ctx.stroke();
+
+            // Ответвления ближе к концу луча.
+            const bx = dx * arm * 0.62;
+            const by = dy * arm * 0.62;
+            for (const side of [-1, 1]) {
+              const a2 = angle + side * 0.7;
+              ctx.beginPath();
+              ctx.moveTo(bx, by);
+              ctx.lineTo(bx + Math.cos(a2) * branch, by + Math.sin(a2) * branch);
+              ctx.stroke();
+            }
+          }
+        };
+
+        ctx.save();
+        ctx.translate(f.x, f.y);
+        ctx.rotate(f.spin);
+        ctx.lineCap = 'round';
+
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.92)';
+        ctx.lineWidth = Math.max(1.6, f.r * 0.34);
+        trace();
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
+        ctx.lineWidth = Math.max(1.4, f.r * 0.42);
+        trace();
+
+        ctx.restore();
       }
 
       function resize() {
@@ -5606,17 +5705,12 @@
         lastTime = time;
 
         ctx.clearRect(0, 0, width, height);
-        const dark = isDark();
-        /* В светлой теме белые снежинки исчезают на белых карточках,
-           поэтому берём холодный голубоватый оттенок. */
-        const flakeColor = dark ? '255, 255, 255' : '150, 185, 225';
-        const flakeAlpha = dark ? 0.75 : 0.55;
-        const shadow = dark ? 'rgba(120, 170, 255, 0.5)' : 'rgba(150, 185, 225, 0.35)';
 
         for (const f of flakes) {
           f.phase += f.phaseSpeed * delta;
           f.y += f.speed * delta;
           f.x += Math.sin(f.phase) * f.drift * delta;
+          f.spin += f.spinSpeed * delta;
 
           if (f.y - f.r > height) {
             Object.assign(f, makeFlake(false));
@@ -5625,12 +5719,7 @@
           if (f.x < -10) f.x = width + 10;
           if (f.x > width + 10) f.x = -10;
 
-          ctx.beginPath();
-          ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${flakeColor}, ${f.alpha * flakeAlpha})`;
-          ctx.shadowColor = shadow;
-          ctx.shadowBlur = 3;
-          ctx.fill();
+          drawFlake(f);
         }
         ctx.shadowBlur = 0;
 
