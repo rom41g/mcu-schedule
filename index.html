@@ -1228,6 +1228,91 @@
       from { transform: translateY(50px); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
     }
+    /* ============================================================
+       НОВОГОДНЕЕ ОФОРМЛЕНИЕ
+       Снег рисуется на canvas поверх контента, но ниже меню и модалок,
+       и не перехватывает нажатия. Сугробы — псевдоэлементы на плашках.
+    ============================================================ */
+    :root {
+      --snow-top: #FFFFFF;
+      --snow-bottom: #DCE8F7;
+      --snow-edge: rgba(150, 180, 220, 0.45);
+      --snow-shadow: rgba(150, 180, 220, 0.35);
+    }
+    [data-theme="dark"] {
+      --snow-top: rgba(255, 255, 255, 0.26);
+      --snow-bottom: rgba(190, 215, 255, 0.10);
+      --snow-edge: rgba(150, 190, 255, 0.28);
+      --snow-shadow: rgba(120, 160, 220, 0.20);
+    }
+
+    .snow-layer {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 800;
+    }
+
+    /* Сугроб на плашке пары: снежная шапка у нижнего края. */
+    .lesson-card {
+      position: relative;
+      overflow: hidden;
+    }
+    .lesson-card::after {
+      content: "";
+      position: absolute;
+      left: -10%;
+      right: -10%;
+      bottom: -8px;
+      height: 16px;
+      background: linear-gradient(180deg, var(--snow-top) 0%, var(--snow-bottom) 100%);
+      border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+      box-shadow: 0 -1px 0 var(--snow-edge);
+      pointer-events: none;
+    }
+    .lesson-card.parallel::after { opacity: 0.75; }
+
+    /* Сугроб на нижнем меню: шапка вдоль верхней кромки. */
+    .bottom-tab-bar {
+      overflow: visible;
+    }
+    .bottom-tab-bar::before {
+      content: "";
+      position: absolute;
+      left: -6%;
+      right: -6%;
+      top: -15px;
+      height: 16px;
+      background: linear-gradient(180deg, var(--snow-top) 0%, var(--snow-bottom) 100%);
+      border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+      box-shadow: 0 -1px 0 var(--snow-edge);
+      pointer-events: none;
+    }
+
+    /* Снежная кромка под шапкой. */
+    .header {
+      overflow: visible;
+    }
+    .header::after {
+      content: "";
+      position: absolute;
+      left: -4%;
+      right: -4%;
+      bottom: -10px;
+      height: 11px;
+      background: linear-gradient(180deg, var(--snow-top) 0%, var(--snow-bottom) 100%);
+      border-radius: 0 0 50% 50% / 0 0 100% 100%;
+      box-shadow: 0 1px 0 var(--snow-edge);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .snow-layer { display: none; }
+    }
+
     .ios-banner-body { display: flex; align-items: center; gap: 10px; }
     .ios-banner-icon { font-size: 24px; flex-shrink: 0; }
     .ios-banner-text { font-size: 13px; line-height: 1.35; color: var(--mgpu-dark); flex: 1; }
@@ -1256,6 +1341,9 @@
   </style>
 </head>
 <body>
+
+  <!-- Падающий снег. Рисуется на canvas: не мешает нажатиям и не грузит вёрстку. -->
+  <canvas class="snow-layer" id="snowCanvas" aria-hidden="true"></canvas>
 
   <!-- ШАПКА -->
   <div class="header">
@@ -5450,7 +5538,136 @@
       touchCurrentY = 0;
     });
 
+    /* ============================================================
+       ПАДАЮЩИЙ СНЕГ
+       Лёгкий canvas поверх интерфейса: снежинки не перехватывают
+       нажатия, анимация останавливается, когда вкладка скрыта,
+       и полностью отключается при системной настройке «меньше движения».
+    ============================================================ */
+    function startSnow() {
+      const canvas = document.getElementById('snowCanvas');
+      if (!canvas || !canvas.getContext) return;
+
+      const reduceMotion = window.matchMedia
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduceMotion) {
+        canvas.style.display = 'none';
+        return;
+      }
+
+      const ctx = canvas.getContext('2d');
+      let width = 0, height = 0, dpr = 1;
+      let flakes = [];
+      let rafId = null;
+      let lastTime = 0;
+
+      function isDark() {
+        return document.documentElement.getAttribute('data-theme') === 'dark';
+      }
+
+      /* Количество снежинок зависит от площади экрана, но ограничено,
+         чтобы на слабых телефонах не просаживать прокрутку. */
+      function flakeCount() {
+        const byArea = Math.round((width * height) / 14000);
+        return Math.max(24, Math.min(70, byArea));
+      }
+
+      function makeFlake(randomY) {
+        const depth = Math.random();          // 0 — далеко, 1 — близко
+        return {
+          x: Math.random() * width,
+          y: randomY ? Math.random() * height : -10 - Math.random() * height * 0.3,
+          r: 0.7 + depth * 2.1,               // радиус: дальние мельче
+          speed: 12 + depth * 34,             // px в секунду
+          drift: (Math.random() - 0.5) * 18,  // боковое покачивание
+          phase: Math.random() * Math.PI * 2,
+          phaseSpeed: 0.6 + Math.random() * 1.2,
+          alpha: 0.35 + depth * 0.5
+        };
+      }
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        const target = flakeCount();
+        if (flakes.length > target) flakes.length = target;
+        while (flakes.length < target) flakes.push(makeFlake(true));
+      }
+
+      function draw(time) {
+        const delta = lastTime ? Math.min((time - lastTime) / 1000, 0.05) : 0.016;
+        lastTime = time;
+
+        ctx.clearRect(0, 0, width, height);
+        const dark = isDark();
+        /* В светлой теме белые снежинки исчезают на белых карточках,
+           поэтому берём холодный голубоватый оттенок. */
+        const flakeColor = dark ? '255, 255, 255' : '150, 185, 225';
+        const flakeAlpha = dark ? 0.75 : 0.55;
+        const shadow = dark ? 'rgba(120, 170, 255, 0.5)' : 'rgba(150, 185, 225, 0.35)';
+
+        for (const f of flakes) {
+          f.phase += f.phaseSpeed * delta;
+          f.y += f.speed * delta;
+          f.x += Math.sin(f.phase) * f.drift * delta;
+
+          if (f.y - f.r > height) {
+            Object.assign(f, makeFlake(false));
+            f.y = -f.r - Math.random() * 40;
+          }
+          if (f.x < -10) f.x = width + 10;
+          if (f.x > width + 10) f.x = -10;
+
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${flakeColor}, ${f.alpha * flakeAlpha})`;
+          ctx.shadowColor = shadow;
+          ctx.shadowBlur = 3;
+          ctx.fill();
+        }
+        ctx.shadowBlur = 0;
+
+        rafId = window.requestAnimationFrame(draw);
+      }
+
+      function play() {
+        if (rafId === null) {
+          lastTime = 0;
+          rafId = window.requestAnimationFrame(draw);
+        }
+      }
+
+      function pause() {
+        if (rafId !== null) {
+          window.cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+      }
+
+      resize();
+      play();
+
+      let resizeTimer = null;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(resize, 150);
+      });
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) pause();
+        else play();
+      });
+    }
+
     init();
+    startSnow();
   </script>
 </body>
 </html>
