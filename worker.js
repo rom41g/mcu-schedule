@@ -9,7 +9,7 @@
   поменять переменную окружения PUBLIC_APP_URL на новое значение —
   пересобирать и передеплоивать код не нужно.
 */
-const DEFAULT_WEB_APP_URL = "https://mcu-schedule.ru/";
+const DEFAULT_WEB_APP_URL = "https://rom41g.github.io/mcu-schedule/";
 const VK_APP_ID = 54861422;
 const VK_CONFIRMATION_CODE = "543f7ccf";
 
@@ -2290,16 +2290,9 @@ export default {
     const ADMIN_TG_USERNAME = normalizeTgUsername(env.ADMIN_TG_USERNAME || "kommunalkamus");
     // Адрес мини-аппа для кнопки в Telegram и ссылок VK.
     const WEB_APP_URL = env.PUBLIC_APP_URL || DEFAULT_WEB_APP_URL;
-    /* Откуда воркер берёт полную базу для /api/schedule и календаря.
-       Сначала новый домен, затем старый и запасной — чтобы зеркало не
-       замолчало из-за проблем с одним хостом. */
-    const SCHEDULE_MIRROR_URLS = (env.SCHEDULE_MIRROR_URLS
-      ? String(env.SCHEDULE_MIRROR_URLS).split(",").map(s => s.trim()).filter(Boolean)
-      : null) || [
-      env.SCHEDULE_MIRROR_URL || "https://mcu-schedule.ru/schedule.json",
-      "https://mcu-schedule.online/schedule.json",
-      "https://rom41g.github.io/mcu-schedule/schedule.json"
-    ];
+    /* Откуда воркер берёт полную базу для /api/schedule. По умолчанию —
+       GitHub Pages; если они недоступны, можно переключить на другой хост. */
+    const SCHEDULE_MIRROR_URL = env.SCHEDULE_MIRROR_URL || "";
 
     /* ============================================================
        РЕЖИМ ТЕХНИЧЕСКИХ РАБОТ
@@ -2364,22 +2357,13 @@ export default {
     ============================================================ */
     if (url.pathname === "/api/schedule") {
       try {
-        let scheduleRes = null;
-        let lastStatus = 0;
-        for (const upstream of SCHEDULE_MIRROR_URLS) {
-          try {
-            const res = await fetch(upstream, {
-              cf: { cacheTtl: 3600, cacheEverything: true }
-            });
-            if (res && res.ok) { scheduleRes = res; break; }
-            lastStatus = res ? res.status : 0;
-          } catch (e) {
-            lastStatus = 0;
-          }
-        }
-        if (!scheduleRes) {
+        const upstream = SCHEDULE_MIRROR_URL || "https://rom41g.github.io/mcu-schedule/schedule.json";
+        const scheduleRes = await fetch(upstream, {
+          cf: { cacheTtl: 3600, cacheEverything: true }
+        });
+        if (!scheduleRes.ok) {
           return new Response(
-            JSON.stringify({ error: "upstream_unavailable", status: lastStatus }),
+            JSON.stringify({ error: "upstream_unavailable", status: scheduleRes.status }),
             { status: 502, headers: corsHeaders }
           );
         }
@@ -2410,16 +2394,10 @@ export default {
       }
 
       try {
-        let scheduleRes = null;
-        for (const upstream of SCHEDULE_MIRROR_URLS) {
-          try {
-            const res = await fetch(upstream, {
-              cf: { cacheTtl: 3600, cacheEverything: true }
-            });
-            if (res && res.ok) { scheduleRes = res; break; }
-          } catch (e) {}
-        }
-        if (!scheduleRes) {
+        const scheduleRes = await fetch("https://rom41g.github.io/mcu-schedule/schedule.json", {
+          cf: { cacheTtl: 3600, cacheEverything: true }
+        });
+        if (!scheduleRes.ok) {
           return new Response("Ошибка получения расписания", { status: 502, headers: corsHeaders });
         }
         const db = await scheduleRes.json();
