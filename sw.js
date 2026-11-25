@@ -3,7 +3,7 @@
   Copyright (c) 2026 Окороков Роман Александрович. Все права защищены.
 */
 
-const CACHE_NAME = 'mgpu-schedule-v10';
+const CACHE_NAME = 'mgpu-schedule-v11';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -19,7 +19,7 @@ const ASSETS_TO_CACHE = [
    а конкретная группа подтягивается по требованию и кэшируется при запросе. */
 const SCHEDULE_URLS = [
   'schedule.json',
-  'https://rom41g.github.io/mcu-schedule/schedule.json'
+  'https://www.mcu-schedule.ru/schedule.json'
 ];
 
 self.addEventListener('install', (event) => {
