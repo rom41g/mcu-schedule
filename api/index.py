@@ -4,7 +4,7 @@ import os
 import urllib.request
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-WEB_APP_URL = os.getenv("WEB_APP_URL", "https://rom41g.github.io/mcu-schedule/")
+WEB_APP_URL = os.getenv("WEB_APP_URL", "https://mcu-schedule.ru/")
 
 
 class handler(BaseHTTPRequestHandler):

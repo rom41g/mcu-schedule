@@ -11,8 +11,8 @@
 
   <link rel="preconnect" href="https://steep-forest-40b2.okroma007.workers.dev" crossorigin>
   <!-- База расписания (25 МБ) грузится с GitHub Pages. Ускоряем соединение и не блокируем парсинг страницы -->
-  <link rel="preconnect" href="https://rom41g.github.io" crossorigin>
-  <link rel="dns-prefetch" href="https://rom41g.github.io">
+  <link rel="preconnect" href="https://mcu-schedule.ru" crossorigin>
+  <link rel="dns-prefetch" href="https://mcu-schedule.ru">
 
   <!--
     Внешние скрипты подключаем без блокировки загрузки страницы.
@@ -2039,7 +2039,7 @@
         });
         return;
       }
-      const targetUrl = "https://rom41g.github.io/mcu-schedule/";
+      const targetUrl = "https://mcu-schedule.ru/";
       if (tg && typeof tg.openLink === 'function') {
         tg.openLink(targetUrl);
         return;
@@ -2869,11 +2869,13 @@
       структура не опубликована, приложение продолжает работать по-старому.
     */
     const BASE_DIRS = [
-      '',  // рядом с index.html — основной вариант (GitHub Pages)
+      '',  // рядом с index.html — основной вариант (свой домен, GitHub Pages)
+      'https://mcu-schedule.ru/',
+      'https://mcu-schedule.online/',
       'https://rom41g.github.io/mcu-schedule/'
     ];
 
-    const SCHEDULE_URL = "https://rom41g.github.io/mcu-schedule/schedule.json";
+    const SCHEDULE_URL = "https://mcu-schedule.ru/schedule.json";
 
     /* Резервный путь: полная база одним файлом. Используется, только если
        разбитая структура недоступна — например, её ещё не успели опубликовать. */
@@ -2932,7 +2934,7 @@
 
       const paths = [
         scheduleIndexBase + (kind === 'teacher' ? 'teachers/' : 'groups/') + fileName,
-        joinUrl(BASE_DIRS[1], `data/${kind === 'teacher' ? 'teachers' : 'groups'}/${fileName}`)
+        ...BASE_DIRS.slice(1).map(b => joinUrl(b, `data/${kind === 'teacher' ? 'teachers' : 'groups'}/${fileName}`))
       ];
       const { data } = await fetchJsonWithFallback(paths);
       return data;
