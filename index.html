@@ -1617,12 +1617,28 @@
     <div class="ios-banner-body">
       <div class="ios-banner-icon">📲</div>
       <div class="ios-banner-text">
-        Установите расписание: нажмите <b>«Поделиться» ⎋</b> внизу и выберите <b>«На экран „Домой“»</b>
+        Открывайте расписание с иконки на экране «Домой».
+        <button type="button" onclick="triggerSmartInstall()">Как добавить?</button>
       </div>
       <button type="button" class="ios-banner-close" onclick="dismissIosBanner()">&times;</button>
     </div>
-    <div class="ios-banner-arrow">▼</div>
   </div>
+  <dialog id="iosInstallGuide" aria-labelledby="iosGuideTitle" style="max-width:min(34rem,90vw);max-height:80vh;overflow:auto;padding:20px;border:1px solid var(--border);border-radius:16px;background:var(--card-bg);color:var(--mgpu-dark)">
+    <h3 id="iosGuideTitle">Добавить на экран «Домой»</h3>
+    <p id="iosExternalHint" hidden>Сначала откройте www.mcu-schedule.ru в Safari, а не во встроенном браузере приложения.</p>
+    <details id="ios26Steps"><summary>iOS / iPadOS 26 и новее</summary>
+      <ol><li>В Safari нажмите «Поделиться» (квадрат со стрелкой вверх). Если кнопки нет на панели, нажмите «…» → «Поделиться».</li>
+      <li>Прокрутите список действий и выберите «На экран „Домой“».</li>
+      <li>Оставьте включённым «Открывать как веб-приложение» и нажмите «Добавить».</li></ol>
+    </details>
+    <details id="ios18Steps"><summary>iOS / iPadOS 18</summary>
+      <ol><li>Нажмите в Safari «Поделиться» (квадрат со стрелкой вверх). На iPad ищите его на верхней панели.</li>
+      <li>Прокрутите меню вниз и выберите «На экран „Домой“».</li>
+      <li>Проверьте название и нажмите «Добавить».</li></ol>
+    </details>
+    <p>Не видите нужный пункт? Внизу меню «Поделиться» откройте «Редактировать действия» и добавьте его.</p>
+    <form method="dialog"><button class="modal-btn">Понятно</button></form>
+  </dialog>
 
   <!-- ШТОРКА ТЕХНИЧЕСКИХ НЕПОЛАДОК (WATCHDOG) -->
   <div class="modal-overlay" id="techErrorModal" style="z-index: 2500;">
@@ -2061,7 +2077,8 @@
     // параметры могут приходить в формате vk_app_id=.../vk_platform=...)
     const vkParams = new URLSearchParams(window.location.search);
     const isInsideVK = vkParams.has('vk_user_id') || vkParams.has('vk_app_id') || /(?:^|[?&])vk_\d*=/.test(window.location.search);
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
     if (isInsideVK) {
@@ -2178,6 +2195,17 @@
     });
 
     function triggerSmartInstall() {
+      if (isIOS) {
+        if (isStandalone) return;
+        const ua = navigator.userAgent;
+        // Safari 26 может указывать старую версию ОС в UA.
+        const version = Number((ua.match(/Version\/(\d+)/) || ua.match(/OS (\d+)_/) || [])[1]);
+        document.getElementById('ios26Steps').open = version >= 26 || !version;
+        document.getElementById('ios18Steps').open = version > 0 && version < 26;
+        document.getElementById('iosExternalHint').hidden = !(isInsideTelegram || isInsideVK || !/Version\/[\d.]+.*Safari\//.test(ua));
+        document.getElementById('iosInstallGuide').showModal();
+        return;
+      }
       if (deferredInstallPrompt) {
         deferredInstallPrompt.prompt();
         deferredInstallPrompt.userChoice.then(() => {
@@ -2197,6 +2225,14 @@
         return;
       }
       showAppAlert("Чтобы установить расписание на экран: откройте меню браузера (три точки) и выберите «Добавить на главный экран».");
+    }
+
+    if (isIOS) {
+      const row = document.getElementById('profileInstallShortcut');
+      const btn = document.getElementById('installHomeBtn');
+      row.querySelector('.settings-row-left span:last-child').textContent = 'Добавить на экран «Домой»';
+      btn.textContent = '📲 Добавить на экран «Домой»';
+      if (isStandalone) row.style.display = btn.style.display = 'none';
     }
 
     function checkIosBanner() {
