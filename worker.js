@@ -501,6 +501,14 @@ async function saveSubscriber(env, chatId, from, source) {
       confirmed: (existing && existing.confirmed === true) || source === "message",
       source: (existing && existing.source) || source || "message"
     };
+    // Не тратим запись KV на каждый повторный запуск мини-аппа.
+    // Новый подписчик, подтверждение через бота и изменения имени — сразу.
+    const lastSeen = Date.parse(existing?.last_seen);
+    if (existing && record.confirmed === existing.confirmed &&
+        record.username === existing.username &&
+        record.first_name === existing.first_name &&
+        record.last_name === existing.last_name &&
+        Date.now() - lastSeen < 24 * 60 * 60 * 1000) return;
     await env.STATS_KV.put(`subs:${id}`, JSON.stringify(record));
   } catch (e) {}
 }
