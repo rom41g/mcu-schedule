@@ -1563,6 +1563,10 @@
           <span class="settings-row-arrow" id="profileThemeState">☀️</span>
         </div>
 
+        <a id="androidDownload" href="https://t.me/mgpu_schedulebot_channel/49" class="settings-row" style="display:none;text-decoration:none;color:inherit">
+          <span class="settings-row-left"><span aria-hidden="true">⬇️</span> Скачать для Android (.apk)</span>
+          <span class="settings-row-arrow">Telegram ↗</span>
+        </a>
         <div id="profileInstallShortcut" class="settings-row" onclick="triggerSmartInstall()">
           <div class="settings-row-left">
             <span class="settings-row-icon">📲</span>
@@ -5762,6 +5766,9 @@
     }
 
     init();
+    if (/Android/i.test(navigator.userAgent)) {
+      document.getElementById('androidDownload').style.display = 'flex';
+    }
     startSnow();
   </script>
 </body>
