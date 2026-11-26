@@ -5,6 +5,12 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+  <script>
+    if (/\bAndroid\b/i.test(navigator.userAgent) && /;\s*wv\)/i.test(navigator.userAgent)) {
+      document.documentElement.classList.add('android-webview');
+    }
+  </script>
+  <style>.android-webview #profileInstallShortcut { display: none; }</style>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>МГПУ • Расписание ИИЯ</title>
@@ -1557,7 +1563,7 @@
           <span class="settings-row-arrow" id="profileThemeState">☀️</span>
         </div>
 
-        <div class="settings-row" onclick="triggerSmartInstall()">
+        <div id="profileInstallShortcut" class="settings-row" onclick="triggerSmartInstall()">
           <div class="settings-row-left">
             <span class="settings-row-icon">📲</span>
             <span>Установить на рабочий стол</span>
